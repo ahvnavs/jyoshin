@@ -1,0 +1,15 @@
+id: "SEC-PROC-TMP-EXEC"
+name: "Process executing binary out of /tmp directory"
+description: "Evaluates whether process matches target criteria."
+category: "security"
+severity: "critical"
+match:
+  node_type: "process"
+  properties:
+      exe:
+        contains: "/tmp"
+consequence: "Attackers frequently stage payloads in world-writable /tmp."
+recommendation:
+  action: "Mount /tmp with noexec option or investigate process lineage."
+  risk_level: "low"
+  reversible: true

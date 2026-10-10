@@ -1,0 +1,64 @@
+# Cloud Provider Pricing Estimates Table
+# Version: 2026.1
+# Note: Always labeled "estimate, date of table: 2026-01-01". Never fetched from network.
+date: "2026-01-01"
+
+providers:
+  aws:
+    t3.nano:
+      hourly_usd: 0.0052
+      monthly_usd: 3.75
+    t3.micro:
+      hourly_usd: 0.0104
+      monthly_usd: 7.50
+    t3.small:
+      hourly_usd: 0.0208
+      monthly_usd: 15.00
+    t3.medium:
+      hourly_usd: 0.0416
+      monthly_usd: 30.00
+    t3.large:
+      hourly_usd: 0.0832
+      monthly_usd: 60.00
+    t3.xlarge:
+      hourly_usd: 0.1664
+      monthly_usd: 120.00
+    m5.large:
+      hourly_usd: 0.096
+      monthly_usd: 69.12
+    m5.xlarge:
+      hourly_usd: 0.192
+      monthly_usd: 138.24
+    c5.large:
+      hourly_usd: 0.085
+      monthly_usd: 61.20
+  gcp:
+    e2-micro:
+      hourly_usd: 0.0084
+      monthly_usd: 6.11
+    e2-small:
+      hourly_usd: 0.0168
+      monthly_usd: 12.23
+    e2-medium:
+      hourly_usd: 0.0336
+      monthly_usd: 24.46
+    e2-standard-2:
+      hourly_usd: 0.067
+      monthly_usd: 48.92
+    n2-standard-2:
+      hourly_usd: 0.097
+      monthly_usd: 70.81
+  azure:
+    Standard_B1s:
+      hourly_usd: 0.0104
+      monthly_usd: 7.59
+    Standard_B2s:
+      hourly_usd: 0.0416
+      monthly_usd: 30.37
+    Standard_D2s_v5:
+      hourly_usd: 0.096
+      monthly_usd: 70.08
+  generic:
+    default_per_core_hour: 0.03
+    default_per_gb_hour: 0.004
+

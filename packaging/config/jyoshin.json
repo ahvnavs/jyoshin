@@ -1,0 +1,16 @@
+{
+  "host": "127.0.0.1",
+  "port": 7777,
+  "allow_remote": false,
+  "data_dir": "/var/lib/jyoshin",
+  "rules_dir": "/etc/jyoshin/rules.d",
+  "log_level": "info",
+  "log_format": "text",
+  "scan_interval": 60000000000,
+  "otel": {
+    "enabled": false,
+    "endpoint": "localhost:4317",
+    "protocol": "grpc"
+  }
+}
+

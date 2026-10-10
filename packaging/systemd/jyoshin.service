@@ -1,0 +1,51 @@
+[Unit]
+Description=Jyōshin (Server Truth Engine for Linux)
+Documentation=https://github.com/OWNER/jyoshin
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=jyoshin
+Group=jyoshin
+ExecStart=/usr/local/bin/jyoshin serve --config /etc/jyoshin/jyoshin.json
+Restart=always
+RestartSec=5s
+
+# Hard resource limits: Never harm the host
+MemoryMax=128M
+CPUQuota=10%
+TasksMax=64
+IOWeight=20
+Nice=10
+
+# Hardened sandboxing
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_ADMIN
+AmbientCapabilities=
+
+# Persistent State and Runtime directory
+StateDirectory=jyoshin
+StateDirectoryMode=0700
+RuntimeDirectory=jyoshin
+RuntimeDirectoryMode=0755
+ConfigurationDirectory=jyoshin
+ConfigurationDirectoryMode=0755
+
+# Read-only enforcement of sensitive kernel and proc nodes
+ReadOnlyPaths=/proc /sys
+ReadWritePaths=/var/lib/jyoshin
+
+[Install]
+WantedBy=multi-user.target
+

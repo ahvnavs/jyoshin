@@ -1,0 +1,15 @@
+id: "SEC-FILE-ORPHAN-DROP"
+name: "Process running from untracked /usr/local/bin path"
+description: "Evaluates whether process matches target criteria."
+category: "security"
+severity: "medium"
+match:
+  node_type: "process"
+  properties:
+      exe:
+        contains: "/usr/local/bin"
+consequence: "Manual binaries bypass operating system package integrity verification."
+recommendation:
+  action: "Package binary or verify checksum and provenance."
+  risk_level: "low"
+  reversible: true

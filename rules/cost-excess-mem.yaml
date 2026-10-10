@@ -1,0 +1,15 @@
+id: "COST-EXCESS-MEM"
+name: "Large memory capacity allocation"
+description: "Evaluates whether system matches target criteria."
+category: "cost"
+severity: "low"
+match:
+  node_type: "system"
+  properties:
+      memory_bytes:
+        greater_than: 34359738368
+consequence: "High memory machines incur substantial monthly hosting fees."
+recommendation:
+  action: "Review memory allocation against peak working set size."
+  risk_level: "low"
+  reversible: true

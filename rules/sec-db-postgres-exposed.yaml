@@ -1,0 +1,17 @@
+id: "SEC-DB-POSTGRES-EXPOSED"
+name: "PostgreSQL database exposed on all interfaces"
+description: "Evaluates whether port matches target criteria."
+category: "security"
+severity: "high"
+match:
+  node_type: "port"
+  properties:
+      local_port:
+        equals: 5432
+      exposure_class:
+        equals: "all_interfaces"
+consequence: "Database ports should never be reachable directly from public internet."
+recommendation:
+  action: "Restrict listen_addresses to localhost or use VPN tunnel."
+  risk_level: "medium"
+  reversible: true

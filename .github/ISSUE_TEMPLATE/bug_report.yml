@@ -1,0 +1,35 @@
+name: Bug Report
+description: Report a bug, crash, or unexpected behavior
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting a bug! Please ensure you do not share private credentials or sensitive production data.
+  - type: input
+    id: environment
+    attributes:
+      label: Linux Distribution & Kernel
+      description: e.g. Ubuntu 24.04 LTS, Linux 6.8.0-generic
+      placeholder: Ubuntu 24.04 (kernel 6.8.0)
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe what you observed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What was expected?
+      description: Describe what should have occurred.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or Logs
+      description: Paste any terminal output from jyoshin.
+

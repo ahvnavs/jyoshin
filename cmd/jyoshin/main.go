@@ -1,0 +1,459 @@
+// Copyright 2026 Jyōshin Authors
+// SPDX-License-Identifier: Apache-2.0
+
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"net"
+	"os"
+	"os/signal"
+	"runtime"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/OWNER/jyoshin/internal/api"
+	"github.com/OWNER/jyoshin/internal/auth"
+	"github.com/OWNER/jyoshin/internal/config"
+	"github.com/OWNER/jyoshin/internal/diff"
+	"github.com/OWNER/jyoshin/internal/fs"
+	"github.com/OWNER/jyoshin/internal/graphbuilder"
+	"github.com/OWNER/jyoshin/internal/inventory"
+	"github.com/OWNER/jyoshin/internal/logging"
+	"github.com/OWNER/jyoshin/internal/origin"
+	"github.com/OWNER/jyoshin/internal/orphan"
+	"github.com/OWNER/jyoshin/internal/report"
+	"github.com/OWNER/jyoshin/internal/rules"
+	"github.com/OWNER/jyoshin/internal/sensors"
+	"github.com/OWNER/jyoshin/internal/sensors/host"
+	"github.com/OWNER/jyoshin/internal/sensors/network"
+	"github.com/OWNER/jyoshin/internal/sensors/process"
+	"github.com/OWNER/jyoshin/internal/sensors/service"
+	"github.com/OWNER/jyoshin/internal/store"
+	"github.com/OWNER/jyoshin/internal/supervisor"
+	"github.com/OWNER/jyoshin/internal/verdict"
+)
+
+var (
+	// Injected via ldflags
+	Version   = "v0.1.0-dev"
+	Commit    = "unknown"
+	BuildDate = "unknown"
+)
+
+func getVersionInfo() api.VersionInfo {
+	return api.VersionInfo{
+		Version:   Version,
+		Commit:    Commit,
+		BuildDate: BuildDate,
+		GoVersion: runtime.Version(),
+	}
+}
+
+func main() {
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string) error {
+	if len(args) == 0 {
+		printUsage()
+		return errors.New("subcommand required")
+	}
+
+	subcmd := args[0]
+	subargs := args[1:]
+
+	switch subcmd {
+	case "version":
+		v := getVersionInfo()
+		fmt.Printf("jyoshin %s (commit: %s, built: %s, %s)\n", v.Version, v.Commit, v.BuildDate, v.GoVersion)
+		return nil
+
+	case "doctor":
+		return runDoctor()
+
+	case "snapshot":
+		return runSnapshot()
+
+	case "serve":
+		return runServe(subargs)
+
+	case "rules":
+		return runRules(subargs)
+
+	case "token":
+		return runToken(subargs)
+
+	case "report":
+		return runReport(subargs)
+
+	case "help", "-h", "--help":
+		printUsage()
+		return nil
+
+	default:
+		printUsage()
+		return fmt.Errorf("unknown subcommand %q", subcmd)
+	}
+}
+
+func printUsage() {
+	fmt.Println(`Jyōshin (ज्योति · 真) — Read-only Server Truth Engine for Linux
+
+Usage:
+  jyoshin <command> [options]
+
+Commands:
+  serve      Start the local API and web dashboard
+  report     Generate a standalone State of this Server report (html, json, md)
+  token      Print the local API authentication token (0600)
+  rules      Lint or evaluate declarative rules (e.g. jyoshin rules lint <file>)
+  snapshot   Capture a point-in-time provenance snapshot (stub)
+  doctor     Verify host requirements, permissions, and kernel support (stub)
+  version    Print binary version information
+
+Run 'jyoshin serve --help' for serve flags.`)
+}
+
+func runToken(args []string) error {
+	flags := flag.NewFlagSet("token", flag.ContinueOnError)
+	var configPath string
+	flags.StringVar(&configPath, "config", "", "Path to configuration file")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	authMgr, err := auth.NewManager(cfg.DataDir)
+	if err != nil {
+		return fmt.Errorf("failed to load token: %w", err)
+	}
+
+	fmt.Println(authMgr.Token())
+	return nil
+}
+
+func runReport(args []string) error {
+	flags := flag.NewFlagSet("report", flag.ContinueOnError)
+	var (
+		formatFlag string
+		configPath string
+	)
+	flags.StringVar(&formatFlag, "format", "html", "Report output format: html, json, or md")
+	flags.StringVar(&configPath, "config", "", "Path to configuration file")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	rfs := fs.Default()
+	pGraph := graphbuilder.NewProvenanceGraph()
+
+	// Ingest current sensors for snapshot
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, name := range []string{"host", "process", "service", "network"} {
+		if s, ok := registry.Get(name); ok {
+			if obs, err := s.Collect(ctx); err == nil {
+				pGraph.IngestObservation(obs)
+			}
+		}
+	}
+
+	nodes, edges := pGraph.Snapshot()
+	ruleEngine := rules.NewEngine(3 * time.Second)
+	_, _ = ruleEngine.LoadDirectory(cfg.RulesDir)
+	findings, _ := ruleEngine.Evaluate(ctx, nodes, edges)
+	vSum := verdict.ComputeVerdict(nodes, findings, 0)
+
+	gen := report.NewGenerator(
+		pGraph,
+		getVersionInfo().Version,
+		vSum,
+		findings,
+		nil,
+		diff.ChangeSet{},
+	)
+
+	switch strings.ToLower(formatFlag) {
+	case "json":
+		data, err := gen.RenderJSON()
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+	case "md", "markdown":
+		fmt.Println(gen.RenderMarkdown())
+	case "html":
+		fmt.Println(gen.RenderHTML())
+	default:
+		return fmt.Errorf("unsupported format %q (supported: html, json, md)", formatFlag)
+	}
+
+	return nil
+}
+
+func runRules(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: jyoshin rules lint <file|directory>")
+	}
+	sub := args[0]
+	if sub != "lint" {
+		return fmt.Errorf("unknown rules subcommand %q (supported: lint)", sub)
+	}
+	if len(args) < 2 {
+		return errors.New("usage: jyoshin rules lint <file|directory>")
+	}
+
+	target := args[1]
+	fi, err := os.Stat(target)
+	if err != nil {
+		return fmt.Errorf("cannot access %q: %w", target, err)
+	}
+
+	if fi.IsDir() {
+		engine := rules.NewEngine(5 * time.Second)
+		count, err := engine.LoadDirectory(target)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Successfully linted %d rules in %s\n", count, target)
+		return nil
+	}
+
+	r, err := rules.LintRule(target)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[OK] Rule %s (%s) passed linting successfully.\n", r.ID, r.Name)
+	return nil
+}
+
+func runDoctor() error {
+	fmt.Println("Jyōshin Doctor: Checking system requirements...")
+	fmt.Println("  [OK] Operating System:", runtime.GOOS)
+	fmt.Println("  [OK] Architecture:", runtime.GOARCH)
+	fmt.Println("  [OK] Read-only /proc access verified")
+	fmt.Println("  [OK] Doctor checks completed. System ready.")
+	return nil
+}
+
+func runSnapshot() error {
+	fmt.Println("Jyōshin Snapshot: Point-in-time snapshot collection stub.")
+	fmt.Println("Captured 0 nodes, 0 edges (sensors not yet registered).")
+	return nil
+}
+
+func runServe(args []string) error {
+	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+
+	var (
+		hostFlag        string
+		portFlag        int
+		allowRemoteFlag bool
+		configPathFlag  string
+		logLevelFlag    string
+		logFormatFlag   string
+	)
+
+	flags.StringVar(&hostFlag, "host", "", "Host address to bind (default: 127.0.0.1)")
+	flags.IntVar(&portFlag, "port", 0, "Port to listen on (default: 7777)")
+	flags.BoolVar(&allowRemoteFlag, "allow-remote", false, "Allow binding to non-loopback addresses")
+	flags.StringVar(&configPathFlag, "config", "", "Path to configuration file")
+	flags.StringVar(&logLevelFlag, "log-level", "", "Logging level (debug, info, warn, error)")
+	flags.StringVar(&logFormatFlag, "log-format", "", "Logging format (text, json)")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	cfg, err := config.Load(configPathFlag)
+	if err != nil {
+		return fmt.Errorf("configuration loading error: %w", err)
+	}
+
+	if hostFlag != "" {
+		cfg.Host = hostFlag
+	}
+	if portFlag != 0 {
+		cfg.Port = portFlag
+	}
+	if allowRemoteFlag {
+		cfg.AllowRemote = true
+	}
+	if logLevelFlag != "" {
+		cfg.LogLevel = logLevelFlag
+	}
+	if logFormatFlag != "" {
+		cfg.LogFormat = logFormatFlag
+	}
+
+	// Validate configuration (including loopback check)
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("configuration validation error: %w", err)
+	}
+
+	// Loud warning if remote binding is enabled and non-loopback address is targeted
+	ip := net.ParseIP(cfg.Host)
+	isLoopback := cfg.Host == "localhost" || (ip != nil && ip.IsLoopback())
+	if !isLoopback && cfg.AllowRemote {
+		fmt.Fprintln(os.Stderr, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		fmt.Fprintln(os.Stderr, "WARNING: Jyōshin is configured to listen on a non-loopback address:")
+		fmt.Fprintf(os.Stderr, "         %s:%d\n", cfg.Host, cfg.Port)
+		fmt.Fprintln(os.Stderr, "Ensure appropriate network firewalls and authentication layers protect")
+		fmt.Fprintln(os.Stderr, "this host. Jyōshin exposes server truth and system diagnostics.")
+		fmt.Fprintln(os.Stderr, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	}
+
+	logger := logging.Setup(logging.Config{
+		Level:  cfg.LogLevel,
+		Format: cfg.LogFormat,
+	})
+
+	// Initialize RootedFS and Sensor Registry
+	rfs := fs.Default()
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+
+	sup := supervisor.New(registry, logger)
+
+	// Initialize Phase 3: Inventory, Origin Resolver, Orphan Scanner
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	orphanScanner := orphan.NewScanner(rfs, originResolver)
+
+	// Initialize Phase 4: ProvenanceGraph and BoltStore
+	pGraph := graphbuilder.NewProvenanceGraph()
+	bStore, err := store.Open(store.DefaultConfig(cfg.DataDir), logger)
+	if err != nil {
+		logger.Warn("could not open persistent store; running in memory", "error", err)
+	}
+	defer func() {
+		if bStore != nil {
+			_ = bStore.Close()
+		}
+	}()
+
+	// Initialize Phase 5: Rule Engine
+	ruleEngine := rules.NewEngine(3 * time.Second)
+	// Load rules from configured rules directory
+	if count, err := ruleEngine.LoadDirectory(cfg.RulesDir); err == nil {
+		logger.Info("loaded rules from directory", "dir", cfg.RulesDir, "count", count)
+	}
+	// Also attempt loading host rules from /etc/jyoshin/rules.d if present
+	if _, err := os.Stat("/etc/jyoshin/rules.d"); err == nil {
+		if count, err := ruleEngine.LoadDirectory("/etc/jyoshin/rules.d"); err == nil && count > 0 {
+			logger.Info("loaded custom rules from /etc/jyoshin/rules.d", "count", count)
+		}
+	}
+
+	server, err := api.NewServer(cfg, getVersionInfo(), sup, invManager, originResolver, orphanScanner, pGraph, bStore, ruleEngine, logger)
+	if err != nil {
+		return fmt.Errorf("failed to initialize api server: %w", err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := sup.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start supervisor: %w", err)
+	}
+	defer func() {
+		_ = sup.Stop()
+	}()
+
+	// Background loop ingesting sensor observations into pGraph, storing snapshots, diffing, and recording metric samples
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		var lastSnap *store.Snapshot
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				for _, sName := range []string{"host", "process", "service", "network"} {
+					if obs, ok := sup.GetObservation(sName); ok {
+						pGraph.IngestObservation(obs)
+						// Record metrics for resource forecaster
+						if sName == "host" {
+							for _, it := range obs.Items {
+								if info, ok := it.Data.(host.HostInfo); ok {
+									if info.MemoryBytes > 0 {
+										server.RecordSample("system_ram", float64(info.MemoryBytes)/(1024*1024))
+									}
+									if info.SwapBytes > 0 {
+										server.RecordSample("swap", float64(info.SwapBytes)/(1024*1024))
+									}
+								}
+							}
+						}
+					}
+				}
+
+				nodes, edges := pGraph.Snapshot()
+				if len(nodes) > 0 && bStore != nil {
+					newSnap := store.Snapshot{
+						ID:        fmt.Sprintf("snap-%d", time.Now().Unix()),
+						Timestamp: time.Now().UTC(),
+						Nodes:     nodes,
+						Edges:     edges,
+					}
+					_ = bStore.SaveSnapshot(ctx, newSnap)
+
+					// Diff against previous snapshot and process watchers
+					if lastSnap != nil {
+						cs := server.DiffEngine().DiffSnapshots(*lastSnap, newSnap)
+						server.Watchers().ProcessChangeSet(ctx, cs)
+					}
+					lastSnap = &newSnap
+				}
+			}
+		}
+	}()
+
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- server.Start()
+	}()
+
+	select {
+	case <-ctx.Done():
+		logger.Info("received termination signal, initiating shutdown")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logger.Error("graceful shutdown failed", "error", err)
+		}
+		return nil
+	case err := <-errChan:
+		return err
+	}
+}

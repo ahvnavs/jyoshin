@@ -1,0 +1,23 @@
+# Copyright 2026 Jyōshin Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Jyōshin Configuration File
+host: "127.0.0.1"
+port: 7777
+allow_remote: false
+data_dir: "/var/lib/jyoshin"
+rules_dir: "/etc/jyoshin/rules.d"
+log_level: "info"
+log_format: "text"
+scan_interval: 60s
+
+# Optional OpenTelemetry Export (Disabled by default)
+# When enabled, Jyōshin exports server metric observations via OTLP gRPC/HTTP
+# to an internal monitoring collector. No remote egress unless configured.
+otel:
+  enabled: false
+  endpoint: "localhost:4317"
+  insecure: true
+  protocol: "grpc" # grpc | http
+  interval: 60s
+

@@ -1,0 +1,32 @@
+name: Feature Request / Sensor Proposal
+description: Propose a new read-only sensor, rule, or architectural improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Jyōshin operates strictly as a read-only, deterministic truth engine without AI/LLM components.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What server fact or blind spot are you trying to reveal?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Which kernel interface (`/proc`, `/sys`) or read-only collector provides the evidence?
+    validations:
+      required: true
+  - type: dropdown
+    id: certainty
+    attributes:
+      label: Expected Certainty Classification
+      options:
+        - OBSERVED (direct kernel/filesystem read)
+        - DERIVED (calculated deterministically from facts)
+        - INFERRED (statistical or heuristic with confidence score)
+    validations:
+      required: true
+

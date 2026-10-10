@@ -1,0 +1,15 @@
+id: "SEC-NET-ALL-INTERFACES"
+name: "Service listening on all interfaces (0.0.0.0)"
+description: "Evaluates whether port matches target criteria."
+category: "security"
+severity: "high"
+match:
+  node_type: "port"
+  properties:
+      exposure_class:
+        equals: "all_interfaces"
+consequence: "External network exposure allows unsolicited traffic."
+recommendation:
+  action: "Bind to localhost or specific internal IP interface."
+  risk_level: "low"
+  reversible: true

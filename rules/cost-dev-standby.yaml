@@ -1,0 +1,15 @@
+id: "COST-DEV-STANDBY"
+name: "AWS cloud instance active"
+description: "Evaluates whether system matches target criteria."
+category: "cost"
+severity: "info"
+match:
+  node_type: "system"
+  properties:
+      cloud_provider:
+        equals: "aws"
+consequence: "Cloud compute is billed by running instance hours."
+recommendation:
+  action: "Apply automated shutdown schedule during off-hours."
+  risk_level: "low"
+  reversible: true

@@ -1,0 +1,15 @@
+id: "COST-DUPLICATE-NODE"
+name: "Multiple Node.js runtimes present"
+description: "Evaluates whether process matches target criteria."
+category: "cost"
+severity: "low"
+match:
+  node_type: "process"
+  properties:
+      name:
+        equals: "node"
+consequence: "Redundant runtime environments consume memory and disk storage."
+recommendation:
+  action: "Consolidate on unified LTS Node.js runtime version."
+  risk_level: "low"
+  reversible: true

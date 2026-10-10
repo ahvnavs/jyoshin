@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+  packages: write
+
+jobs:
+  release:
+    name: Build, Package, and Sign Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+
+      - name: Install Syft (SBOM)
+        uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
+
+      - name: Cross-Compile Binaries
+        run: |
+          mkdir -p dist
+          VERSION=${GITHUB_REF#refs/tags/}
+          for ARCH in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} go build \
+              -trimpath \
+              -ldflags "-s -w -X 'main.Version=${VERSION}' -X 'main.Commit=${GITHUB_SHA}' -X 'main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
+              -o dist/jyoshin-linux-${ARCH} ./cmd/jyoshin
+            
+            tar -czf dist/jyoshin-linux-${ARCH}.tar.gz -C dist jyoshin-linux-${ARCH}
+          done
+
+      - name: Generate Checksums
+        run: |
+          cd dist
+          sha256sum jyoshin-linux-*.tar.gz > checksums.txt
+
+      - name: Generate SBOMs (CycloneDX & SPDX)
+        run: |
+          syft dir:. -o cyclonedx-json=dist/jyoshin-sbom.cyclonedx.json
+          syft dir:. -o spdx-json=dist/jyoshin-sbom.spdx.json
+
+      - name: Sign Checksums with Cosign (Keyless)
+        run: |
+          cosign sign-blob --yes --bundle dist/checksums.bundle dist/checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          files: |
+            dist/jyoshin-linux-*.tar.gz
+            dist/checksums.txt
+            dist/checksums.bundle
+            dist/jyoshin-sbom.cyclonedx.json
+            dist/jyoshin-sbom.spdx.json
+          generate_release_notes: true
+

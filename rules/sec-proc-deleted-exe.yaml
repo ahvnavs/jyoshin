@@ -1,0 +1,15 @@
+id: "SEC-PROC-DELETED-EXE"
+name: "Process running with deleted executable binary"
+description: "Evaluates whether process matches target criteria."
+category: "security"
+severity: "high"
+match:
+  node_type: "process"
+  properties:
+      exe:
+        contains: "(deleted)"
+consequence: "Malicious actors or ungraceful updaters often unlink binaries while running."
+recommendation:
+  action: "Restart process from updated package or investigate suspicious process."
+  risk_level: "low"
+  reversible: true

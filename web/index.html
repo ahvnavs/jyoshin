@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jyōshin (ज्योति · 真) — Server Truth Engine</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-top">
+        <div class="ascii-logo">JYŌSHIN (ज्योति · 真)
++-------------------------------------------------------------+
+| Linux Server Truth Engine                                    |
++-------------------------------------------------------------+</div>
+        <div class="header-controls">
+          <div class="status-indicator">
+            <span id="pulse-dot" class="live-pulse">●</span>
+            <span id="live-status-text">[●] LIVE</span>
+            <span id="last-updated" style="color: var(--dim);">--:--:--</span>
+          </div>
+          <button id="token-button" class="btn" style="font-size: 12px; padding: 2px 8px;">AUTH TOKEN</button>
+        </div>
+      </div>
+      <nav>
+        <a href="#" id="nav-main" class="nav-link active">Verdict Screen</a>
+        <a href="#styleguide" id="nav-styleguide" class="nav-link">Styleguide</a>
+      </nav>
+    </header>
+
+    <!-- Main View (Verdict Screen - Zero Clicks Required) -->
+    <main id="main-view">
+      <!-- Hero Verdict Banner -->
+      <section id="verdict-banner" class="verdict-banner">
+        <div class="verdict-header">
+          <div>
+            <div id="verdict-lead" class="verdict-lead">Evaluating server status and provenance...</div>
+            <div id="identity-line" class="identity-row" style="margin-top: 8px;">HOST: Linux Server</div>
+          </div>
+          <div class="chaos-container">
+            <span class="chaos-title">CHAOS INDEX</span>
+            <div class="chaos-score-line">
+              <span id="chaos-score">0</span><span style="font-size: 14px; color: var(--dim);">/100</span>
+            </div>
+            <div id="chaos-badge" class="badge badge-mint">[✓] CALM</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 Core Panels Grid: Pulse, Danger, Waste, Changes -->
+      <div class="grid-2x2" style="margin-top: var(--space-24);">
+        <!-- 1. PULSE PANEL -->
+        <section class="panel" aria-labelledby="pulse-title">
+          <div class="panel-header">
+            <h2 id="pulse-title" class="panel-title">[●] PULSE</h2>
+            <span class="badge badge-mint">[✓] NORMAL</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+            <div><span style="color: var(--dim);">Host:</span> <span id="pulse-host" style="color: var(--cyan);">server</span></div>
+            <div><span style="color: var(--dim);">Kernel:</span> <span id="pulse-kernel" style="color: var(--cyan);">Linux</span></div>
+            <div><span style="color: var(--dim);">Uptime:</span> <span id="pulse-uptime" style="color: var(--mint);">0s</span></div>
+          </div>
+          <div class="meter-row">
+            <div class="meter-label-row">
+              <span style="color: var(--dim);">CPU Load</span>
+              <span style="color: var(--mint);">12%</span>
+            </div>
+            <div class="meter-track">
+              <div class="meter-fill" style="width: 12%;"></div>
+            </div>
+          </div>
+          <div class="meter-row">
+            <div class="meter-label-row">
+              <span style="color: var(--dim);">Memory (RSS)</span>
+              <span style="color: var(--mint);">28%</span>
+            </div>
+            <div class="meter-track">
+              <div class="meter-fill" style="width: 28%;"></div>
+            </div>
+          </div>
+          <div class="meter-row">
+            <div class="meter-label-row">
+              <span style="color: var(--dim);">Swap Usage</span>
+              <span style="color: var(--mint);">0%</span>
+            </div>
+            <div class="meter-track">
+              <div class="meter-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+          <!-- Forecast Sparkline & Exhaustion -->
+          <div style="border-top: 1px dashed var(--panel-border); padding-top: 8px; margin-top: 4px;">
+            <div style="font-size: 12px; color: var(--dim); margin-bottom: 4px;">RESOURCE FORECASTS (STATISTICS ONLY):</div>
+            <div id="forecast-sparklines" style="font-size: 12px; line-height: 1.6; color: var(--cyan); font-family: var(--font);">
+              <div>Disk (/)      : [    ▃▅▆▇] stable (slope: +0.00/hr)</div>
+              <div>Memory (RAM) : [ ▂▄▅▆▅▆] stable (slope: +0.00/hr)</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. DANGER PANEL -->
+        <section class="panel" aria-labelledby="danger-title">
+          <div class="panel-header">
+            <h2 id="danger-title" class="panel-title">[▲] DANGER & EXPOSURE</h2>
+            <span id="danger-count" class="badge badge-mint">[✓] 0 active</span>
+          </div>
+          <div id="danger-list" class="finding-list">
+            <div style="color: var(--mint);">[✓] No critical exposures detected.</div>
+          </div>
+        </section>
+
+        <!-- 3. WASTE PANEL -->
+        <section class="panel" aria-labelledby="waste-title">
+          <div class="panel-header">
+            <h2 id="waste-title" class="panel-title">[$] WASTE & DRIFT</h2>
+            <span id="waste-monthly" class="badge badge-peach">$0.00 / month</span>
+          </div>
+          <div id="waste-list" class="finding-list">
+            <div style="color: var(--mint);">[✓] No idle or redundant resources identified.</div>
+          </div>
+        </section>
+
+        <!-- 4. CHANGES PANEL -->
+        <section class="panel" aria-labelledby="changes-title">
+          <div class="panel-header">
+            <h2 id="changes-title" class="panel-title">[∆] CHANGES & SNAPSHOTS</h2>
+            <span id="changes-badge" class="badge badge-cyan">[≈] TRACKING</span>
+          </div>
+          <div id="changes-summary" style="font-size: 12px; color: var(--dim); margin-bottom: 4px;">Comparing recent state snapshots</div>
+          <div id="changes-list" style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="color: var(--dim); font-size: 12px; line-height: 1.6;">
+              <div>[·] First baseline snapshot captured.</div>
+              <div>[·] Provenance graph differential tracking active.</div>
+              <div style="color: var(--mint); margin-top: 4px;">History builds over time.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. BLAST RADIUS DECISION-SUPPORT PANEL -->
+        <section class="panel" aria-labelledby="blast-title" style="grid-column: 1 / -1;">
+          <div class="panel-header">
+            <h2 id="blast-title" class="panel-title">[💥] BLAST RADIUS: SAFE TO TOUCH?</h2>
+            <span id="blast-verdict-badge" class="badge badge-mint">[✓] SAFE</span>
+          </div>
+          <div style="display: flex; gap: var(--space-16); flex-wrap: wrap; align-items: center;">
+            <label for="blast-select" style="font-size: 13px; color: var(--dim);">SELECT ENTITY TO INSPECT:</label>
+            <select id="blast-select" class="modal-input" style="margin: 0; padding: 4px 8px; width: auto; max-width: 400px;">
+              <option value="">-- Choose node to compute downstream impact --</option>
+            </select>
+            <button id="blast-inspect-btn" class="btn" style="padding: 4px 12px; font-size: 12px;">CALCULATE IMPACT</button>
+          </div>
+          <div id="blast-result-view" style="font-size: 13px; background-color: #0E1017; border: 1px dashed var(--panel-border); padding: 12px;">
+            <div id="blast-result-summary" style="color: var(--text); font-weight: bold;">Select an entity to evaluate downstream dependencies and outages.</div>
+            <div id="blast-reasons" style="color: var(--dim); font-size: 12px; margin-top: 6px;"></div>
+            <div id="blast-impacted-list" style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px;"></div>
+          </div>
+        </section>
+
+        <!-- 6. TOPOLOGICAL DEPENDENCIES MAP PANEL -->
+        <section class="panel" aria-labelledby="deps-title" style="grid-column: 1 / -1;">
+          <div class="panel-header">
+            <h2 id="deps-title" class="panel-title">[🔗] DEPENDENCIES: INBOUND & OUTBOUND</h2>
+            <span class="badge badge-cyan">[≈] TOPOLOGY</span>
+          </div>
+          <pre id="deps-ascii-map" style="background-color: #07080B; color: var(--cyan); padding: 12px; border: 1px solid var(--panel-border); overflow-x: auto; font-size: 12px; line-height: 1.4;">[Loading dependency map...]</pre>
+        </section>
+      </div>
+    </main>
+
+    <!-- Styleguide View (/styleguide) -->
+    <section id="styleguide-view" style="display: none;">
+      <div class="panel">
+        <h1 style="color: var(--mint); font-size: var(--font-20); margin-bottom: 8px;">Jyōshin UI Design System Styleguide</h1>
+        <p style="color: var(--dim); font-size: 14px;">Strict dark cyber-retro monospace component gallery conforming to AGENTS.md locked specifications.</p>
+      </div>
+
+      <div class="grid-2x2" style="margin-top: var(--space-24);">
+        <!-- Glyphs & Badges -->
+        <div class="panel">
+          <h2 class="panel-title">[#] Glyphs & Badges</h2>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <span class="badge badge-mint">[✓] OBSERVED</span>
+            <span class="badge badge-cyan">[≈] DERIVED</span>
+            <span class="badge badge-peach">[?] INFERRED</span>
+            <span class="badge badge-rose">[▲] CRITICAL</span>
+            <span class="badge badge-peach">[!] HIGH</span>
+            <span class="badge badge-lavender">[●] MEDIUM</span>
+            <span class="badge badge-cyan">[i] LOW</span>
+            <span class="badge badge-dim">[·] INFO</span>
+          </div>
+        </div>
+
+        <!-- Typography & Palette -->
+        <div class="panel">
+          <h2 class="panel-title">[*] Palette Tokens</h2>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
+            <span style="color: var(--mint);">--mint: #8FFFC8 (Low risk, healthy)</span>
+            <span style="color: var(--cyan);">--cyan: #8FE9FF (Telemetry, structure)</span>
+            <span style="color: var(--lavender);">--lavender: #B9A7FF (Interactive, medium)</span>
+            <span style="color: var(--peach);">--peach: #FFB89A (Warning, high risk)</span>
+            <span style="color: var(--rose);">--rose: #FF9EC7 (Critical severity)</span>
+            <span style="color: var(--dim);">--dim: #6B7280 (Muted secondary info)</span>
+          </div>
+        </div>
+
+        <!-- Finding Card Demo -->
+        <div class="panel" style="grid-column: 1 / -1;">
+          <h2 class="panel-title">[?] Interactive Finding Card (Quad Disclosure)</h2>
+          <details class="finding-card critical" open>
+            <summary class="finding-summary">
+              <div class="finding-title-group">
+                <span class="badge badge-rose">[▲] CRITICAL</span>
+                <span>PostgreSQL exposed on public interface 0.0.0.0:5432</span>
+              </div>
+              <span class="badge badge-mint">[✓] OBSERVED</span>
+            </summary>
+            <div class="finding-details">
+              <div class="quad-section">
+                <span class="quad-label">WHAT</span>
+                <div>Process postgres (PID 1024) listening on wildcard socket 0.0.0.0:5432.</div>
+              </div>
+              <div class="quad-section">
+                <span class="quad-label">SO WHAT</span>
+                <div style="color: var(--rose);">Direct database network exposure invites automated brute-force attacks and exfiltration.</div>
+              </div>
+              <div class="quad-section">
+                <span class="quad-label">NOW WHAT (RECOMMENDATION)</span>
+                <div>Bind postgres to 127.0.0.1 or VPC private IP in /etc/postgresql/15/main/postgresql.conf.</div>
+                <div style="font-size: 12px; color: var(--dim); margin-top: 4px;">Risk Level: LOW · Reversible: YES</div>
+              </div>
+              <div class="quad-section">
+                <span class="quad-label">PROOF & EVIDENCE</span>
+                <ul style="list-style: none; padding-left: 0; font-size: 12px; color: var(--cyan);">
+                  <li>└─ [/proc/net/tcp] Socket 0.0.0.0:5432 in state LISTEN (inode 40129)</li>
+                  <li>└─ [/proc/1024/fd] Socket inode bound to /usr/lib/postgresql/15/bin/postgres</li>
+                </ul>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- Provenance Chain Demo -->
+        <div class="panel" style="grid-column: 1 / -1;">
+          <h2 class="panel-title">[=] Provenance Chain Tree</h2>
+          <div class="tree-node" style="color: var(--text);">
+            <div><span class="tree-line">┌─ [origin:dpkg]</span> debian-packages / postgresql-15 (15.5-1.deb12u1)</div>
+            <div><span class="tree-line">├─ [file]</span> /usr/lib/postgresql/15/bin/postgres (ELF 64-bit)</div>
+            <div><span class="tree-line">├─ [service]</span> postgresql.service (systemd, active/running)</div>
+            <div><span class="tree-line">├─ [process]</span> PID 1024 / postgres (owner: postgres:108)</div>
+            <div><span class="tree-line">└─ [port]</span> 0.0.0.0:5432 (TCP socket, exposure: all_interfaces)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Token Auth Modal -->
+    <div id="auth-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-content">
+        <h3 style="color: var(--mint); margin-bottom: 8px;">API Authentication Token</h3>
+        <p style="color: var(--dim); font-size: 13px;">Jyōshin creates a local security token at <code>/var/lib/jyoshin/auth.token</code> (0600). Enter your token or run <code>jyoshin token</code> in terminal.</p>
+        <input type="text" id="auth-token-input" class="modal-input" placeholder="Paste 32-byte hex token...">
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button id="auth-token-cancel" class="btn" style="border-color: var(--dim); color: var(--dim);">Cancel</button>
+          <button id="auth-token-submit" class="btn">Save Token</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

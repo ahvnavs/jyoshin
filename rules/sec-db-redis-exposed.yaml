@@ -1,0 +1,17 @@
+id: "SEC-DB-REDIS-EXPOSED"
+name: "Redis cache exposed to public network"
+description: "Evaluates whether port matches target criteria."
+category: "security"
+severity: "critical"
+match:
+  node_type: "port"
+  properties:
+      local_port:
+        equals: 6379
+      exposure_class:
+        equals: "all_interfaces"
+consequence: "Unauthenticated or minimally protected Redis instances can lead to RCE."
+recommendation:
+  action: "Bind Redis to 127.0.0.1 or require TLS/auth on private VPC subnet."
+  risk_level: "medium"
+  reversible: true

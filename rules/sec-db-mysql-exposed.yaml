@@ -1,0 +1,17 @@
+id: "SEC-DB-MYSQL-EXPOSED"
+name: "MySQL/MariaDB exposed on all interfaces"
+description: "Evaluates whether port matches target criteria."
+category: "security"
+severity: "high"
+match:
+  node_type: "port"
+  properties:
+      local_port:
+        equals: 3306
+      exposure_class:
+        equals: "all_interfaces"
+consequence: "Publicly exposed relational databases face continuous credential brute-forcing."
+recommendation:
+  action: "Set bind-address = 127.0.0.1 in my.cnf."
+  risk_level: "medium"
+  reversible: true

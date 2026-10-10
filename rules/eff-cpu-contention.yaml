@@ -1,0 +1,15 @@
+id: "EFF-CPU-CONTENTION"
+name: "Single CPU core host bottleneck"
+description: "Evaluates whether system matches target criteria."
+category: "efficiency"
+severity: "medium"
+match:
+  node_type: "system"
+  properties:
+      cpu_count:
+        equals: 1
+consequence: "Single CPU systems suffer latency spikes during background maintenance."
+recommendation:
+  action: "Allocate at least 2 vCPUs for server workloads."
+  risk_level: "low"
+  reversible: true

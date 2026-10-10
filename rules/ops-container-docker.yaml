@@ -1,0 +1,15 @@
+id: "OPS-CONTAINER-DOCKER"
+name: "Host running inside Docker container"
+description: "Evaluates whether system matches target criteria."
+category: "operations"
+severity: "info"
+match:
+  node_type: "system"
+  properties:
+      virtualization:
+        equals: "docker"
+consequence: "Containerized runtime restricts certain host kernel APIs."
+recommendation:
+  action: "Ensure container has required volume mounts and capabilities."
+  risk_level: "low"
+  reversible: true

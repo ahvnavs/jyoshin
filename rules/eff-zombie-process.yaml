@@ -1,0 +1,15 @@
+id: "EFF-ZOMBIE-PROCESS"
+name: "Zombie process awaiting parent reap"
+description: "Evaluates whether process matches target criteria."
+category: "efficiency"
+severity: "medium"
+match:
+  node_type: "process"
+  properties:
+      state:
+        equals: "Z"
+consequence: "Defunct processes take up process table slots (PIDs)."
+recommendation:
+  action: "Fix parent process waitpid handling or signal parent."
+  risk_level: "low"
+  reversible: true

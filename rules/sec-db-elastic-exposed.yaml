@@ -1,0 +1,17 @@
+id: "SEC-DB-ELASTIC-EXPOSED"
+name: "Elasticsearch HTTP REST API exposed publicly"
+description: "Evaluates whether port matches target criteria."
+category: "security"
+severity: "critical"
+match:
+  node_type: "port"
+  properties:
+      local_port:
+        equals: 9200
+      exposure_class:
+        equals: "all_interfaces"
+consequence: "Public Elasticsearch clusters frequently suffer unauthorized data exfiltration."
+recommendation:
+  action: "Bind network.host to 127.0.0.1 or private interface."
+  risk_level: "high"
+  reversible: true

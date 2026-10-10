@@ -1,0 +1,15 @@
+id: "COST-DUPLICATE-PYTHON"
+name: "Multiple Python runtimes active"
+description: "Evaluates whether process matches target criteria."
+category: "cost"
+severity: "low"
+match:
+  node_type: "process"
+  properties:
+      name:
+        equals: "python"
+consequence: "Separate virtualenvs or interpreters duplicate library disk space."
+recommendation:
+  action: "Prune unused virtualenvs and cache directories."
+  risk_level: "low"
+  reversible: true
