@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package verdict
@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/rules"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/rules"
 )
 
 func TestComputeVerdict_Scenarios(t *testing.T) {

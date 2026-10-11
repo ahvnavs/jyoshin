@@ -1,16 +1,21 @@
 id: "EFF-DISK-EXHAUSTION-FORECAST"
-name: "Filesystem storage capacity nearly exhausted"
-description: "Mounted filesystem usage exceeds 90% of total storage capacity."
+name: "Filesystem storage exhaustion forecasted by statistical trend"
+description: "Statistical linear regression indicates filesystem capacity will be exhausted within 72 hours based on sustained growth."
 category: "efficiency"
 severity: "critical"
 match:
   node_type: "resource"
   properties:
-    usage_ratio:
-      greater_than: 0.90
-consequence: "Full disk partitions result in write failures, database crash loops, and corrupted application transactions."
+    time_to_exhaustion_hours:
+      less_than: 72
+    is_growth:
+      equals: true
+consequence: "Projected disk exhaustion leads to kernel write faults, broken application logs, and database crash loops."
 recommendation:
-  action: "Clear journalctl logs, prune stale package caches, or expand underlying block storage volume."
-  risk_level: "low"
-  reversible: true
+  action: "Identify expanding directories, truncate or rotate historical log files, or increase filesystem volume capacity."
+  risk_level: "medium"
+  reversible: false
+certainty: "INFERRED"
+confidence: 0.85
+
 

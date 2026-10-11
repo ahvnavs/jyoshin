@@ -1,8 +1,8 @@
-# Jyōshin Architecture
+# Kazeshini Architecture
 
 ## High-Level Architecture
 
-Jyōshin is designed as a unidirectional, pipelined "server truth engine":
+Kazeshini is designed as a unidirectional, pipelined "server truth engine":
 
 ```
 +-------------------------------------------------------------------+

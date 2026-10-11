@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/blastradius"
-	"github.com/OWNER/jyoshin/internal/config"
-	"github.com/OWNER/jyoshin/internal/decisions"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/sensors"
-	"github.com/OWNER/jyoshin/internal/sensors/network"
-	"github.com/OWNER/jyoshin/internal/sensors/process"
+	"github.com/OWNER/kazeshini/internal/blastradius"
+	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/decisions"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/sensors/network"
+	"github.com/OWNER/kazeshini/internal/sensors/process"
 )
 
 func TestAPI_Phase8DecisionSupport(t *testing.T) {

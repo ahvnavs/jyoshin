@@ -1,10 +1,10 @@
-# Contributing to Jyōshin
+# Contributing to Kazeshini
 
-Thank you for contributing to Jyōshin!
+Thank you for contributing to Kazeshini!
 
 ## Developer Certificate of Origin (DCO)
 
-All commits contributed to Jyōshin must include a `Signed-off-by` line indicating
+All commits contributed to Kazeshini must include a `Signed-off-by` line indicating
 agreement with the [Developer Certificate of Origin (DCO)](https://developercertificate.org/):
 
 ```text

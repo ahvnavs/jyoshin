@@ -31,5 +31,5 @@ body:
     id: logs
     attributes:
       label: Output or Logs
-      description: Paste any terminal output from jyoshin.
+      description: Paste any terminal output from kazeshini.
 

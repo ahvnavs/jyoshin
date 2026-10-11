@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package scheduler
@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/sensors"
 )
 
 // ScheduledJob represents a scheduled task (cron or systemd timer).
@@ -43,7 +43,7 @@ func (s *Sensor) Name() string {
 }
 
 func (s *Sensor) Interval() time.Duration {
-	return 60 * time.Second
+	return 300 * time.Second
 }
 
 func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {

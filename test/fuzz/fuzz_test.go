@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package fuzz_test
@@ -11,9 +11,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/inventory"
-	"github.com/OWNER/jyoshin/internal/rules"
+	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/inventory"
+	"github.com/OWNER/kazeshini/internal/rules"
 )
 
 // FuzzRuleYAML verifies the YAML rule parser never panics on arbitrary malformed inputs.

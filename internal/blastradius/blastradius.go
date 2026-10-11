@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package blastradius evaluates downstream impact and safe-to-touch verdicts
@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
 )
 
 // Verdict classifies the operational risk of modifying or stopping a node.

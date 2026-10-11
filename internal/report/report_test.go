@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package report_test
@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/diff"
-	"github.com/OWNER/jyoshin/internal/forecast"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/report"
-	"github.com/OWNER/jyoshin/internal/rules"
-	"github.com/OWNER/jyoshin/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/forecast"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/report"
+	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/verdict"
 )
 
 func TestReport_GenerationAndFormats(t *testing.T) {
@@ -72,7 +72,7 @@ func TestReport_GenerationAndFormats(t *testing.T) {
 
 	// 3. Test HTML Rendering
 	htmlData := gen.RenderHTML()
-	if !strings.Contains(htmlData, "<title>Jyōshin Server Truth Engine") {
+	if !strings.Contains(htmlData, "<title>Kazeshini Server Truth Engine") {
 		t.Errorf("expected html title tag")
 	}
 	if strings.Contains(htmlData, "http://") || strings.Contains(htmlData, "https://") {

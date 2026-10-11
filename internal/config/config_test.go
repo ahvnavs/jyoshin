@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package config
@@ -60,8 +60,8 @@ func TestConfig_LoadFileAndEnv(t *testing.T) {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	t.Setenv("JYOSHIN_PORT", "9999")
-	t.Setenv("JYOSHIN_SCAN_INTERVAL", "30s")
+	t.Setenv("KAZESHINI_PORT", "9999")
+	t.Setenv("KAZESHINI_SCAN_INTERVAL", "30s")
 
 	cfg, err := Load(cfgFile)
 	if err != nil {

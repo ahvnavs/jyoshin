@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package graphbuilder constructs and incrementally maintains the Provenance Graph
@@ -14,19 +14,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/origin"
-	"github.com/OWNER/jyoshin/internal/sensors"
-	"github.com/OWNER/jyoshin/internal/sensors/container"
-	"github.com/OWNER/jyoshin/internal/sensors/host"
-	"github.com/OWNER/jyoshin/internal/sensors/kernel"
-	"github.com/OWNER/jyoshin/internal/sensors/network"
-	"github.com/OWNER/jyoshin/internal/sensors/process"
-	"github.com/OWNER/jyoshin/internal/sensors/resources"
-	"github.com/OWNER/jyoshin/internal/sensors/scheduler"
-	"github.com/OWNER/jyoshin/internal/sensors/service"
-	"github.com/OWNER/jyoshin/internal/sensors/storage"
-	"github.com/OWNER/jyoshin/internal/sensors/user"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/origin"
+	"github.com/OWNER/kazeshini/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/sensors/container"
+	"github.com/OWNER/kazeshini/internal/sensors/host"
+	"github.com/OWNER/kazeshini/internal/sensors/kernel"
+	"github.com/OWNER/kazeshini/internal/sensors/network"
+	"github.com/OWNER/kazeshini/internal/sensors/process"
+	"github.com/OWNER/kazeshini/internal/sensors/resources"
+	"github.com/OWNER/kazeshini/internal/sensors/scheduler"
+	"github.com/OWNER/kazeshini/internal/sensors/service"
+	"github.com/OWNER/kazeshini/internal/sensors/storage"
+	"github.com/OWNER/kazeshini/internal/sensors/user"
 )
 
 // GenerateNodeID computes a stable deterministic identifier for a node based on its type and natural keys.
@@ -70,6 +70,25 @@ func (g *ProvenanceGraph) SetOriginResolver(r *origin.Resolver) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.originResolver = r
+}
+
+// SeedFromSnapshot initializes the graph with historical nodes from persistent storage,
+// preserving first_seen timestamps across daemon restarts.
+func (g *ProvenanceGraph) SeedFromSnapshot(nodes []graph.Node) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for _, n := range nodes {
+		if !n.FirstSeen.IsZero() {
+			if existing, exists := g.nodes[n.ID]; exists {
+				if n.FirstSeen.Before(existing.FirstSeen) {
+					existing.FirstSeen = n.FirstSeen
+					g.nodes[n.ID] = existing
+				}
+			} else {
+				g.nodes[n.ID] = n
+			}
+		}
+	}
 }
 
 // UpsertNode incrementally inserts or updates a node in the graph.
@@ -405,6 +424,34 @@ func (g *ProvenanceGraph) ingestProcess(obs sensors.Observation, now time.Time) 
 				Certainty:  graph.CertaintyObserved,
 				Confidence: 1.0,
 			})
+
+			// Extract service unit from cgroup (e.g. /system.slice/nginx.service -> nginx.service)
+			if idx := strings.Index(p.Cgroup, ".service"); idx != -1 {
+				unitStart := strings.LastIndex(p.Cgroup[:idx], "/")
+				if unitStart != -1 {
+					unitName := p.Cgroup[unitStart+1 : idx+8]
+					svcNodeID := GenerateNodeID(graph.NodeService, unitName)
+					_ = g.UpsertNode(graph.Node{
+						ID:        svcNodeID,
+						Type:      graph.NodeService,
+						Label:     unitName,
+						Certainty: graph.CertaintyDerived,
+						FirstSeen: now,
+						LastSeen:  now,
+						Evidence:  it.Evidence,
+					})
+
+					procToSvcEdgeID := GenerateEdgeID(procNodeID, svcNodeID, "runs")
+					_ = g.UpsertEdge(graph.Edge{
+						ID:         procToSvcEdgeID,
+						SourceID:   procNodeID,
+						TargetID:   svcNodeID,
+						Relation:   "runs",
+						Certainty:  graph.CertaintyDerived,
+						Confidence: 1.0,
+					})
+				}
+			}
 		}
 
 		// File node for exe if available
@@ -528,6 +575,52 @@ func (g *ProvenanceGraph) ingestService(obs sensors.Observation, now time.Time) 
 
 func (g *ProvenanceGraph) ingestNetwork(obs sensors.Observation, now time.Time) {
 	for _, it := range obs.Items {
+		if it.Type == "network_report" {
+			if rep, ok := it.Data.(network.NetworkReport); ok {
+				for _, cg := range rep.ConnectionGroups {
+					connID := GenerateNodeID(graph.NodeConnection, fmt.Sprintf("%s:%d", cg.RemoteIP, cg.PID))
+					_ = g.UpsertNode(graph.Node{
+						ID:    connID,
+						Type:  graph.NodeConnection,
+						Label: fmt.Sprintf("conn:%s (count %d)", cg.RemoteIP, cg.Count),
+						Properties: map[string]any{
+							"remote_ip":    cg.RemoteIP,
+							"pid":          cg.PID,
+							"process_name": cg.ProcessName,
+							"count":        cg.Count,
+						},
+						Evidence:  it.Evidence,
+						Certainty: graph.CertaintyObserved,
+						FirstSeen: now,
+						LastSeen:  now,
+					})
+
+					if cg.PID > 0 {
+						procNodeID := GenerateNodeID(graph.NodeProcess, fmt.Sprintf("%d:%s", cg.PID, cg.ProcessName))
+						_ = g.UpsertNode(graph.Node{
+							ID:        procNodeID,
+							Type:      graph.NodeProcess,
+							Label:     fmt.Sprintf("%s (pid %d)", cg.ProcessName, cg.PID),
+							Certainty: graph.CertaintyObserved,
+							FirstSeen: now,
+							LastSeen:  now,
+						})
+
+						edgeID := GenerateEdgeID(procNodeID, connID, "communicates_with")
+						_ = g.UpsertEdge(graph.Edge{
+							ID:         edgeID,
+							SourceID:   procNodeID,
+							TargetID:   connID,
+							Relation:   "communicates_with",
+							Certainty:  graph.CertaintyObserved,
+							Confidence: 1.0,
+						})
+					}
+				}
+			}
+			continue
+		}
+
 		if it.Type != "listening_port" {
 			continue
 		}

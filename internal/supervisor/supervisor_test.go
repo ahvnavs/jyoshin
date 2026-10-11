@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package supervisor
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/sensors"
 )
 
 type dummySensor struct {

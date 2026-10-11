@@ -1,17 +1,17 @@
-# Maintainer: Jyōshin Authors <maintainers@jyoshin.dev>
-pkgname=jyoshin
+# Maintainer: Kazeshini Authors <maintainers@kazeshini.dev>
+pkgname=kazeshini
 pkgver=0.1.0
 pkgrel=0
 pkgdesc="Server Truth Engine for Linux"
-url="https://github.com/OWNER/jyoshin"
+url="https://github.com/OWNER/kazeshini"
 arch="x86_64 aarch64"
 license="Apache-2.0"
 makedepends="go"
-source="$pkgname-$pkgver.tar.gz::https://github.com/OWNER/jyoshin/archive/v$pkgver.tar.gz"
+source="$pkgname-$pkgver.tar.gz::https://github.com/OWNER/kazeshini/archive/v$pkgver.tar.gz"
 
 build() {
     export CGO_ENABLED=0
-    go build -trimpath -ldflags "-s -w -X 'main.Version=v$pkgver'" -o jyoshin ./cmd/jyoshin
+    go build -trimpath -ldflags "-s -w -X 'main.Version=v$pkgver'" -o kazeshini ./cmd/kazeshini
 }
 
 check() {
@@ -19,7 +19,7 @@ check() {
 }
 
 package() {
-    install -Dm755 jyoshin "$pkgdir"/usr/local/bin/jyoshin
-    install -Dm644 packaging/config/jyoshin.json "$pkgdir"/etc/jyoshin/jyoshin.json
+    install -Dm755 kazeshini "$pkgdir"/usr/local/bin/kazeshini
+    install -Dm644 packaging/config/kazeshini.json "$pkgdir"/etc/kazeshini/kazeshini.json
 }
 

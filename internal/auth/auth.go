@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package auth manages local API authentication tokens with strict 0600 file permissions.
@@ -6,6 +6,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -24,7 +25,7 @@ type Manager struct {
 // NewManager creates an auth manager storing the local token in dataDir/auth.token.
 func NewManager(dataDir string) (*Manager, error) {
 	if dataDir == "" {
-		dataDir = "/var/lib/jyoshin"
+		dataDir = "/var/lib/kazeshini"
 	}
 	m := &Manager{
 		tokenPath: filepath.Join(dataDir, "auth.token"),
@@ -80,9 +81,12 @@ func (m *Manager) Token() string {
 	return m.token
 }
 
-// Validate checks whether the provided token matches.
+// Validate checks whether the provided token matches using constant-time comparison.
 func (m *Manager) Validate(candidate string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return candidate != "" && candidate == m.token
+	if candidate == "" || m.token == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(candidate), []byte(m.token)) == 1
 }

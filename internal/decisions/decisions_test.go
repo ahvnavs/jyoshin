@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package decisions_test
@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/decisions"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/decisions"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
 )
 
 func TestDecisions_DecommissionAndMigration(t *testing.T) {

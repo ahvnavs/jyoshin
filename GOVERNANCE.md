@@ -1,6 +1,6 @@
 # Project Governance
 
-Jyōshin is committed to being an open, community-led, and neutral project suitable
+Kazeshini is committed to being an open, community-led, and neutral project suitable
 for CNCF / Linux Foundation hosting.
 
 ## Principles

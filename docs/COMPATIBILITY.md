@@ -1,11 +1,11 @@
 # Distribution Compatibility Matrix
 
-Jyōshin is designed to run unprivileged on any modern Linux distribution without external dependencies.
+Kazeshini is designed to run unprivileged on any modern Linux distribution without external dependencies.
 Compatibility is validated across packaging, host identification, process and network telemetry, service management, package inventory parsing, and report generation.
 
 | Distribution | Release / Arch | Packaging Defined | Host & Kernel Telemetry | Package DB Sensor | Live Distro Smoke Run | Overall Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Ubuntu** | 24.04 LTS (Noble) / amd64, arm64 | `.deb`, `install.sh` | Verified (host environment & fixtures) | Verified (`dpkg status` fixture) | Verified (live host) | **PASS** |
+| **Ubuntu** | 26.04.1 LTS (Resolute) / amd64, arm64 | `.deb`, `install.sh` | Verified (host environment & fixtures) | Verified (`dpkg status` fixture) | Verified (live host) | **PASS** |
 | **Ubuntu** | 22.04 LTS (Jammy) / amd64, arm64 | `.deb`, `install.sh` | Verified (os-release fixture) | Verified (`dpkg status` fixture) | not yet run | **PARTIAL** (fixture tested) |
 | **Debian** | 12 (Bookworm) / amd64, arm64 | `.deb`, `install.sh` | Verified (os-release fixture) | Verified (`dpkg status` fixture) | not yet run | **PARTIAL** (fixture tested) |
 | **Fedora** | 40 / amd64, arm64 | `.rpm`, `install.sh` | Verified (os-release fixture) | Verified (`rpm` parser tests) | not yet run | **PARTIAL** (fixture tested) |

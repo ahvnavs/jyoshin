@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package resources
@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/sensors"
 )
 
 // ResourceSample contains instantaneous system-wide performance and pressure metrics.
@@ -59,7 +59,7 @@ func (s *Sensor) Name() string {
 }
 
 func (s *Sensor) Interval() time.Duration {
-	return 15 * time.Second
+	return 10 * time.Second
 }
 
 func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {

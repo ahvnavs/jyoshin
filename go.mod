@@ -1,4 +1,4 @@
-module github.com/OWNER/jyoshin
+module github.com/OWNER/kazeshini
 
 go 1.25.0
 

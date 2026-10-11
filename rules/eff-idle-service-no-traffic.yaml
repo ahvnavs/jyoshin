@@ -1,0 +1,22 @@
+id: "EFF-IDLE-SERVICE-NO-TRAFFIC"
+name: "Running network service with zero client traffic"
+description: "Active systemd service with open listening socket observed zero inbound or outbound network connections over extended monitoring window."
+category: "efficiency"
+severity: "low"
+match:
+  node_type: "service"
+  properties:
+    active_state:
+      equals: "active"
+    established_connections:
+      equals: 0
+    duration_hours:
+      greater_than: 72
+consequence: "Idle daemons tie up background resident memory, periodic scheduler ticks, and open kernel port listeners without serving users."
+recommendation:
+  action: "Review if service is decommissioned or candidate for socket activation via systemd.socket."
+  risk_level: "low"
+  reversible: true
+certainty: "DERIVED"
+confidence: 0.90
+

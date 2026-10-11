@@ -1,9 +1,10 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package store
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,13 +17,15 @@ import (
 
 	bbolt "go.etcd.io/bbolt"
 
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/rules"
+	"github.com/OWNER/kazeshini/internal/forecast"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/rules"
 )
 
 var (
 	bucketSnapshots = []byte("snapshots")
 	bucketFindings  = []byte("findings")
+	bucketSamples   = []byte("samples")
 	bucketMeta      = []byte("metadata")
 )
 
@@ -36,7 +39,7 @@ type Config struct {
 // DefaultConfig provides conservative bounds.
 func DefaultConfig(dataDir string) Config {
 	if dataDir == "" {
-		dataDir = "/var/lib/jyoshin"
+		dataDir = "/var/lib/kazeshini"
 	}
 	return Config{
 		DataDir:      dataDir,
@@ -60,6 +63,8 @@ type Store interface {
 	ListSnapshots(ctx context.Context, limit int) ([]Snapshot, error)
 	SaveFindings(ctx context.Context, findings []rules.Finding) error
 	ListFindings(ctx context.Context, category rules.Category, limit int) ([]rules.Finding, error)
+	SaveSample(ctx context.Context, target string, sample forecast.Sample) error
+	ListSamples(ctx context.Context, target string, limit int) ([]forecast.Sample, error)
 	Close() error
 }
 
@@ -92,7 +97,7 @@ func Open(cfg Config, logger *slog.Logger) (*BoltStore, error) {
 		return bs, nil
 	}
 
-	dbPath := filepath.Join(cfg.DataDir, "jyoshin.db")
+	dbPath := filepath.Join(cfg.DataDir, "kazeshini.db")
 	bs.dbPath = dbPath
 
 	db, err := bbolt.Open(dbPath, 0600, &bbolt.Options{Timeout: 2 * time.Second})
@@ -110,6 +115,9 @@ func Open(cfg Config, logger *slog.Logger) (*BoltStore, error) {
 			return err
 		}
 		if _, err := tx.CreateBucketIfNotExists(bucketFindings); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists(bucketSamples); err != nil {
 			return err
 		}
 		if _, err := tx.CreateBucketIfNotExists(bucketMeta); err != nil {
@@ -380,6 +388,63 @@ func (s *BoltStore) ListFindings(ctx context.Context, category rules.Category, l
 	})
 
 	return list, err
+}
+
+// SaveSample persists a metric sample under bucketSamples with key <target>:<timestamp>.
+func (s *BoltStore) SaveSample(ctx context.Context, target string, sample forecast.Sample) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.inMemory || s.db == nil {
+		return nil
+	}
+
+	key := fmt.Sprintf("%s:%020d", target, sample.Timestamp.UnixNano())
+	data, err := json.Marshal(sample)
+	if err != nil {
+		return err
+	}
+
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketSamples)
+		if b == nil {
+			return nil
+		}
+		return b.Put([]byte(key), data)
+	})
+}
+
+// ListSamples retrieves historical samples for a target, ordered chronologically.
+func (s *BoltStore) ListSamples(ctx context.Context, target string, limit int) ([]forecast.Sample, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.inMemory || s.db == nil {
+		return nil, nil
+	}
+
+	var samples []forecast.Sample
+	prefix := []byte(target + ":")
+
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketSamples)
+		if b == nil {
+			return nil
+		}
+		c := b.Cursor()
+		for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+			var smp forecast.Sample
+			if err := json.Unmarshal(v, &smp); err == nil {
+				samples = append(samples, smp)
+			}
+			if limit > 0 && len(samples) >= limit {
+				break
+			}
+		}
+		return nil
+	})
+
+	return samples, err
 }
 
 // Close safely flushes write logs and terminates the bbolt database.

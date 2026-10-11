@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OWNER/jyoshin/internal/config"
+	"github.com/OWNER/kazeshini/internal/config"
 )
 
 func TestAPI_Health(t *testing.T) {
@@ -99,7 +99,7 @@ func TestAPI_EmbeddedUI(t *testing.T) {
 		t.Fatalf("failed to read body: %v", err)
 	}
 
-	if !strings.Contains(string(body), "JYŌSHIN") {
-		t.Fatalf("expected embedded html content with JYŌSHIN, got: %s", string(body))
+	if !strings.Contains(string(body), "KAZESHINI") {
+		t.Fatalf("expected embedded html content with KAZESHINI, got: %s", string(body))
 	}
 }

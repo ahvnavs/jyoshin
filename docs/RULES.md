@@ -1,6 +1,6 @@
 # Declarative Rule Authoring Guide
 
-Jyōshin uses a deterministic, transparent, and declarative YAML-based query engine to inspect the provenance graph.
+Kazeshini uses a deterministic, transparent, and declarative YAML-based query engine to inspect the provenance graph.
 
 **Rule Engine Invariants**:
 1. **Zero AI / ML**: Every finding must be explainable via direct graph evidence.
@@ -12,7 +12,7 @@ Jyōshin uses a deterministic, transparent, and declarative YAML-based query eng
 
 ## 1. Rule Specification Schema
 
-Each rule is defined as a YAML file (typically stored in `rules/*.yaml` or `/etc/jyoshin/rules.d/*.yaml`):
+Each rule is defined as a YAML file (typically stored in `rules/*.yaml` or `/etc/kazeshini/rules.d/*.yaml`):
 
 ```yaml
 id: RUL-001-MANUAL-BIN
@@ -94,7 +94,7 @@ Every rule must declare actionable remediation:
 Before submitting rules, validate syntax and schema invariants using the built-in CLI:
 
 ```bash
-jyoshin rules lint rules/my-new-rule.yaml
+kazeshini rules lint rules/my-new-rule.yaml
 ```
 
 The linter verifies:

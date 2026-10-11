@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package supervisor
@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/sensors"
 )
 
-// SelfOverhead reports Jyōshin's own resource utilization and cgroup limits.
+// SelfOverhead reports Kazeshini's own resource utilization and cgroup limits.
 type SelfOverhead struct {
 	PID          int     `json:"pid"`
 	NumGoroutine int     `json:"num_goroutine"`

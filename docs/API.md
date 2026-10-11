@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Jyōshin Server Truth Engine API
+  title: Kazeshini Server Truth Engine API
   description: Local-first, read-only system truth inspection API for Linux.
   version: 0.1.0-dev
   license:

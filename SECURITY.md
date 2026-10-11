@@ -1,6 +1,6 @@
 # Security Policy
 
-Jyōshin takes host security, privacy, and safety seriously. Because Jyōshin is a
+Kazeshini takes host security, privacy, and safety seriously. Because Kazeshini is a
 read-only diagnostic utility that runs as an unprivileged service, any vulnerability
 that could allow remote exposure, host modification, or privilege escalation is treated
 with the highest urgency.
@@ -17,7 +17,7 @@ Please **DO NOT** report security vulnerabilities through public GitHub issues.
 
 To report a vulnerability privately:
 1. Use GitHub Private Vulnerability Reporting on this repository if enabled, or
-2. Send an encrypted email to `security@jyoshin.local` (or designated maintainers).
+2. Send an encrypted email to `security@kazeshini.local` (or designated maintainers).
 
 Include as much of the following details as possible:
 - Type of issue (e.g. unexpected bind, buffer overflow, privilege leak, unsafe parser)

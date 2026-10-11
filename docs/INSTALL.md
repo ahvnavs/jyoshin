@@ -1,10 +1,10 @@
 # Installation Guide
 
-Jyōshin is installed via a single command as an unprivileged system service.
+Kazeshini is installed via a single command as an unprivileged system service.
 
 ## One-Command Quickstart
 ```bash
-curl -sSL https://raw.githubusercontent.com/OWNER/jyoshin/main/scripts/install.sh | sudo sh
+curl -sSL https://raw.githubusercontent.com/OWNER/kazeshini/main/scripts/install.sh | sudo sh
 ```
 
 ### Options
@@ -13,11 +13,11 @@ curl -sSL https://raw.githubusercontent.com/OWNER/jyoshin/main/scripts/install.s
 - `--dry-run`: Test installation steps without modifying system state.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/OWNER/jyoshin/main/scripts/install.sh | sudo sh -s -- --dry-run
+curl -sSL https://raw.githubusercontent.com/OWNER/kazeshini/main/scripts/install.sh | sudo sh -s -- --dry-run
 ```
 
 ## Accessing the Dashboard
-Jyōshin strictly binds to `127.0.0.1:7777` by default.
+Kazeshini strictly binds to `127.0.0.1:7777` by default.
 
 ### Local Access
 Open [http://127.0.0.1:7777/](http://127.0.0.1:7777/) in your browser.

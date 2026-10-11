@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package process
@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OWNER/jyoshin/internal/fs"
+	"github.com/OWNER/kazeshini/internal/fs"
 )
 
 func TestProcessSensor_FixturesAndVanishingPID(t *testing.T) {

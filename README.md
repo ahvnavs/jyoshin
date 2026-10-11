@@ -1,6 +1,6 @@
-# Jyōshin (ज्योति · 真)
+# Kazeshini (風死)
 
-[![CI](https://github.com/OWNER/jyoshin/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/jyoshin/actions/workflows/ci.yml)
+[![CI](https://github.com/OWNER/kazeshini/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/kazeshini/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-OpenSSF_Gold_Ready-success.svg)](docs/STANDARDS.md)
 
@@ -9,7 +9,7 @@
 
 ---
 
-## What is Jyōshin?
+## What is Kazeshini?
 
 One static Go binary. One command installs it. It runs as an unprivileged systemd service and hosts a local web dashboard (`127.0.0.1:7777` strictly by default) that shows, with zero user configuration:
 - **How did this get here?** Full provenance chain tracing every process, listener, and service back to its origin package, language ecosystem (`pip`, `npm`, `cargo`, `gem`), container, or manual drop.
@@ -20,7 +20,7 @@ One static Go binary. One command installs it. It runs as an unprivileged system
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│ JYŌSHIN // SERVER TRUTH ENGINE                                                  │
+│ KAZESHINI // SERVER TRUTH ENGINE                                                │
 │ STATUS: [●] CALM   CHAOS INDEX: 12/100   HOST: prod-web-01 (Ubuntu 24.04 LTS)    │
 │ PORTS: 3 (0 public)   SERVICES: 42 (0 failed)   WASTE: $0.00/mo                 │
 ├─────────────────────────────────────────────────────────────────────────────────┤
@@ -57,11 +57,11 @@ One static Go binary. One command installs it. It runs as an unprivileged system
 Install the pre-built, cryptographically signed release binary as an unprivileged systemd service:
 
 ```bash
-curl -fsSL https://get.jyoshin.dev | sh
+curl -fsSL https://get.kazeshini.dev | sh
 ```
 
 ### Accessing the Dashboard via SSH Tunnel
-Jyōshin strictly binds to `127.0.0.1:7777` and refuses remote exposure by default. Forward port 7777 over SSH:
+Kazeshini strictly binds to `127.0.0.1:7777` and refuses remote exposure by default. Forward port 7777 over SSH:
 
 ```bash
 ssh -L 7777:127.0.0.1:7777 user@your-server
@@ -72,13 +72,13 @@ Then visit `http://127.0.0.1:7777` in your local browser.
 Generate a full terminal state handoff report without starting the daemon:
 
 ```bash
-jyoshin report --format terminal
+kazeshini report --format terminal
 ```
 
 Or export clean JSON / self-contained HTML:
 ```bash
-jyoshin report --format html > server-report.html
-jyoshin report --format json > server-report.json
+kazeshini report --format html > server-report.html
+kazeshini report --format json > server-report.json
 ```
 
 ---
@@ -86,8 +86,8 @@ jyoshin report --format json > server-report.json
 ## Known Limitations
 
 We document our operational boundaries and known gaps honestly:
-1. **Unprivileged by Design**: Without `CAP_DAC_READ_SEARCH` or `CAP_SYS_PTRACE`, Jyōshin cannot read environment variables or socket tables of processes owned by other users. These are explicitly reported as `status: unknown (unprivileged)` rather than guessing or escalating privileges.
-2. **Linux Only**: Jyōshin relies on `/proc`, `/sys`, and Linux cgroups/sockets; it is not supported on macOS, FreeBSD, or Windows.
+1. **Unprivileged by Design**: Without `CAP_DAC_READ_SEARCH` or `CAP_SYS_PTRACE`, Kazeshini cannot read environment variables or socket tables of processes owned by other users. These are explicitly reported as `status: unknown (unprivileged)` rather than guessing or escalating privileges.
+2. **Linux Only**: Kazeshini relies on `/proc`, `/sys`, and Linux cgroups/sockets; it is not supported on macOS, FreeBSD, or Windows.
 3. **Containerized systemd**: In Docker containers lacking systemd init, service management queries degrade to direct process monitoring and report OpenRC / non-systemd mode.
 4. **Pure-Go RPM Parsing**: In environments lacking rpm libraries, RPM queries fall back to fixed, timeout-bounded `/usr/bin/rpm -qa` invocations.
 

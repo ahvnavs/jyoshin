@@ -1,4 +1,4 @@
-# Contributing Rules to Jyōshin
+# Contributing Rules to Kazeshini
 
 We welcome community rule contributions that help administrators identify hygiene, security, and stability risks on Linux servers!
 
@@ -21,14 +21,14 @@ Before submitting a PR with new rules in `rules/*.yaml`:
 - [ ] Category is one of `hygiene`, `security`, `reliability`, `compliance`.
 - [ ] Severity is appropriate (`info`, `low`, `medium`, `high`, `critical`).
 - [ ] `what`, `so_what`, `now_what.action`, and `proof` are populated.
-- [ ] Validated with `jyoshin rules lint <path-to-rule>`.
+- [ ] Validated with `kazeshini rules lint <path-to-rule>`.
 - [ ] Unit tests or fixture graphs added in `internal/rules/` or `test/fixtures/`.
 
 ---
 
 ## 3. Testing Your Rule
 
-Run the Jyōshin rule test suite:
+Run the Kazeshini rule test suite:
 
 ```bash
 go test -v ./internal/rules/...
@@ -37,6 +37,6 @@ go test -v ./internal/rules/...
 To run the rule against a local machine or test fixture graph:
 
 ```bash
-go run ./cmd/jyoshin rules lint rules/*.yaml
+go run ./cmd/kazeshini rules lint rules/*.yaml
 ```
 

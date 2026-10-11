@@ -1,6 +1,6 @@
 # Performance Benchmarks & Host Overhead
 
-Jyōshin is designed under strict host safety constraints: **Zero Harm to the Host**, bounded resource usage, and predictable overhead.
+Kazeshini is designed under strict host safety constraints: **Zero Harm to the Host**, bounded resource usage, and predictable overhead.
 
 ---
 

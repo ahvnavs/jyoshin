@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package forecast_test
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/forecast"
+	"github.com/OWNER/kazeshini/internal/forecast"
 )
 
 func TestForecaster_InsufficientDataHonesty(t *testing.T) {

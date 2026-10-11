@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package robustness_test
@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/sensors/host"
-	"github.com/OWNER/jyoshin/internal/sensors/process"
-	"github.com/OWNER/jyoshin/internal/store"
+	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/sensors/host"
+	"github.com/OWNER/kazeshini/internal/sensors/process"
+	"github.com/OWNER/kazeshini/internal/store"
 )
 
 // TestRobustness_HostileProcInput ensures process sensor safely handles hostile/corrupt /proc structures.

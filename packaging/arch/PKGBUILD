@@ -1,26 +1,26 @@
-# Maintainer: Jyōshin Authors <maintainers@jyoshin.dev>
-pkgname=jyoshin
+# Maintainer: Kazeshini Authors <maintainers@kazeshini.dev>
+pkgname=kazeshini
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Server Truth Engine for Linux (Read-only, local-first inspection)"
 arch=('x86_64' 'aarch64')
-url="https://github.com/OWNER/jyoshin"
+url="https://github.com/OWNER/kazeshini"
 license=('Apache-2.0')
 makedepends=('go')
-backup=('etc/jyoshin/jyoshin.json')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/OWNER/jyoshin/archive/v$pkgver.tar.gz")
+backup=('etc/kazeshini/kazeshini.json')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/OWNER/kazeshini/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 build() {
   cd "$pkgname-$pkgver"
   export CGO_ENABLED=0
-  go build -trimpath -ldflags "-s -w -X 'main.Version=v$pkgver'" -o jyoshin ./cmd/jyoshin
+  go build -trimpath -ldflags "-s -w -X 'main.Version=v$pkgver'" -o kazeshini ./cmd/kazeshini
 }
 
 package() {
   cd "$pkgname-$pkgver"
-  install -Dm755 jyoshin "$pkgdir/usr/local/bin/jyoshin"
-  install -Dm644 packaging/systemd/jyoshin.service "$pkgdir/usr/lib/systemd/system/jyoshin.service"
-  install -Dm644 packaging/config/jyoshin.json "$pkgdir/etc/jyoshin/jyoshin.json"
+  install -Dm755 kazeshini "$pkgdir/usr/local/bin/kazeshini"
+  install -Dm644 packaging/systemd/kazeshini.service "$pkgdir/usr/lib/systemd/system/kazeshini.service"
+  install -Dm644 packaging/config/kazeshini.json "$pkgdir/etc/kazeshini/kazeshini.json"
 }
 

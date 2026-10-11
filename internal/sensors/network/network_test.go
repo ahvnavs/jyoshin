@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package network
@@ -7,9 +7,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/OWNER/jyoshin/internal/fs"
+	"github.com/OWNER/kazeshini/internal/fs"
 )
 
 func TestNetworkSensor_SocketParsing(t *testing.T) {
@@ -35,7 +36,7 @@ func TestNetworkSensor_SocketParsing(t *testing.T) {
 	mustWrite("/proc/net/tcp", tcpContent)
 
 	// Mock PID 1024 holding socket inode 445566
-	mustWrite("/proc/1024/comm", "jyoshin\n")
+	mustWrite("/proc/1024/comm", "kazeshini\n")
 	proc1024Fd := filepath.Join(root, "proc/1024/fd")
 	if err := os.MkdirAll(proc1024Fd, 0755); err != nil {
 		t.Fatal(err)
@@ -61,12 +62,12 @@ func TestNetworkSensor_SocketParsing(t *testing.T) {
 		t.Fatalf("expected 1 established connection, got %d", report.EstablishedCount)
 	}
 
-	var foundJyoshinListener bool
+	var foundKazeshiniListener bool
 	for _, l := range report.Listeners {
 		if l.LocalPort == 7777 {
-			foundJyoshinListener = true
-			if l.PID != 1024 || l.ProcessName != "jyoshin" {
-				t.Errorf("expected PID 1024 / jyoshin, got PID %d / %s", l.PID, l.ProcessName)
+			foundKazeshiniListener = true
+			if l.PID != 1024 || l.ProcessName != "kazeshini" {
+				t.Errorf("expected PID 1024 / kazeshini, got PID %d / %s", l.PID, l.ProcessName)
 			}
 			if l.ExposureClass != ExposureLoopback {
 				t.Errorf("expected loopback exposure for 127.0.0.1, got %s", l.ExposureClass)
@@ -74,7 +75,58 @@ func TestNetworkSensor_SocketParsing(t *testing.T) {
 		}
 	}
 
-	if !foundJyoshinListener {
+	if !foundKazeshiniListener {
 		t.Errorf("did not find port 7777 listener")
+	}
+}
+
+func TestNetworkSensor_UnreadableProcFdPermissionDenied(t *testing.T) {
+	root := t.TempDir()
+
+	mustWrite := func(relPath, content string) {
+		full := filepath.Join(root, relPath)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tcpContent := `  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode                                                     
+   0: 00000000:0050 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 112233 1 0000000000000000 100 0 0 10 0                     
+`
+	mustWrite("/proc/net/tcp", tcpContent)
+
+	// Mock PID 500 whose /proc/500/fd directory is unreadable (mode 0000)
+	mustWrite("/proc/500/comm", "root-daemon\n")
+	proc500Fd := filepath.Join(root, "proc/500/fd")
+	if err := os.MkdirAll(proc500Fd, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(proc500Fd, 0000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(proc500Fd, 0755)
+	})
+
+	rfs := fs.NewRootedFS(root)
+	sensor := New(rfs)
+
+	obs, err := sensor.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected collect error: %v", err)
+	}
+
+	// Must report unknown status and mention permission
+	if obs.Status != "unknown" {
+		t.Errorf("expected observation status 'unknown', got %q", obs.Status)
+	}
+	if !strings.Contains(obs.Reason, "unknown, permission") {
+		t.Errorf("expected reason to contain 'unknown, permission', got %q", obs.Reason)
+	}
+	if !strings.Contains(obs.Reason, "reduced visibility") {
+		t.Errorf("expected reason to mention 'reduced visibility', got %q", obs.Reason)
 	}
 }

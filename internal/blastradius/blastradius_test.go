@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package blastradius_test
@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/blastradius"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/blastradius"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
 )
 
 func TestBlastRadius_SafeLeafNode(t *testing.T) {

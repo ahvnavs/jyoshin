@@ -1,4 +1,4 @@
-# Jyōshin Roadmap
+# Kazeshini Roadmap
 
 ## Phase 1: Repository Foundation (Current)
 - [x] Initial repository scaffolding and module initialization

@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package ui_test
@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/rules"
-	"github.com/OWNER/jyoshin/internal/verdict"
-	"github.com/OWNER/jyoshin/web"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/verdict"
+	"github.com/OWNER/kazeshini/web"
 )
 
 // TestUI_StaticAssetIntegrity checks bundle size budget (< 300 KB) and assets presence.
@@ -106,7 +106,7 @@ func TestUI_DOMContract(t *testing.T) {
 		"--panel: #11131A",
 		"--panel-border: #1E2230",
 		"--text: #D8DEE9",
-		"--dim: #6B7280",
+		"--dim: #767D8E",
 		"--mint: #8FFFC8",
 		"--cyan: #8FE9FF",
 		"--lavender: #B9A7FF",

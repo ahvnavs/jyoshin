@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package inventory
@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/OWNER/jyoshin/internal/fs"
+	"github.com/OWNER/kazeshini/internal/fs"
 )
 
 func TestInventory_DpkgParsing(t *testing.T) {

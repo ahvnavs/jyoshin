@@ -1,6 +1,6 @@
 # Finding Ranking Specification
 
-Jyōshin ranks findings deterministically according to potential operational,
+Kazeshini ranks findings deterministically according to potential operational,
 security, or cost consequences.
 
 ## Ranking Formula

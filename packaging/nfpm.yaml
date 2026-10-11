@@ -1,27 +1,27 @@
-# NFPM configuration for Jyōshin (.deb and .rpm packaging)
-name: "jyoshin"
+# NFPM configuration for Kazeshini (.deb and .rpm packaging)
+name: "kazeshini"
 arch: "${ARCH}"
 platform: "linux"
 version: "${VERSION}"
 section: "admin"
 priority: "optional"
-maintainer: "Jyōshin Authors <maintainers@jyoshin.dev>"
+maintainer: "Kazeshini Authors <maintainers@kazeshini.dev>"
 description: "Server Truth Engine for Linux: Read-only, local-first inspection engine"
-vendor: "Jyōshin"
-homepage: "https://github.com/OWNER/jyoshin"
+vendor: "Kazeshini"
+homepage: "https://github.com/OWNER/kazeshini"
 license: "Apache-2.0"
 
 contents:
-  - src: ./jyoshin
-    dst: /usr/local/bin/jyoshin
+  - src: ./kazeshini
+    dst: /usr/local/bin/kazeshini
     file_info:
       mode: 0755
-  - src: ./packaging/systemd/jyoshin.service
-    dst: /etc/systemd/system/jyoshin.service
+  - src: ./packaging/systemd/kazeshini.service
+    dst: /etc/systemd/system/kazeshini.service
     file_info:
       mode: 0644
-  - src: ./packaging/config/jyoshin.json
-    dst: /etc/jyoshin/jyoshin.json
+  - src: ./packaging/config/kazeshini.json
+    dst: /etc/kazeshini/kazeshini.json
     type: config|noreplace
     file_info:
       mode: 0644

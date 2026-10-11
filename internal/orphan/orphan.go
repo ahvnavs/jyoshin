@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package orphan implements on-demand, off-peak orphan binary scans
@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	internalfs "github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/origin"
+	internalfs "github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/origin"
 )
 
 // ScanResult reports the outcome of an orphan scan pass.

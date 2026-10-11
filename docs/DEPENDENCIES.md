@@ -1,4 +1,4 @@
-# Jyōshin Dependencies & Justifications
+# Kazeshini Dependencies & Justifications
 
 Principle 9: **STDLIB-FIRST**.
 > Add a third-party dependency only with written justification in `docs/DEPENDENCIES.md`
@@ -32,7 +32,7 @@ Principle 9: **STDLIB-FIRST**.
 - **License**: MIT / Apache-2.0 compatible
 - **Purpose**: Parsing and validating declarative YAML rule files, price tables (`data/prices.yaml`), and EOL datasets (`data/eol.yaml`).
 - **Justification**:
-  - Standard industry parser for YAML 1.2 in Go with strict syntax error diagnostics and line-number reporting for `jyoshin rules lint`.
+  - Standard industry parser for YAML 1.2 in Go with strict syntax error diagnostics and line-number reporting for `kazeshini rules lint`.
   - Pure-Go with zero CGO dependencies.
 - **Alternatives Considered**:
   - *Custom ad-hoc line parser*: Fragile, error-prone for nested structures and block scalars.

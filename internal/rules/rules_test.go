@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package rules
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graph"
 )
 
 func TestRules_LintValidAndInvalid(t *testing.T) {
@@ -540,3 +540,307 @@ recommendation:
 		t.Fatal("expected evaluation error when context budget cancelled")
 	}
 }
+
+func TestRules_PositiveAndNegative_ForecasterAndNewRules(t *testing.T) {
+	engine := NewEngine(2 * time.Second)
+	count, err := engine.LoadDirectory("../../rules")
+	if err != nil {
+		t.Fatalf("failed to load rules directory: %v", err)
+	}
+	t.Logf("Loaded %d declarative rules from rules/", count)
+	now := time.Now().UTC()
+
+	// 1. EFF-DISK-EXHAUSTION-FORECAST
+	t.Run("TestRule_EFF_DISK_EXHAUSTION_FORECAST_Positive", func(t *testing.T) {
+		positiveNode := graph.Node{
+			ID:    "res:mount-exhausting",
+			Type:  graph.NodeResource,
+			Label: "mount / (exhausting)",
+			Properties: map[string]any{
+				"time_to_exhaustion_hours": 24.5,
+				"is_growth":                true,
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{positiveNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, f := range findings {
+			if f.RuleID == "EFF-DISK-EXHAUSTION-FORECAST" {
+				found = true
+				if f.NowWhat.Reversible != false {
+					t.Errorf("expected reversible=false, got %v", f.NowWhat.Reversible)
+				}
+				if f.NowWhat.RiskLevel != RiskMedium {
+					t.Errorf("expected risk_level=medium, got %v", f.NowWhat.RiskLevel)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("expected EFF-DISK-EXHAUSTION-FORECAST to trigger on positive fixture")
+		}
+	})
+
+	t.Run("TestRule_EFF_DISK_EXHAUSTION_FORECAST_Negative", func(t *testing.T) {
+		negativeNode := graph.Node{
+			ID:    "res:mount-stable",
+			Type:  graph.NodeResource,
+			Label: "mount / (stable)",
+			Properties: map[string]any{
+				"time_to_exhaustion_hours": 120.0,
+				"is_growth":                false,
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{negativeNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range findings {
+			if f.RuleID == "EFF-DISK-EXHAUSTION-FORECAST" {
+				t.Errorf("EFF-DISK-EXHAUSTION-FORECAST unexpectedly triggered on negative fixture")
+			}
+		}
+	})
+
+	// 2. EFF-MEMORY-LEAK-FORECAST
+	t.Run("TestRule_EFF_MEMORY_LEAK_FORECAST_Positive", func(t *testing.T) {
+		positiveNode := graph.Node{
+			ID:    "res:memory-leaking",
+			Type:  graph.NodeResource,
+			Label: "system_ram",
+			Properties: map[string]any{
+				"is_leak": true,
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{positiveNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, f := range findings {
+			if f.RuleID == "EFF-MEMORY-LEAK-FORECAST" {
+				found = true
+				if f.NowWhat.Reversible != true {
+					t.Errorf("expected reversible=true, got %v", f.NowWhat.Reversible)
+				}
+				if f.NowWhat.RiskLevel != RiskHigh {
+					t.Errorf("expected risk_level=high, got %v", f.NowWhat.RiskLevel)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("expected EFF-MEMORY-LEAK-FORECAST to trigger on positive fixture")
+		}
+	})
+
+	t.Run("TestRule_EFF_MEMORY_LEAK_FORECAST_Negative", func(t *testing.T) {
+		negativeNode := graph.Node{
+			ID:    "res:memory-healthy",
+			Type:  graph.NodeResource,
+			Label: "system_ram",
+			Properties: map[string]any{
+				"is_leak": false,
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{negativeNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range findings {
+			if f.RuleID == "EFF-MEMORY-LEAK-FORECAST" {
+				t.Errorf("EFF-MEMORY-LEAK-FORECAST unexpectedly triggered on negative fixture")
+			}
+		}
+	})
+
+	// 3. SEC-STALE-USER
+	t.Run("TestRule_SEC_STALE_USER_Positive", func(t *testing.T) {
+		positiveNode := graph.Node{
+			ID:    "user:uid=1050",
+			Type:  graph.NodeUser,
+			Label: "user:legacy-dev",
+			Properties: map[string]any{
+				"days_since_last_login": 220,
+				"has_login_shell":       true,
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{positiveNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, f := range findings {
+			if f.RuleID == "SEC-STALE-USER" {
+				found = true
+				if f.NowWhat.Reversible != true {
+					t.Errorf("expected reversible=true, got %v", f.NowWhat.Reversible)
+				}
+				if f.NowWhat.RiskLevel != RiskLow {
+					t.Errorf("expected risk_level=low, got %v", f.NowWhat.RiskLevel)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("expected SEC-STALE-USER to trigger on positive fixture")
+		}
+	})
+
+	t.Run("TestRule_SEC_STALE_USER_Negative", func(t *testing.T) {
+		negativeNode := graph.Node{
+			ID:    "user:uid=1001",
+			Type:  graph.NodeUser,
+			Label: "user:active-dev",
+			Properties: map[string]any{
+				"days_since_last_login": 12,
+				"has_login_shell":       true,
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{negativeNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range findings {
+			if f.RuleID == "SEC-STALE-USER" {
+				t.Errorf("SEC-STALE-USER unexpectedly triggered on negative fixture")
+			}
+		}
+	})
+
+	// 4. EFF-IDLE-SERVICE-NO-TRAFFIC
+	t.Run("TestRule_EFF_IDLE_SERVICE_NO_TRAFFIC_Positive", func(t *testing.T) {
+		positiveNode := graph.Node{
+			ID:    "service:dormant-api.service",
+			Type:  graph.NodeService,
+			Label: "dormant-api.service",
+			Properties: map[string]any{
+				"active_state":            "active",
+				"established_connections": 0,
+				"duration_hours":          96.0,
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{positiveNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, f := range findings {
+			if f.RuleID == "EFF-IDLE-SERVICE-NO-TRAFFIC" {
+				found = true
+				if f.NowWhat.Reversible != true {
+					t.Errorf("expected reversible=true, got %v", f.NowWhat.Reversible)
+				}
+				if f.NowWhat.RiskLevel != RiskLow {
+					t.Errorf("expected risk_level=low, got %v", f.NowWhat.RiskLevel)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("expected EFF-IDLE-SERVICE-NO-TRAFFIC to trigger on positive fixture")
+		}
+	})
+
+	t.Run("TestRule_EFF_IDLE_SERVICE_NO_TRAFFIC_Negative", func(t *testing.T) {
+		negativeNode := graph.Node{
+			ID:    "service:active-web.service",
+			Type:  graph.NodeService,
+			Label: "active-web.service",
+			Properties: map[string]any{
+				"active_state":            "active",
+				"established_connections": 38,
+				"duration_hours":          96.0,
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{negativeNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range findings {
+			if f.RuleID == "EFF-IDLE-SERVICE-NO-TRAFFIC" {
+				t.Errorf("EFF-IDLE-SERVICE-NO-TRAFFIC unexpectedly triggered on negative fixture")
+			}
+		}
+	})
+
+	// 5. EFF-RECLAIMABLE-STORAGE-LOGS
+	t.Run("TestRule_EFF_RECLAIMABLE_STORAGE_LOGS_Positive", func(t *testing.T) {
+		positiveNode := graph.Node{
+			ID:    "res:logs-bloat",
+			Type:  graph.NodeResource,
+			Label: "system_logs",
+			Properties: map[string]any{
+				"reclaimable_bytes": uint64(5368709120), // 5 GB
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{positiveNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, f := range findings {
+			if f.RuleID == "EFF-RECLAIMABLE-STORAGE-LOGS" {
+				found = true
+				if f.NowWhat.Reversible != false {
+					t.Errorf("expected reversible=false, got %v", f.NowWhat.Reversible)
+				}
+				if f.NowWhat.RiskLevel != RiskLow {
+					t.Errorf("expected risk_level=low, got %v", f.NowWhat.RiskLevel)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("expected EFF-RECLAIMABLE-STORAGE-LOGS to trigger on positive fixture")
+		}
+	})
+
+	t.Run("TestRule_EFF_RECLAIMABLE_STORAGE_LOGS_Negative", func(t *testing.T) {
+		negativeNode := graph.Node{
+			ID:    "res:logs-clean",
+			Type:  graph.NodeResource,
+			Label: "system_logs",
+			Properties: map[string]any{
+				"reclaimable_bytes": uint64(104857600), // 100 MB
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{negativeNode}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range findings {
+			if f.RuleID == "EFF-RECLAIMABLE-STORAGE-LOGS" {
+				t.Errorf("EFF-RECLAIMABLE-STORAGE-LOGS unexpectedly triggered on negative fixture")
+			}
+		}
+	})
+}
+

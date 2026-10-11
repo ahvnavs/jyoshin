@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package security_test
@@ -10,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OWNER/jyoshin/internal/api"
-	"github.com/OWNER/jyoshin/internal/config"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/store"
+	"github.com/OWNER/kazeshini/internal/api"
+	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/store"
 )
 
-// TestSecurity_LoopbackBindingRefusal verifies that Jyōshin refuses non-loopback addresses
+// TestSecurity_LoopbackBindingRefusal verifies that Kazeshini refuses non-loopback addresses
 // unless allow_remote is explicitly true.
 func TestSecurity_LoopbackBindingRefusal(t *testing.T) {
 	cfg := config.Default()
@@ -81,7 +81,7 @@ func TestSecurity_PathTraversalOnEndpoints(t *testing.T) {
 	}
 }
 
-// TestSecurity_UnprivilegedUserConfirmed ensures Jyōshin binary doesn't require root privileges.
+// TestSecurity_UnprivilegedUserConfirmed ensures Kazeshini binary doesn't require root privileges.
 func TestSecurity_UnprivilegedUserConfirmed(t *testing.T) {
 	// Running tests in unprivileged user environment
 	uid := os.Getuid()

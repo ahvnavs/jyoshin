@@ -1,4 +1,4 @@
-/* Copyright 2026 Jyōshin Authors */
+/* Copyright 2026 Kazeshini Authors */
 /* SPDX-License-Identifier: Apache-2.0 */
 
 :root {
@@ -6,14 +6,14 @@
   --panel: #11131A;
   --panel-border: #1E2230;
   --text: #D8DEE9;
-  --dim: #6B7280;
+  --dim: #767D8E;
   --mint: #8FFFC8;
   --cyan: #8FE9FF;
   --lavender: #B9A7FF;
   --peach: #FFB89A;
   --rose: #FF9EC7;
 
-  --font: 'JetBrains Mono', 'DejaVu Sans Mono', 'Ubuntu Mono', monospace;
+  --font: 'JetBrains Mono', 'DejaVu Sans Mono', 'Ubuntu Mono', 'Noto Sans Mono CJK JP', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', sans-serif, monospace;
   --font-12: 12px;
   --font-14: 14px;
   --font-16: 16px;

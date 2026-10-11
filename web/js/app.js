@@ -1,10 +1,10 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 (function () {
   'use strict';
 
-  let authToken = localStorage.getItem('jyoshin_token') || '';
+  let authToken = localStorage.getItem('kazeshini_token') || '';
   let eventSource = null;
   let lastUpdatedTime = null;
 
@@ -105,10 +105,10 @@
     const tok = el.authInput.value.trim();
     if (tok) {
       authToken = tok;
-      localStorage.setItem('jyoshin_token', tok);
+      localStorage.setItem('kazeshini_token', tok);
     } else {
       authToken = '';
-      localStorage.removeItem('jyoshin_token');
+      localStorage.removeItem('kazeshini_token');
     }
     el.authModal.style.display = 'none';
     initSSE();
@@ -418,28 +418,66 @@
     }
   }
 
-  // SSE Real-Time Stream
-  function initSSE() {
-    if (eventSource) {
-      eventSource.close();
+  // SSE Real-Time Stream via fetch streaming with Authorization header
+  let streamAbortController = null;
+
+  async function initSSE() {
+    if (streamAbortController) {
+      streamAbortController.abort();
     }
+    streamAbortController = new AbortController();
 
-    const streamUrl = authToken ? `/api/v1/stream?token=${encodeURIComponent(authToken)}` : '/api/v1/stream';
-    eventSource = new EventSource(streamUrl);
+    try {
+      const res = await fetch('/api/v1/stream', {
+        headers: getHeaders(),
+        signal: streamAbortController.signal
+      });
 
-    eventSource.addEventListener('verdict', (e) => {
-      try {
-        const v = JSON.parse(e.data);
-        renderVerdict(v);
-      } catch (err) {
-        console.error('failed parsing SSE verdict event:', err);
+      if (!res.ok) {
+        el.pulseDot.className = 'stale-indicator';
+        el.liveStatusText.textContent = '[!] Auth/Stream Error';
+        return;
       }
-    });
 
-    eventSource.onerror = () => {
-      el.pulseDot.className = 'stale-indicator';
-      el.liveStatusText.textContent = '[!] Reconnecting...';
-    };
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop(); // keep trailing partial chunk
+
+        for (const block of lines) {
+          const parts = block.split('\n');
+          let eventType = 'message';
+          let eventData = '';
+          for (const line of parts) {
+            if (line.startsWith('event:')) {
+              eventType = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              eventData = line.slice(5).trim();
+            }
+          }
+          if (eventType === 'verdict' && eventData) {
+            try {
+              const v = JSON.parse(eventData);
+              renderVerdict(v);
+            } catch (err) {
+              console.error('failed parsing streamed verdict:', err);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        el.pulseDot.className = 'stale-indicator';
+        el.liveStatusText.textContent = '[!] Reconnecting...';
+        setTimeout(initSSE, 3000);
+      }
+    }
   }
 
   // Dependencies Topology Map

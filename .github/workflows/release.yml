@@ -40,20 +40,20 @@ jobs:
             CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} go build \
               -trimpath \
               -ldflags "-s -w -X 'main.Version=${VERSION}' -X 'main.Commit=${GITHUB_SHA}' -X 'main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
-              -o dist/jyoshin-linux-${ARCH} ./cmd/jyoshin
+              -o dist/kazeshini-linux-${ARCH} ./cmd/kazeshini
             
-            tar -czf dist/jyoshin-linux-${ARCH}.tar.gz -C dist jyoshin-linux-${ARCH}
+            tar -czf dist/kazeshini-linux-${ARCH}.tar.gz -C dist kazeshini-linux-${ARCH}
           done
 
       - name: Generate Checksums
         run: |
           cd dist
-          sha256sum jyoshin-linux-*.tar.gz > checksums.txt
+          sha256sum kazeshini-linux-*.tar.gz > checksums.txt
 
       - name: Generate SBOMs (CycloneDX & SPDX)
         run: |
-          syft dir:. -o cyclonedx-json=dist/jyoshin-sbom.cyclonedx.json
-          syft dir:. -o spdx-json=dist/jyoshin-sbom.spdx.json
+          syft dir:. -o cyclonedx-json=dist/kazeshini-sbom.cyclonedx.json
+          syft dir:. -o spdx-json=dist/kazeshini-sbom.spdx.json
 
       - name: Sign Checksums with Cosign (Keyless)
         run: |
@@ -63,10 +63,10 @@ jobs:
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
           files: |
-            dist/jyoshin-linux-*.tar.gz
+            dist/kazeshini-linux-*.tar.gz
             dist/checksums.txt
             dist/checksums.bundle
-            dist/jyoshin-sbom.cyclonedx.json
-            dist/jyoshin-sbom.spdx.json
+            dist/kazeshini-sbom.cyclonedx.json
+            dist/kazeshini-sbom.spdx.json
           generate_release_notes: true
 

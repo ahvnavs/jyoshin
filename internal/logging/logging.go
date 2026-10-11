@@ -1,8 +1,8 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package logging provides structured slog logger initialization adhering to
-// Jyōshin's deterministic, blame-free, and machine-first principles.
+// Kazeshini's deterministic, blame-free, and machine-first principles.
 package logging
 
 import (

@@ -1,4 +1,4 @@
-# Jyōshin Design System Specification
+# Kazeshini Design System Specification
 
 ## Aesthetic
 Minimal, modular, dark cyber-retro ASCII. Box-drawing panels on a strict character grid.
@@ -20,7 +20,7 @@ Pastel neon used **only** to carry semantic meaning. Glow only on hover and crit
 - `--panel`: `#11131A` (Box-drawing panel background)
 - `--panel-border`: `#1E2230` (Character boundary outline)
 - `--text`: `#D8DEE9` (Standard foreground text)
-- `--dim`: `#6B7280` (Muted labels, metadata, secondary proof)
+- `--dim`: `#767D8E` (Muted labels, metadata, secondary proof; brightened from #6B7280 to satisfy WCAG AA 4.5:1 on #0B0C10)
 - `--mint`: `#8FFFC8` (Healthy, low risk, verified observed facts)
 - `--cyan`: `#8FE9FF` (Informational, structural relationships, telemetry)
 - `--lavender`: `#B9A7FF` (Focus indicator, interactive highlights)

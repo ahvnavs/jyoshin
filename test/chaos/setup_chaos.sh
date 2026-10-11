@@ -1,15 +1,15 @@
 #!/bin/sh
-# Copyright 2026 Jyōshin Authors
+# Copyright 2026 Kazeshini Authors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Chaos Host Fixture Script for Jyōshin
+# Chaos Host Fixture Script for Kazeshini
 # Builds a deliberately messy Linux server environment to test detection,
 # provenance graph reconstruction, ranking, and report fidelity.
 # Also serves as the standard demo environment.
 
 set -eu
 
-ROOT_DIR="${1:-/tmp/jyoshin-chaos-root}"
+ROOT_DIR="${1:-/tmp/kazeshini-chaos-root}"
 echo "Building chaos fixture environment in: $ROOT_DIR"
 
 mkdir -p "$ROOT_DIR/etc" \

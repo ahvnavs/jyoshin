@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package redact_test
@@ -6,7 +6,7 @@ package redact_test
 import (
 	"testing"
 
-	"github.com/OWNER/jyoshin/internal/redact"
+	"github.com/OWNER/kazeshini/internal/redact"
 )
 
 func TestRedact_SecretKeysAndPaths(t *testing.T) {

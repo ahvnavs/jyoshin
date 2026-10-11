@@ -4,7 +4,7 @@ labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
-      value: Jyōshin operates strictly as a read-only, deterministic truth engine without AI/LLM components.
+      value: Kazeshini operates strictly as a read-only, deterministic truth engine without AI/LLM components.
   - type: textarea
     id: problem
     attributes:

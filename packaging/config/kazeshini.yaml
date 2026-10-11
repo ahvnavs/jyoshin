@@ -1,18 +1,18 @@
-# Copyright 2026 Jyōshin Authors
+# Copyright 2026 Kazeshini Authors
 # SPDX-License-Identifier: Apache-2.0
 
-# Jyōshin Configuration File
+# Kazeshini Configuration File
 host: "127.0.0.1"
 port: 7777
 allow_remote: false
-data_dir: "/var/lib/jyoshin"
-rules_dir: "/etc/jyoshin/rules.d"
+data_dir: "/var/lib/kazeshini"
+rules_dir: "/etc/kazeshini/rules.d"
 log_level: "info"
 log_format: "text"
 scan_interval: 60s
 
 # Optional OpenTelemetry Export (Disabled by default)
-# When enabled, Jyōshin exports server metric observations via OTLP gRPC/HTTP
+# When enabled, Kazeshini exports server metric observations via OTLP gRPC/HTTP
 # to an internal monitoring collector. No remote egress unless configured.
 otel:
   enabled: false

@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package inventory
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OWNER/jyoshin/data"
+	"github.com/OWNER/kazeshini/data"
 )
 
 func (m *Manager) collectNonDistro(ctx context.Context) []NonDistroPackage {
@@ -264,6 +264,24 @@ func (m *Manager) collectRuntimes(ctx context.Context) []RuntimeVersion {
 		}
 	}
 
+	// System and custom directories such as /opt
+	optDir := m.fs.Path("/opt")
+	if entries, err := os.ReadDir(optDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				// Python in /opt
+				pyBin := filepath.Join("/opt", e.Name(), "bin/python3")
+				checkRuntime("python", pyBin, "--version", "opt")
+				// Node in /opt
+				nodeBin := filepath.Join("/opt", e.Name(), "bin/node")
+				checkRuntime("node", nodeBin, "--version", "opt")
+				// Java in /opt
+				javaBin := filepath.Join("/opt", e.Name(), "bin/java")
+				checkRuntime("java", javaBin, "-version", "opt")
+			}
+		}
+	}
+
 	return runtimes
 }
 
@@ -279,14 +297,23 @@ func extractBinaryVersion(path, verArg string) string {
 	if idx := strings.Index(s, "go1."); idx != -1 && idx+12 <= len(s) {
 		return strings.Fields(s[idx : idx+12])[0]
 	}
-	if idx := strings.Index(s, "Python 3."); idx != -1 && idx+15 <= len(s) {
-		return strings.Fields(s[idx : idx+15])[0]
+	if idx := strings.Index(s, "Python 3."); idx != -1 && idx+16 <= len(s) {
+		return strings.Fields(s[idx : idx+16])[0]
 	}
-	if idx := strings.Index(s, "v18."); idx != -1 && idx+8 <= len(s) {
-		return strings.Fields(s[idx : idx+8])[0]
+	if idx := strings.Index(s, "v14."); idx != -1 && idx+9 <= len(s) {
+		return strings.Fields(s[idx : idx+9])[0]
 	}
-	if idx := strings.Index(s, "v20."); idx != -1 && idx+8 <= len(s) {
-		return strings.Fields(s[idx : idx+8])[0]
+	if idx := strings.Index(s, "v18."); idx != -1 && idx+9 <= len(s) {
+		return strings.Fields(s[idx : idx+9])[0]
+	}
+	if idx := strings.Index(s, "v20."); idx != -1 && idx+9 <= len(s) {
+		return strings.Fields(s[idx : idx+9])[0]
+	}
+	if idx := strings.Index(s, "1.8.0"); idx != -1 && idx+9 <= len(s) {
+		return strings.Fields(s[idx : idx+9])[0]
+	}
+	if idx := strings.Index(s, "17.0"); idx != -1 && idx+7 <= len(s) {
+		return strings.Fields(s[idx : idx+7])[0]
 	}
 
 	return "installed"

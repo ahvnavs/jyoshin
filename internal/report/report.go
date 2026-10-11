@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package report generates deterministic, standalone handoff reports
@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/blastradius"
-	"github.com/OWNER/jyoshin/internal/decisions"
-	"github.com/OWNER/jyoshin/internal/diff"
-	"github.com/OWNER/jyoshin/internal/forecast"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/redact"
-	"github.com/OWNER/jyoshin/internal/rules"
-	"github.com/OWNER/jyoshin/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/blastradius"
+	"github.com/OWNER/kazeshini/internal/decisions"
+	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/forecast"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/redact"
+	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/verdict"
 )
 
 // ServerHandoff aggregates full server state into a structured handoff document.
@@ -102,7 +102,7 @@ func (g *Generator) Generate() ServerHandoff {
 	}
 
 	return ServerHandoff{
-		Title:        "Jyōshin Server Truth Engine — State of this Server Handoff Report",
+		Title:        "Kazeshini Server Truth Engine — State of this Server Handoff Report",
 		ToolVersion:  g.version,
 		GeneratedAt:  time.Now().UTC(),
 		Verdict:      g.verdictSum,

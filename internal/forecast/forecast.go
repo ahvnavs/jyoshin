@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package forecast
@@ -148,6 +148,7 @@ func (f *Forecaster) Forecast(resource ResourceKind, target string, capacity flo
 
 	denom := (n*sumX2 - sumX*sumX)
 	if math.Abs(denom) < 1e-9 {
+		res.CurrentValue = clean[len(clean)-1].Value
 		res.State = StateStable
 		res.Message = "Resource usage is stable with zero variance over time."
 		return res

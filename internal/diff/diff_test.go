@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package diff_test
@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/diff"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/store"
+	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/store"
 )
 
 func TestDiffEngine_Classifications(t *testing.T) {

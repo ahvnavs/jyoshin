@@ -1,18 +1,29 @@
 # Security Design Specification
 
 ## Principles
-1. **Unprivileged by Default**: Jyōshin never runs as `root`. The installer provisions a dedicated `jyoshin` system user.
+1. **Unprivileged by Default**: Kazeshini never runs as `root`. The installer provisions a dedicated `kazeshini` system user.
 2. **Deterministic & Explainable**: Rules are purely declarative YAML. No AI, LLM, or dynamic script interpreters are permitted.
-3. **Local-First Zero Egress**: Jyōshin never connects outbound to external telemetry servers. All assets are embedded locally.
+3. **Local-First Zero Egress**: Kazeshini never connects outbound to external telemetry servers. All assets are embedded locally.
 
-## Kernel Capabilities & Graceful Degradation
-| Capability | Purpose | Behavior When Denied / Withheld |
-| :--- | :--- | :--- |
-| `CAP_DAC_READ_SEARCH` | Inspect `/proc/<pid>/fd` and `/proc/<pid>/environ` of other users | Degrades gracefully: skips process file descriptors and reports status as `unknown`, with reason `permission_denied`. |
-| `CAP_NET_ADMIN` | Read detailed socket inode ownership in netlink | Degrades to `/proc/net/tcp` socket parsing without inode translation. |
+## Per-Sensor Privilege Model & Minimum Capabilities
+
+Kazeshini enforces the principle of least privilege. The daemon operates as the unprivileged `kazeshini` user with a minimal capability set (`CapabilityBoundingSet=CAP_DAC_READ_SEARCH` and `AmbientCapabilities=CAP_DAC_READ_SEARCH`).
+
+| Sensor | Minimum Capabilities / Privileges | Purpose | Behavior When Denied / Missing |
+| :--- | :--- | :--- | :--- |
+| **host** | None (unprivileged read on `/etc/os-release`, `/proc/version`, `/proc/uptime`, `/proc/meminfo`) | Host identity & basic uptime | Returns standard observation |
+| **process** | `CAP_DAC_READ_SEARCH` (or `CAP_SYS_PTRACE`) | Read `/proc/<pid>/exe`, `/proc/<pid>/cmdline`, and `/proc/<pid>/stat` across users | Degrades gracefully: falls back to `/proc/<pid>/comm` and unprivileged stat, reports status `unknown, permission` on restricted targets with reduced visibility. |
+| **network** | `CAP_DAC_READ_SEARCH` | Inspect `/proc/<pid>/fd/*` socket inodes to map listening ports to owning PIDs | Socket table parsing (`/proc/net/{tcp,tcp6,udp,udp6}`) succeeds; unreadable process fd directories degrade to status `unknown`, with reason `unknown, permission: unreadable /proc/<pid>/fd...` and reduced visibility. |
+| **service** | None (connect to `/run/systemd/system/private` or D-Bus system bus via unprivileged socket; reads `/etc/systemd/system`) | Discover systemd service states, active status, restart counts | In non-systemd or restricted environments, gracefully marks observation `unknown (non-systemd)` without failure. |
+| **storage** | None (unprivileged `statfs` syscalls and `/proc/mounts`) | Filesystem mount points, disk usage, inode counts | Returns mounted filesystem capacities; unmounted private namespaces return `status: unknown`. |
+| **resources** | None (unprivileged `/proc/stat`, `/proc/loadavg`, `/proc/pressure/*`) | System-wide CPU, load, and PSI metrics | Returns telemetry samples; missing PSI returns zeroed pressure metrics without crashing. |
+| **container** | Group membership: `docker` or `podman` group (read-only socket access to `/var/run/docker.sock` or `/run/podman/podman.sock`) | Container list, images, ports, mounts | Without socket group permission, logs access error and sets sensor status `unknown (socket permission denied)`. |
+| **user** | None (unprivileged `/etc/passwd`, `/etc/group`, `/var/log/wtmp`, authorized_keys metadata) | User accounts, sudoers presence, key age | If specific home directories have 0700 permissions of other users, key inspection is skipped and logged with reduced visibility. |
+| **scheduler** | None (read `/etc/cron*`, `/var/spool/cron/crontabs`, `/etc/systemd/system/*.timer`) | Cron jobs and systemd timer schedules | Unreadable cron spools gracefully skipped with `status: unknown, permission`. |
+| **kernel** | None (read `/boot`, `uname -r`, `/proc/modules`) | Running vs installed kernels and reclaimable images | Returns kernel status; restricted `/boot` directories gracefully degrade. |
 
 ## Redaction Architecture
-Every API response, event watcher alert, and generated report passes through [`internal/redact`](file:///home/ahvnav/workspace/jyoshin/internal/redact/redact.go):
+Every API response, event watcher alert, and generated report passes through [`internal/redact`](file:///home/ahvnav/workspace/kazeshini/internal/redact/redact.go):
 - Passwords, Bearer tokens, private keys (`id_rsa`, `id_ed25519`, `*.pem`), and cloud credentials are substituted with `[REDACTED]`.
 - Non-secret metadata (such as file paths and ownership) is retained for auditability.
 

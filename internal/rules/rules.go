@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package rules defines the declarative rule file schema, query conditions,
@@ -22,8 +22,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/OWNER/jyoshin/data"
-	"github.com/OWNER/jyoshin/internal/graph"
+	"github.com/OWNER/kazeshini/data"
+	"github.com/OWNER/kazeshini/internal/graph"
 )
 
 // Category classifies findings by operational domain.

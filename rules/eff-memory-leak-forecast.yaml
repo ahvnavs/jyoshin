@@ -1,16 +1,19 @@
 id: "EFF-MEMORY-LEAK-FORECAST"
-name: "High memory utilization nearing exhaustion threshold"
-description: "System RAM usage exceeds 92% of total physical capacity."
+name: "Monotonic memory consumption leak detected by forecaster"
+description: "Statistical regression detected monotonic memory accumulation without stabilization (leak signature)."
 category: "efficiency"
 severity: "high"
 match:
   node_type: "resource"
   properties:
-    mem_usage_ratio:
-      greater_than: 0.92
-consequence: "Memory saturation triggers catastrophic Linux OOM-killer invocations, terminating critical application daemons."
+    is_leak:
+      equals: true
+consequence: "Unbounded memory accumulation will eventually provoke system-wide Linux OOM-killer invocations."
 recommendation:
-  action: "Inspect top resident processes via top/ps, increase physical RAM tier, or adjust heap allocation ceilings."
-  risk_level: "medium"
+  action: "Capture heap/memory profile, review recent code regressions for unclosed descriptors, or restart leaking daemon."
+  risk_level: "high"
   reversible: true
+certainty: "INFERRED"
+confidence: 0.88
+
 

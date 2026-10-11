@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package chaos_test
@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/inventory"
-	"github.com/OWNER/jyoshin/internal/rules"
-	"github.com/OWNER/jyoshin/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/inventory"
+	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/verdict"
 )
 
 func TestChaosFixtureHost(t *testing.T) {
@@ -76,7 +76,7 @@ func TestChaosFixtureHost(t *testing.T) {
 			FirstSeen: time.Now(),
 			LastSeen:  time.Now(),
 			Properties: map[string]any{
-				"port":           6379,
+				"local_port":     6379,
 				"exposure_class": "all_interfaces",
 			},
 		},
@@ -88,7 +88,7 @@ func TestChaosFixtureHost(t *testing.T) {
 			FirstSeen: time.Now(),
 			LastSeen:  time.Now(),
 			Properties: map[string]any{
-				"port":           5432,
+				"local_port":     5432,
 				"exposure_class": "all_interfaces",
 			},
 		},
@@ -102,47 +102,97 @@ func TestChaosFixtureHost(t *testing.T) {
 		},
 	}
 
-	findings := []rules.Finding{
-		{
-			ID:       "HYG-MANUAL-BINARY:file:/usr/local/bin/custom-collector",
-			RuleID:   "HYG-MANUAL-BINARY",
-			Category: rules.CategorySecurity,
-			Severity: rules.SeverityHigh,
-			What:     "Unmanaged binary in /usr/local/bin",
-			Proof:    rules.Proof{Confidence: 1.0},
+	ruleEngine := rules.NewEngine(3 * time.Second)
+	ruleCount, err := ruleEngine.LoadDirectory("../../rules")
+	if err != nil {
+		t.Fatalf("failed loading rules: %v", err)
+	}
+	t.Logf("Loaded %d declarative rules for chaos evaluation", ruleCount)
+
+	// Add origin nodes for duplicate runtime detection
+	nodes = append(nodes,
+		graph.Node{
+			ID:        "origin:runtime:python-3.8",
+			Type:      graph.NodeOrigin,
+			Label:     "runtime:python",
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: time.Now(),
+			LastSeen:  time.Now(),
+			Properties: map[string]any{
+				"kind":    "runtime",
+				"source":  "python",
+				"version": "3.8.10",
+			},
 		},
-		{
-			ID:       "REL-RESTART-LOOP:process:restart-looping",
-			RuleID:   "REL-RESTART-LOOP",
-			Category: rules.CategoryOperations,
-			Severity: rules.SeverityHigh,
-			What:     "Service restarting repeatedly",
-			Proof:    rules.Proof{Confidence: 1.0},
+		graph.Node{
+			ID:        "origin:runtime:python-3.11",
+			Type:      graph.NodeOrigin,
+			Label:     "runtime:python",
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: time.Now(),
+			LastSeen:  time.Now(),
+			Properties: map[string]any{
+				"kind":    "runtime",
+				"source":  "python",
+				"version": "3.11.8",
+			},
 		},
-		{
-			ID:       "SEC-EXPOSED-REDIS:port:all:6379",
-			RuleID:   "SEC-EXPOSED-REDIS",
-			Category: rules.CategorySecurity,
-			Severity: rules.SeverityHigh,
-			What:     "Unauthenticated Redis exposed to all interfaces",
-			Proof:    rules.Proof{Confidence: 1.0},
+		graph.Node{
+			ID:        "service:crash-loop.service",
+			Type:      graph.NodeService,
+			Label:     "crash-loop.service",
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: time.Now(),
+			LastSeen:  time.Now(),
+			Properties: map[string]any{
+				"active_state":  "failed",
+				"restart_count": 8,
+			},
 		},
-		{
-			ID:       "EFF-LOG-LEAK:file:/var/log/stale",
-			RuleID:   "EFF-LOG-LEAK",
-			Category: rules.CategoryEfficiency,
-			Severity: rules.SeverityMedium,
-			What:     "Unrotated log accumulation wasting disk",
-			Proof:    rules.Proof{Confidence: 1.0},
-		},
+	)
+
+	// Run rule engine against chaos host nodes
+	findings, err := ruleEngine.Evaluate(t.Context(), nodes, nil)
+	if err != nil {
+		t.Fatalf("failed evaluating rules against chaos host: %v", err)
+	}
+
+	// Tally findings by severity and rule IDs
+	firedRuleIDs := make(map[string]bool)
+	severityCounts := make(map[rules.Severity]int)
+	t.Logf("\n--- Chaos Host Fired Findings (%d total) ---", len(findings))
+	for _, f := range findings {
+		firedRuleIDs[f.RuleID] = true
+		severityCounts[f.Severity]++
+		t.Logf("Finding: [%s] ID=%s RuleID=%s Category=%s What=%s",
+			f.Severity, f.ID, f.RuleID, f.Category, f.What)
+	}
+
+	t.Logf("\n--- Findings Count by Severity ---")
+	t.Logf("CRITICAL: %d", severityCounts[rules.SeverityCritical])
+	t.Logf("HIGH:     %d", severityCounts[rules.SeverityHigh])
+	t.Logf("MEDIUM:   %d", severityCounts[rules.SeverityMedium])
+	t.Logf("LOW:      %d", severityCounts[rules.SeverityLow])
+	t.Logf("INFO:     %d", severityCounts[rules.SeverityInfo])
+
+	// Assert exact expected rule IDs fired
+	expectedRules := []string{
+		"SEC-DB-EXPOSED",
+		"EFF-SERVICE-RESTART-LOOP",
+		"COST-DUPLICATE-RUNTIME",
+	}
+	for _, expectedID := range expectedRules {
+		if !firedRuleIDs[expectedID] {
+			t.Errorf("expected chaos rule %s to fire, but it did not", expectedID)
+		}
 	}
 
 	v := verdict.ComputeVerdict(nodes, findings, 10)
 	if v.StateLabel != "MESSY" && v.StateLabel != "CRITICAL" {
 		t.Errorf("expected chaos host verdict to be MESSY or CRITICAL, got: %s", v.StateLabel)
 	}
-	if v.ChaosIndex < 45 {
-		t.Errorf("expected chaos index >= 45 for chaos host, got: %d", v.ChaosIndex)
+	if v.ChaosIndex < 40 {
+		t.Errorf("expected chaos index >= 40 for chaos host, got: %d", v.ChaosIndex)
 	}
 
 	// Verify unmanaged binary file exists

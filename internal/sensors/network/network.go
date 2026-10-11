@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package network
@@ -8,15 +8,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/sensors"
 )
 
 // ExposureClass classifies listening socket exposure.
@@ -86,7 +88,7 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 	}
 
 	// 1. Build map of socket inode -> PID / process name
-	inodeMap := s.buildInodePIDMap(ctx)
+	inodeMap, permDenied := s.buildInodePIDMap(ctx)
 
 	// 2. Parse listening and established sockets
 	sockets, err := s.collectSockets(ctx, inodeMap)
@@ -94,6 +96,11 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 		obs.Status = sensors.StatusUnknown
 		obs.Reason = fmt.Sprintf("failed reading socket tables: %v", err)
 		return obs, nil
+	}
+
+	if permDenied > 0 {
+		obs.Status = sensors.StatusUnknown
+		obs.Reason = fmt.Sprintf("unknown, permission: unreadable /proc/<pid>/fd for %d processes; port->process mapping has reduced visibility", permDenied)
 	}
 
 	var listeners []SocketInfo
@@ -210,19 +217,20 @@ type procMeta struct {
 	name string
 }
 
-func (s *Sensor) buildInodePIDMap(ctx context.Context) map[uint64]procMeta {
+func (s *Sensor) buildInodePIDMap(ctx context.Context) (map[uint64]procMeta, int) {
 	m := make(map[uint64]procMeta)
+	permissionDeniedCount := 0
 
 	entries, err := s.fs.ReadDir("/proc")
 	if err != nil {
-		return m
+		return m, 0
 	}
 
 	count := 0
 	for _, entry := range entries {
 		select {
 		case <-ctx.Done():
-			return m
+			return m, permissionDeniedCount
 		default:
 		}
 
@@ -247,6 +255,9 @@ func (s *Sensor) buildInodePIDMap(ctx context.Context) map[uint64]procMeta {
 		fdDir := fmt.Sprintf("/proc/%d/fd", pid)
 		fdEntries, err := s.fs.ReadDir(fdDir)
 		if err != nil {
+			if errors.Is(err, os.ErrPermission) || os.IsPermission(err) {
+				permissionDeniedCount++
+			}
 			continue
 		}
 
@@ -265,7 +276,7 @@ func (s *Sensor) buildInodePIDMap(ctx context.Context) map[uint64]procMeta {
 		count++
 	}
 
-	return m
+	return m, permissionDeniedCount
 }
 
 func parseProcNet(data []byte, proto string, inodeMap map[uint64]procMeta) []SocketInfo {

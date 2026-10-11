@@ -1,0 +1,20 @@
+id: "SEC-STALE-USER"
+name: "Stale user account with prolonged login inactivity"
+description: "User account with an interactive login shell has not logged in for over 180 days."
+category: "security"
+severity: "medium"
+match:
+  node_type: "user"
+  properties:
+    days_since_last_login:
+      greater_than: 180
+    has_login_shell:
+      equals: true
+consequence: "Unmonitored inactive user accounts with valid credentials provide persistent entry points for credential stuffing."
+recommendation:
+  action: "Lock inactive account using usermod -L <username> or expire shell access via chsh -s /usr/sbin/nologin."
+  risk_level: "low"
+  reversible: true
+certainty: "OBSERVED"
+confidence: 0.95
+

@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package graphbuilder
@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/inventory"
-	"github.com/OWNER/jyoshin/internal/origin"
-	"github.com/OWNER/jyoshin/internal/sensors"
-	"github.com/OWNER/jyoshin/internal/sensors/network"
-	"github.com/OWNER/jyoshin/internal/sensors/process"
+	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/inventory"
+	"github.com/OWNER/kazeshini/internal/origin"
+	"github.com/OWNER/kazeshini/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/sensors/network"
+	"github.com/OWNER/kazeshini/internal/sensors/process"
 )
 
 func TestProvenanceGraph_NodeIDStability(t *testing.T) {
@@ -205,6 +205,117 @@ func TestProvenanceGraph_IngestObservations(t *testing.T) {
 	// 4. Origin
 	if chain.Chain[3].Type != graph.NodeOrigin {
 		t.Errorf("chain[3] type = %s, want origin", chain.Chain[3].Type)
+	}
+}
+
+func TestProvenanceGraph_GoldenChainAndFaultInjection(t *testing.T) {
+	g := NewProvenanceGraph()
+	firstSeenTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	restartTime := firstSeenTime.Add(24 * time.Hour)
+
+	// 1. Seed historical node with first-seen metadata
+	histProcID := GenerateNodeID(graph.NodeProcess, "2048:web-daemon")
+	g.SeedFromSnapshot([]graph.Node{
+		{
+			ID:        histProcID,
+			Type:      graph.NodeProcess,
+			Label:     "web-daemon (pid 2048)",
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: firstSeenTime,
+			LastSeen:  firstSeenTime,
+		},
+	})
+
+	// 2. Ingest process observation with cgroup pointing to a systemd service
+	procObs := sensors.Observation{
+		SensorName: "process",
+		Timestamp:  restartTime,
+		Status:     sensors.StatusSuccess,
+		Items: []sensors.Item{
+			{
+				ID:   "proc:2048",
+				Type: "process",
+				Data: process.ProcessInfo{
+					PID:     2048,
+					Name:    "web-daemon",
+					Cmdline: "/usr/sbin/web-daemon",
+					Exe:     "/usr/sbin/web-daemon",
+					Cgroup:  "/system.slice/web-daemon.service",
+					UID:     1000,
+				},
+				Certainty: graph.CertaintyObserved,
+			},
+		},
+	}
+	g.IngestObservation(procObs)
+
+	// Assert first_seen was preserved from initial snapshot seeding
+	node, ok := g.GetNode(histProcID)
+	if !ok {
+		t.Fatalf("expected process node %s to exist in graph", histProcID)
+	}
+	if !node.FirstSeen.Equal(firstSeenTime) {
+		t.Errorf("first_seen not preserved: got %v, want %v", node.FirstSeen, firstSeenTime)
+	}
+
+	// Assert service node was automatically created via cgroup
+	svcNodeID := GenerateNodeID(graph.NodeService, "web-daemon.service")
+	svcNode, ok := g.GetNode(svcNodeID)
+	if !ok {
+		t.Fatalf("expected service node %s from cgroup to exist in graph", svcNodeID)
+	}
+	if svcNode.Type != graph.NodeService {
+		t.Errorf("expected node type service, got %s", svcNode.Type)
+	}
+
+	// 3. Ingest network report containing connection groups
+	netObs := sensors.Observation{
+		SensorName: "network",
+		Timestamp:  restartTime,
+		Status:     sensors.StatusSuccess,
+		Items: []sensors.Item{
+			{
+				ID:   "network:report",
+				Type: "network_report",
+				Data: network.NetworkReport{
+					ConnectionGroups: []network.ConnectionGroup{
+						{
+							RemoteIP:    "10.0.0.50",
+							PID:         2048,
+							ProcessName: "web-daemon",
+							Count:       42,
+						},
+					},
+				},
+				Certainty: graph.CertaintyObserved,
+			},
+		},
+	}
+	g.IngestObservation(netObs)
+
+	// Assert connection node exists
+	connNodeID := GenerateNodeID(graph.NodeConnection, "10.0.0.50:2048")
+	connNode, ok := g.GetNode(connNodeID)
+	if !ok {
+		t.Fatalf("expected connection node %s to exist in graph", connNodeID)
+	}
+	if connNode.Type != graph.NodeConnection {
+		t.Errorf("expected node type connection, got %s", connNode.Type)
+	}
+
+	// 4. Fault-injection test: Ingest fault observation (sensor degraded/unreadable)
+	faultObs := sensors.Observation{
+		SensorName: "storage",
+		Timestamp:  restartTime,
+		Status:     sensors.StatusUnknown,
+		Reason:     "unknown, permission: statfs denied by security module",
+		Items:      nil, // Zero items returned
+	}
+	g.IngestObservation(faultObs)
+
+	// Graph should gracefully accept fault observation without crashing or corrupting existing nodes
+	if g.NodeCount() < 3 {
+		t.Errorf("graph corrupted after fault observation; node count = %d", g.NodeCount())
 	}
 }
 

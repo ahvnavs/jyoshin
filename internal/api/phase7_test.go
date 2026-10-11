@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/config"
-	"github.com/OWNER/jyoshin/internal/diff"
-	"github.com/OWNER/jyoshin/internal/forecast"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/store"
+	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/forecast"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/store"
 )
 
 func TestAPI_ChangesEndpoint(t *testing.T) {

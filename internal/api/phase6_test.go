@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/config"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/sensors"
-	"github.com/OWNER/jyoshin/internal/sensors/host"
-	"github.com/OWNER/jyoshin/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/sensors/host"
+	"github.com/OWNER/kazeshini/internal/verdict"
 )
 
 func TestAPI_VerdictEndpoint(t *testing.T) {
@@ -86,7 +86,8 @@ func TestAPI_StreamSSE(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
 	defer cancel()
 
-	req := httptest.NewRequestWithContext(ctx, "GET", "/api/v1/stream?token="+srv.AuthManager().Token(), nil)
+	req := httptest.NewRequestWithContext(ctx, "GET", "/api/v1/stream", nil)
+	req.Header.Set("Authorization", "Bearer "+srv.AuthManager().Token())
 	w := httptest.NewRecorder()
 
 	done := make(chan struct{})
@@ -219,15 +220,15 @@ func TestAPI_TokenAuthenticationBlocksUnauthenticated(t *testing.T) {
 		t.Errorf("expected 200 OK with valid token, got: %d", respValid.StatusCode)
 	}
 
-	// 4. Request with valid token in query param (e.g. for SSE EventSource) -> MUST return 200
+	// 4. Request with valid token in query param -> MUST return 401 (URL token parameter is rejected)
 	reqQuery := httptest.NewRequest("GET", "/api/v1/verdict?token="+token, nil)
 	wQuery := httptest.NewRecorder()
 	srv.server.Handler.ServeHTTP(wQuery, reqQuery)
 	respQuery := wQuery.Result()
 	defer respQuery.Body.Close()
 
-	if respQuery.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 OK with query token, got: %d", respQuery.StatusCode)
+	if respQuery.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized with URL query token, got: %d", respQuery.StatusCode)
 	}
 
 	// 5. Unauthenticated request to unauthenticated routes (/api/v1/health, /) -> MUST return 200

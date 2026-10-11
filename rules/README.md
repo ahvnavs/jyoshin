@@ -1,12 +1,12 @@
 # Rules Specification
 
-Jyōshin evaluates declarative, deterministic rule files against the server's
+Kazeshini evaluates declarative, deterministic rule files against the server's
 provenance graph to detect waste, risk, unmanaged state, and structural bottlenecks.
 
 ## Principles
 1. **NO AI/LLM/ML**: Rules are deterministic logic definitions evaluated statically
    against the graph.
-2. **DATA FILES ONLY**: Rules are defined as YAML data files located in this directory (`rules/` or `/etc/jyoshin/rules.d/`). No executable scripts or shell calls.
+2. **DATA FILES ONLY**: Rules are defined as YAML data files located in this directory (`rules/` or `/etc/kazeshini/rules.d/`). No executable scripts or shell calls.
 3. **READ-ONLY**: Rules never apply changes or remediate issues. They only produce findings.
 4. **BLAME-FREE**: Findings describe machine state and technical consequences, never
    the humans who deployed or configured them.

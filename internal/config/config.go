@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package config defines the configuration structure, defaults, validation,
@@ -24,7 +24,7 @@ type OTelConfig struct {
 	Insecure bool   `json:"insecure" yaml:"insecure"`
 }
 
-// Config represents all runtime settings for Jyōshin.
+// Config represents all runtime settings for Kazeshini.
 type Config struct {
 	Host         string        `json:"host"`
 	Port         int           `json:"port"`
@@ -45,7 +45,7 @@ func Default() Config {
 		Host:         "127.0.0.1",
 		Port:         7777,
 		AllowRemote:  false,
-		DataDir:      "/var/lib/jyoshin",
+		DataDir:      "/var/lib/kazeshini",
 		RulesDir:     "rules",
 		LogLevel:     "info",
 		LogFormat:    "text",
@@ -104,35 +104,35 @@ func Load(configPath string) (Config, error) {
 	}
 
 	// Environment variable overrides
-	if host := os.Getenv("JYOSHIN_HOST"); host != "" {
+	if host := os.Getenv("KAZESHINI_HOST"); host != "" {
 		cfg.Host = host
 	}
-	if portStr := os.Getenv("JYOSHIN_PORT"); portStr != "" {
+	if portStr := os.Getenv("KAZESHINI_PORT"); portStr != "" {
 		if p, err := strconv.Atoi(portStr); err == nil {
 			cfg.Port = p
 		}
 	}
-	if allowRemoteStr := os.Getenv("JYOSHIN_ALLOW_REMOTE"); allowRemoteStr != "" {
+	if allowRemoteStr := os.Getenv("KAZESHINI_ALLOW_REMOTE"); allowRemoteStr != "" {
 		cfg.AllowRemote = strings.ToLower(allowRemoteStr) == "true" || allowRemoteStr == "1"
 	}
-	if dataDir := os.Getenv("JYOSHIN_DATA_DIR"); dataDir != "" {
+	if dataDir := os.Getenv("KAZESHINI_DATA_DIR"); dataDir != "" {
 		cfg.DataDir = dataDir
 	}
-	if rulesDir := os.Getenv("JYOSHIN_RULES_DIR"); rulesDir != "" {
+	if rulesDir := os.Getenv("KAZESHINI_RULES_DIR"); rulesDir != "" {
 		cfg.RulesDir = rulesDir
 	}
-	if logLevel := os.Getenv("JYOSHIN_LOG_LEVEL"); logLevel != "" {
+	if logLevel := os.Getenv("KAZESHINI_LOG_LEVEL"); logLevel != "" {
 		cfg.LogLevel = logLevel
 	}
-	if logFormat := os.Getenv("JYOSHIN_LOG_FORMAT"); logFormat != "" {
+	if logFormat := os.Getenv("KAZESHINI_LOG_FORMAT"); logFormat != "" {
 		cfg.LogFormat = logFormat
 	}
-	if intervalStr := os.Getenv("JYOSHIN_SCAN_INTERVAL"); intervalStr != "" {
+	if intervalStr := os.Getenv("KAZESHINI_SCAN_INTERVAL"); intervalStr != "" {
 		if d, err := time.ParseDuration(intervalStr); err == nil {
 			cfg.ScanInterval = d
 		}
 	}
-	if authReqStr := os.Getenv("JYOSHIN_AUTH_REQUIRED"); authReqStr != "" {
+	if authReqStr := os.Getenv("KAZESHINI_AUTH_REQUIRED"); authReqStr != "" {
 		cfg.AuthRequired = strings.ToLower(authReqStr) == "true" || authReqStr == "1"
 	}
 

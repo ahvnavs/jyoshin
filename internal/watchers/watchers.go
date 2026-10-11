@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package watchers implements proactive event evaluation and rate-limited alert generation
@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/diff"
-	"github.com/OWNER/jyoshin/internal/forecast"
-	"github.com/OWNER/jyoshin/internal/rules"
+	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/forecast"
+	"github.com/OWNER/kazeshini/internal/rules"
 )
 
 // EventAlert represents an alert emitted by an event watcher.

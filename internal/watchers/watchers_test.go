@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package watchers_test
@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/diff"
-	"github.com/OWNER/jyoshin/internal/forecast"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/rules"
-	"github.com/OWNER/jyoshin/internal/watchers"
+	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/forecast"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/watchers"
 )
 
 func TestWatchers_DeduplicationAndRateLimiting(t *testing.T) {

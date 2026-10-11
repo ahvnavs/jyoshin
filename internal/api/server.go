@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -16,23 +16,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/auth"
-	"github.com/OWNER/jyoshin/internal/blastradius"
-	"github.com/OWNER/jyoshin/internal/config"
-	"github.com/OWNER/jyoshin/internal/decisions"
-	"github.com/OWNER/jyoshin/internal/diff"
-	"github.com/OWNER/jyoshin/internal/forecast"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/inventory"
-	"github.com/OWNER/jyoshin/internal/origin"
-	"github.com/OWNER/jyoshin/internal/orphan"
-	"github.com/OWNER/jyoshin/internal/report"
-	"github.com/OWNER/jyoshin/internal/rules"
-	"github.com/OWNER/jyoshin/internal/store"
-	"github.com/OWNER/jyoshin/internal/supervisor"
-	"github.com/OWNER/jyoshin/internal/verdict"
-	"github.com/OWNER/jyoshin/internal/watchers"
-	"github.com/OWNER/jyoshin/web"
+	"github.com/OWNER/kazeshini/internal/auth"
+	"github.com/OWNER/kazeshini/internal/blastradius"
+	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/decisions"
+	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/forecast"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/inventory"
+	"github.com/OWNER/kazeshini/internal/origin"
+	"github.com/OWNER/kazeshini/internal/orphan"
+	"github.com/OWNER/kazeshini/internal/report"
+	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/store"
+	"github.com/OWNER/kazeshini/internal/supervisor"
+	"github.com/OWNER/kazeshini/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/watchers"
+	"github.com/OWNER/kazeshini/web"
 )
 
 // VersionInfo captures version metadata injected at build time.
@@ -110,6 +110,16 @@ func NewServer(
 		decisionsEngine: decisions.NewEngine(pGraph),
 		samples:         make(map[string][]forecast.Sample),
 		logger:          logger,
+	}
+
+	// Pre-load persisted historical samples from store into memory cache
+	if st != nil {
+		targets := []string{"/", "system_ram", "/_inodes", "system_fds", "swap", "load1"}
+		for _, tgt := range targets {
+			if smps, err := st.ListSamples(context.Background(), tgt, 500); err == nil && len(smps) > 0 {
+				s.samples[tgt] = smps
+			}
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -192,16 +202,13 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		if s.cfg.AuthRequired && s.auth != nil {
 			authHeader := r.Header.Get("Authorization")
 			token := strings.TrimPrefix(authHeader, "Bearer ")
-			if token == "" {
-				token = r.URL.Query().Get("token")
-			}
-			if !s.auth.Validate(token) {
+			if token == authHeader || !s.auth.Validate(token) {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"error":   "unauthorized: valid bearer token required",
+					"error":   "unauthorized: valid bearer token required in Authorization header",
 					"status":  401,
-					"hint":    "run 'jyoshin token' to retrieve authentication token",
+					"hint":    "run 'kazeshini token' to retrieve authentication token",
 				})
 				return
 			}
@@ -574,13 +581,18 @@ func (s *Server) RecordSample(target string, value float64) {
 // RecordSampleAt records a time-series metric sample with an explicit timestamp.
 func (s *Server) RecordSampleAt(target string, value float64, ts time.Time) {
 	s.samplesMu.Lock()
-	defer s.samplesMu.Unlock()
-	s.samples[target] = append(s.samples[target], forecast.Sample{
+	smp := forecast.Sample{
 		Timestamp: ts,
 		Value:     value,
-	})
+	}
+	s.samples[target] = append(s.samples[target], smp)
 	if len(s.samples[target]) > 500 {
 		s.samples[target] = s.samples[target][len(s.samples[target])-500:]
+	}
+	s.samplesMu.Unlock()
+
+	if s.store != nil {
+		_ = s.store.SaveSample(context.Background(), target, smp)
 	}
 }
 
@@ -827,7 +839,7 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to listen on %s: %w", s.server.Addr, err)
 	}
 
-	s.logger.Info("jyōshin api server started", "addr", s.server.Addr)
+	s.logger.Info("kazeshini api server started", "addr", s.server.Addr)
 	if err := s.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("http server failure: %w", err)
 	}
@@ -836,7 +848,7 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully terminates the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
-	s.logger.Info("shutting down jyōshin api server...")
+	s.logger.Info("shutting down kazeshini api server...")
 	return s.server.Shutdown(ctx)
 }
 

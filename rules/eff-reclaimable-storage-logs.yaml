@@ -1,0 +1,18 @@
+id: "EFF-RECLAIMABLE-STORAGE-LOGS"
+name: "Reclaimable historical logs, package caches, or unused images"
+description: "Host retains unrotated logs, package manager caches, or dangling container images exceeding 2GB of reclaimable storage."
+category: "efficiency"
+severity: "medium"
+match:
+  node_type: "resource"
+  properties:
+    reclaimable_bytes:
+      greater_than: 2147483648
+consequence: "Unpruned system artifacts consume expensive SSD block storage and increase backup snapshot volume sizes."
+recommendation:
+  action: "Run journalctl --vacuum-size=500M, apt-get clean, and podman/docker image prune -a."
+  risk_level: "low"
+  reversible: false
+certainty: "OBSERVED"
+confidence: 0.95
+

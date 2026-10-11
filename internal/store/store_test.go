@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package store
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graph"
 )
 
 func TestBoltStore_PersistenceAndRestart(t *testing.T) {
@@ -49,7 +49,7 @@ func TestBoltStore_PersistenceAndRestart(t *testing.T) {
 	_ = s1.Close()
 
 	// Verify file permissions (0600)
-	dbPath := filepath.Join(dataDir, "jyoshin.db")
+	dbPath := filepath.Join(dataDir, "kazeshini.db")
 	fi, err := os.Stat(dbPath)
 	if err != nil {
 		t.Fatalf("failed to stat db file: %v", err)

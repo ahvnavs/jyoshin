@@ -66,6 +66,6 @@ jobs:
 
       - name: Verify Static Linking
         run: |
-          file dist/jyoshin-linux-amd64
-          file dist/jyoshin-linux-arm64
+          file dist/kazeshini-linux-amd64
+          file dist/kazeshini-linux-arm64
 

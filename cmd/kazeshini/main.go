@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package main
@@ -16,32 +16,32 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/api"
-	"github.com/OWNER/jyoshin/internal/auth"
-	"github.com/OWNER/jyoshin/internal/config"
-	"github.com/OWNER/jyoshin/internal/diff"
-	"github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/inventory"
-	"github.com/OWNER/jyoshin/internal/logging"
-	"github.com/OWNER/jyoshin/internal/origin"
-	"github.com/OWNER/jyoshin/internal/orphan"
-	"github.com/OWNER/jyoshin/internal/report"
-	"github.com/OWNER/jyoshin/internal/rules"
-	"github.com/OWNER/jyoshin/internal/sensors"
-	"github.com/OWNER/jyoshin/internal/sensors/container"
-	"github.com/OWNER/jyoshin/internal/sensors/host"
-	"github.com/OWNER/jyoshin/internal/sensors/kernel"
-	"github.com/OWNER/jyoshin/internal/sensors/network"
-	"github.com/OWNER/jyoshin/internal/sensors/process"
-	"github.com/OWNER/jyoshin/internal/sensors/resources"
-	"github.com/OWNER/jyoshin/internal/sensors/scheduler"
-	"github.com/OWNER/jyoshin/internal/sensors/service"
-	"github.com/OWNER/jyoshin/internal/sensors/storage"
-	"github.com/OWNER/jyoshin/internal/sensors/user"
-	"github.com/OWNER/jyoshin/internal/store"
-	"github.com/OWNER/jyoshin/internal/supervisor"
-	"github.com/OWNER/jyoshin/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/api"
+	"github.com/OWNER/kazeshini/internal/auth"
+	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/inventory"
+	"github.com/OWNER/kazeshini/internal/logging"
+	"github.com/OWNER/kazeshini/internal/origin"
+	"github.com/OWNER/kazeshini/internal/orphan"
+	"github.com/OWNER/kazeshini/internal/report"
+	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/sensors/container"
+	"github.com/OWNER/kazeshini/internal/sensors/host"
+	"github.com/OWNER/kazeshini/internal/sensors/kernel"
+	"github.com/OWNER/kazeshini/internal/sensors/network"
+	"github.com/OWNER/kazeshini/internal/sensors/process"
+	"github.com/OWNER/kazeshini/internal/sensors/resources"
+	"github.com/OWNER/kazeshini/internal/sensors/scheduler"
+	"github.com/OWNER/kazeshini/internal/sensors/service"
+	"github.com/OWNER/kazeshini/internal/sensors/storage"
+	"github.com/OWNER/kazeshini/internal/sensors/user"
+	"github.com/OWNER/kazeshini/internal/store"
+	"github.com/OWNER/kazeshini/internal/supervisor"
+	"github.com/OWNER/kazeshini/internal/verdict"
 )
 
 var (
@@ -79,7 +79,7 @@ func run(args []string) error {
 	switch subcmd {
 	case "version":
 		v := getVersionInfo()
-		fmt.Printf("jyoshin %s (commit: %s, built: %s, %s)\n", v.Version, v.Commit, v.BuildDate, v.GoVersion)
+		fmt.Printf("kazeshini %s (commit: %s, built: %s, %s)\n", v.Version, v.Commit, v.BuildDate, v.GoVersion)
 		return nil
 
 	case "doctor":
@@ -111,21 +111,21 @@ func run(args []string) error {
 }
 
 func printUsage() {
-	fmt.Println(`Jyōshin (ज्योति · 真) — Read-only Server Truth Engine for Linux
+	fmt.Println(`Kazeshini (風死) — Read-only Server Truth Engine for Linux
 
 Usage:
-  jyoshin <command> [options]
+  kazeshini <command> [options]
 
 Commands:
   serve      Start the local API and web dashboard
   report     Generate a standalone State of this Server report (html, json, md)
   token      Print the local API authentication token (0600)
-  rules      Lint or evaluate declarative rules (e.g. jyoshin rules lint <file>)
+  rules      Lint or evaluate declarative rules (e.g. kazeshini rules lint <file>)
   snapshot   Capture a point-in-time provenance snapshot (stub)
   doctor     Verify host requirements, permissions, and kernel support (stub)
   version    Print binary version information
 
-Run 'jyoshin serve --help' for serve flags.`)
+Run 'kazeshini serve --help' for serve flags.`)
 }
 
 func runToken(args []string) error {
@@ -240,14 +240,14 @@ func runReport(args []string) error {
 
 func runRules(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: jyoshin rules lint <file|directory>")
+		return errors.New("usage: kazeshini rules lint <file|directory>")
 	}
 	sub := args[0]
 	if sub != "lint" {
 		return fmt.Errorf("unknown rules subcommand %q (supported: lint)", sub)
 	}
 	if len(args) < 2 {
-		return errors.New("usage: jyoshin rules lint <file|directory>")
+		return errors.New("usage: kazeshini rules lint <file|directory>")
 	}
 
 	target := args[1]
@@ -275,7 +275,7 @@ func runRules(args []string) error {
 }
 
 func runDoctor() error {
-	fmt.Println("Jyōshin Doctor: Checking system requirements...")
+	fmt.Println("Kazeshini Doctor: Checking system requirements...")
 	fmt.Println("  [OK] Operating System:", runtime.GOOS)
 	fmt.Println("  [OK] Architecture:", runtime.GOARCH)
 	fmt.Println("  [OK] Read-only /proc access verified")
@@ -284,7 +284,7 @@ func runDoctor() error {
 }
 
 func runSnapshot() error {
-	fmt.Println("Jyōshin Snapshot: Point-in-time snapshot collection stub.")
+	fmt.Println("Kazeshini Snapshot: Point-in-time snapshot collection stub.")
 	fmt.Println("Captured 0 nodes, 0 edges (sensors not yet registered).")
 	return nil
 }
@@ -343,10 +343,10 @@ func runServe(args []string) error {
 	isLoopback := cfg.Host == "localhost" || (ip != nil && ip.IsLoopback())
 	if !isLoopback && cfg.AllowRemote {
 		fmt.Fprintln(os.Stderr, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-		fmt.Fprintln(os.Stderr, "WARNING: Jyōshin is configured to listen on a non-loopback address:")
+		fmt.Fprintln(os.Stderr, "WARNING: Kazeshini is configured to listen on a non-loopback address:")
 		fmt.Fprintf(os.Stderr, "         %s:%d\n", cfg.Host, cfg.Port)
 		fmt.Fprintln(os.Stderr, "Ensure appropriate network firewalls and authentication layers protect")
-		fmt.Fprintln(os.Stderr, "this host. Jyōshin exposes server truth and system diagnostics.")
+		fmt.Fprintln(os.Stderr, "this host. Kazeshini exposes server truth and system diagnostics.")
 		fmt.Fprintln(os.Stderr, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	}
 
@@ -382,6 +382,9 @@ func runServe(args []string) error {
 	bStore, err := store.Open(store.DefaultConfig(cfg.DataDir), logger)
 	if err != nil {
 		logger.Warn("could not open persistent store; running in memory", "error", err)
+	} else if latestSnap, err := bStore.GetLatestSnapshot(context.Background()); err == nil && latestSnap != nil {
+		pGraph.SeedFromSnapshot(latestSnap.Nodes)
+		logger.Info("seeded provenance graph from persistent store", "nodes", len(latestSnap.Nodes))
 	}
 	defer func() {
 		if bStore != nil {
@@ -395,10 +398,10 @@ func runServe(args []string) error {
 	if count, err := ruleEngine.LoadDirectory(cfg.RulesDir); err == nil {
 		logger.Info("loaded rules from directory", "dir", cfg.RulesDir, "count", count)
 	}
-	// Also attempt loading host rules from /etc/jyoshin/rules.d if present
-	if _, err := os.Stat("/etc/jyoshin/rules.d"); err == nil {
-		if count, err := ruleEngine.LoadDirectory("/etc/jyoshin/rules.d"); err == nil && count > 0 {
-			logger.Info("loaded custom rules from /etc/jyoshin/rules.d", "count", count)
+	// Also attempt loading host rules from /etc/kazeshini/rules.d if present
+	if _, err := os.Stat("/etc/kazeshini/rules.d"); err == nil {
+		if count, err := ruleEngine.LoadDirectory("/etc/kazeshini/rules.d"); err == nil && count > 0 {
+			logger.Info("loaded custom rules from /etc/kazeshini/rules.d", "count", count)
 		}
 	}
 

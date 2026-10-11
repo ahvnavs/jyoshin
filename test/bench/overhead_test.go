@@ -1,4 +1,4 @@
-// Copyright 2026 Jyōshin Authors
+// Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package bench_test
@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OWNER/jyoshin/internal/fs"
-	"github.com/OWNER/jyoshin/internal/graph"
-	"github.com/OWNER/jyoshin/internal/graphbuilder"
-	"github.com/OWNER/jyoshin/internal/rules"
-	"github.com/OWNER/jyoshin/internal/sensors/host"
-	"github.com/OWNER/jyoshin/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/graphbuilder"
+	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/sensors/host"
+	"github.com/OWNER/kazeshini/internal/verdict"
 )
 
 // BenchmarkHighLoadOverhead benchmarks graph reconstruction and node retrieval
@@ -48,7 +48,7 @@ func BenchmarkHighLoadOverhead(b *testing.B) {
 	}
 }
 
-// TestOverheadAndResourceCaps verifies that Jyōshin memory allocation under heavy
+// TestOverheadAndResourceCaps verifies that Kazeshini memory allocation under heavy
 // graph building stays strictly below the 100 MB target and executes with bounded CPU.
 func TestOverheadAndResourceCaps(t *testing.T) {
 	runtime.GC()

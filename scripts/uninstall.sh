@@ -1,18 +1,18 @@
 #!/bin/sh
-# Copyright 2026 Jyōshin Authors
+# Copyright 2026 Kazeshini Authors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Jyōshin Uninstaller
-# Completely and safely removes Jyōshin binaries, systemd units, and data directories.
+# Kazeshini Uninstaller
+# Completely and safely removes Kazeshini binaries, systemd units, and data directories.
 
 set -eu
 
-BIN_PATH="/usr/local/bin/jyoshin"
-CONFIG_DIR="/etc/jyoshin"
-DATA_DIR="/var/lib/jyoshin"
-SERVICE_FILE="/etc/systemd/system/jyoshin.service"
-USER="jyoshin"
-GROUP="jyoshin"
+BIN_PATH="/usr/local/bin/kazeshini"
+CONFIG_DIR="/etc/kazeshini"
+DATA_DIR="/var/lib/kazeshini"
+SERVICE_FILE="/etc/systemd/system/kazeshini.service"
+USER="kazeshini"
+GROUP="kazeshini"
 
 log_info() {
     printf "[INFO] %s\n" "$1"
@@ -34,7 +34,7 @@ done
 
 if [ "$DRY_RUN" -eq 1 ]; then
     log_info "DRY RUN MODE: No modifications will be made to this system."
-    log_info "Would stop and disable jyoshin.service"
+    log_info "Would stop and disable kazeshini.service"
     log_info "Would remove $BIN_PATH, $CONFIG_DIR, $DATA_DIR, and $SERVICE_FILE"
     log_info "Would remove user and group $USER"
     exit 0
@@ -45,17 +45,17 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-log_info "Initiating uninstallation of Jyōshin..."
+log_info "Initiating uninstallation of Kazeshini..."
 
 # Stop and disable systemd service if running
 if command -v systemctl >/dev/null 2>&1; then
-    if systemctl is-active --quiet jyoshin.service 2>/dev/null; then
-        log_info "Stopping jyoshin.service..."
-        systemctl stop jyoshin.service || true
+    if systemctl is-active --quiet kazeshini.service 2>/dev/null; then
+        log_info "Stopping kazeshini.service..."
+        systemctl stop kazeshini.service || true
     fi
-    if systemctl is-enabled --quiet jyoshin.service 2>/dev/null; then
-        log_info "Disabling jyoshin.service..."
-        systemctl disable jyoshin.service || true
+    if systemctl is-enabled --quiet kazeshini.service 2>/dev/null; then
+        log_info "Disabling kazeshini.service..."
+        systemctl disable kazeshini.service || true
     fi
 fi
 
@@ -96,4 +96,4 @@ if id "$USER" >/dev/null 2>&1; then
     fi
 fi
 
-log_info "Jyōshin has been completely uninstalled. No residual files remain."
+log_info "Kazeshini has been completely uninstalled. No residual files remain."
