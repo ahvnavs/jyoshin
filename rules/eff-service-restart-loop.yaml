@@ -1,0 +1,18 @@
+id: "EFF-SERVICE-RESTART-LOOP"
+name: "Service crashing repeatedly in restart loop"
+description: "Service has accumulated 5 or more restarts and remains in an unhealthy or failed active state."
+category: "efficiency"
+severity: "high"
+match:
+  node_type: "service"
+  properties:
+    active_state:
+      equals: "failed"
+    restart_count:
+      greater_than: 4
+consequence: "Crash-looping services waste CPU cycles attempting respawns and fail to process incoming user requests."
+recommendation:
+  action: "Inspect systemd unit journal via journalctl -u <service> -e and resolve startup crash reason."
+  risk_level: "low"
+  reversible: true
+

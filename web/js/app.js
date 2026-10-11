@@ -111,6 +111,7 @@
       localStorage.removeItem('jyoshin_token');
     }
     el.authModal.style.display = 'none';
+    initSSE();
     refreshAll();
   });
 
@@ -423,7 +424,8 @@
       eventSource.close();
     }
 
-    eventSource = new EventSource('/api/v1/stream');
+    const streamUrl = authToken ? `/api/v1/stream?token=${encodeURIComponent(authToken)}` : '/api/v1/stream';
+    eventSource = new EventSource(streamUrl);
 
     eventSource.addEventListener('verdict', (e) => {
       try {

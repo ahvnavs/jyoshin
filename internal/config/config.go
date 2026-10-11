@@ -34,6 +34,7 @@ type Config struct {
 	LogLevel     string        `json:"log_level"`
 	LogFormat    string        `json:"log_format"`
 	ScanInterval time.Duration `json:"scan_interval"`
+	AuthRequired bool          `json:"auth_required"`
 	OTel         OTelConfig    `json:"otel"`
 }
 
@@ -49,6 +50,7 @@ func Default() Config {
 		LogLevel:     "info",
 		LogFormat:    "text",
 		ScanInterval: 60 * time.Second,
+		AuthRequired: true,
 	}
 }
 
@@ -129,6 +131,9 @@ func Load(configPath string) (Config, error) {
 		if d, err := time.ParseDuration(intervalStr); err == nil {
 			cfg.ScanInterval = d
 		}
+	}
+	if authReqStr := os.Getenv("JYOSHIN_AUTH_REQUIRED"); authReqStr != "" {
+		cfg.AuthRequired = strings.ToLower(authReqStr) == "true" || authReqStr == "1"
 	}
 
 	if err := cfg.Validate(); err != nil {

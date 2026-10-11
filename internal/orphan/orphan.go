@@ -72,7 +72,28 @@ func (s *Scanner) RunScan(ctx context.Context, timeLimit time.Duration, maxFiles
 		"/var/tmp",
 	}
 
-	totalFoundInTarget := 0
+	// First determine total eligible regular files in scope
+	filesInScope := 0
+	for _, dir := range targetDirs {
+		realPath := s.fs.Path(dir)
+		_ = filepath.WalkDir(realPath, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				base := d.Name()
+				if base == "proc" || base == "sys" || base == "dev" || base == ".git" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			// Only regular files (no directories, sockets, symlinks, FIFOs, devices)
+			if d.Type().IsRegular() {
+				filesInScope++
+			}
+			return nil
+		})
+	}
 
 	for _, dir := range targetDirs {
 		realPath := s.fs.Path(dir)
@@ -89,15 +110,8 @@ func (s *Scanner) RunScan(ctx context.Context, timeLimit time.Duration, maxFiles
 			default:
 			}
 
-			if result.FilesInspected >= maxFiles {
-				result.Completed = false
-				result.Reason = "file inspection count budget reached"
-				return filepath.SkipAll
-			}
-
-			// Skip directories and non-regular files
+			// Skip directories
 			if d.IsDir() {
-				// Don't descend into pseudo-filesystems or VCS
 				base := d.Name()
 				if base == "proc" || base == "sys" || base == "dev" || base == ".git" {
 					return filepath.SkipDir
@@ -105,14 +119,38 @@ func (s *Scanner) RunScan(ctx context.Context, timeLimit time.Duration, maxFiles
 				return nil
 			}
 
+			// Only report and inspect regular files: never sockets, devices, directories, FIFOs
+			if !d.Type().IsRegular() {
+				return nil
+			}
+
+			if result.FilesInspected >= maxFiles {
+				result.Completed = false
+				result.Reason = "file inspection count budget reached"
+				return filepath.SkipAll
+			}
+
 			info, err := d.Info()
 			if err != nil {
 				return nil
 			}
 
-			// Check if executable file
-			if info.Mode()&0111 != 0 {
-				totalFoundInTarget++
+			// Check if executable file (executable bit set) or ELF header
+			mode := info.Mode()
+			isExec := mode&0111 != 0
+			if !isExec {
+				// Check for ELF magic bytes: \x7fELF
+				f, err := s.fs.Open(path)
+				if err == nil {
+					var magic [4]byte
+					if n, _ := f.Read(magic[:]); n == 4 && magic == [4]byte{0x7f, 'E', 'L', 'F'} {
+						isExec = true
+					}
+					_ = f.Close()
+				}
+			}
+
+			if isExec {
 				virtPath := path
 				if root := s.fs.Root(); root != "/" && strings.HasPrefix(path, root) {
 					virtPath = strings.TrimPrefix(path, root)
@@ -136,13 +174,13 @@ func (s *Scanner) RunScan(ctx context.Context, timeLimit time.Duration, maxFiles
 	}
 
 	result.Duration = time.Since(start)
-	if result.FilesInspected > 0 {
-		if result.Completed {
+	if filesInScope > 0 {
+		result.CoveragePercent = float64(result.FilesInspected) / float64(filesInScope) * 100.0
+		if result.CoveragePercent > 100.0 {
 			result.CoveragePercent = 100.0
-		} else {
-			// Honest partial coverage ratio
-			result.CoveragePercent = float64(result.FilesInspected) / float64(maxFiles) * 100.0
 		}
+	} else if result.Completed {
+		result.CoveragePercent = 100.0
 	}
 
 	s.lastRes = &result

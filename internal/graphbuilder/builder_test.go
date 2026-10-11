@@ -5,10 +5,14 @@ package graphbuilder
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/OWNER/jyoshin/internal/fs"
 	"github.com/OWNER/jyoshin/internal/graph"
+	"github.com/OWNER/jyoshin/internal/inventory"
+	"github.com/OWNER/jyoshin/internal/origin"
 	"github.com/OWNER/jyoshin/internal/sensors"
 	"github.com/OWNER/jyoshin/internal/sensors/network"
 	"github.com/OWNER/jyoshin/internal/sensors/process"
@@ -165,32 +169,74 @@ func TestProvenanceGraph_IngestObservations(t *testing.T) {
 	}
 	g.IngestObservation(netObs)
 
+	// Setup rooted FS and Origin resolver to test end-to-end provenance to origin
+	tmpDir := t.TempDir()
+	rfs := fs.NewRootedFS(tmpDir)
+	invMgr := inventory.NewManager(rfs)
+	origResolver := origin.NewResolver(rfs, invMgr)
+	g.SetOriginResolver(origResolver)
+
+	// Re-ingest process with origin resolver attached
+	g.IngestObservation(procObs)
+	g.IngestObservation(netObs)
+
 	portID := GenerateNodeID(graph.NodePort, "tcp:6379")
 	chain, err := g.Why(portID)
 	if err != nil {
 		t.Fatalf("failed why query on ingested redis port: %v", err)
 	}
 
-	if len(chain.Chain) < 2 {
-		t.Fatalf("expected at least 2 nodes in chain, got %d", len(chain.Chain))
+	if len(chain.Chain) < 4 {
+		t.Fatalf("expected at least 4 nodes in full provenance chain (port->process->file->origin), got %d: %+v", len(chain.Chain), chain.Chain)
+	}
+
+	// 1. Port
+	if chain.Chain[0].Type != graph.NodePort {
+		t.Errorf("chain[0] type = %s, want port", chain.Chain[0].Type)
+	}
+	// 2. Process
+	if chain.Chain[1].Type != graph.NodeProcess {
+		t.Errorf("chain[1] type = %s, want process", chain.Chain[1].Type)
+	}
+	// 3. File
+	if chain.Chain[2].Type != graph.NodeFile {
+		t.Errorf("chain[2] type = %s, want file", chain.Chain[2].Type)
+	}
+	// 4. Origin
+	if chain.Chain[3].Type != graph.NodeOrigin {
+		t.Errorf("chain[3] type = %s, want origin", chain.Chain[3].Type)
 	}
 }
 
+var sinkGraph *ProvenanceGraph
+
 func BenchmarkProvenanceGraph_Synthetic50k(b *testing.B) {
 	b.ReportAllocs()
-	g := NewProvenanceGraph()
 	now := time.Now().UTC()
 
+	var memStart runtime.MemStats
+	runtime.ReadMemStats(&memStart)
+
 	b.ResetTimer()
-	for i := 0; i < 50000; i++ {
-		procID := GenerateNodeID(graph.NodeProcess, fmt.Sprintf("%d:proc", i))
-		_ = g.UpsertNode(graph.Node{
-			ID:        procID,
-			Type:      graph.NodeProcess,
-			Label:     fmt.Sprintf("process-%d", i),
-			Certainty: graph.CertaintyObserved,
-			FirstSeen: now,
-			LastSeen:  now,
-		})
+	for n := 0; n < b.N; n++ {
+		g := NewProvenanceGraph()
+		for i := 0; i < 50000; i++ {
+			procID := GenerateNodeID(graph.NodeProcess, fmt.Sprintf("%d:proc", i))
+			_ = g.UpsertNode(graph.Node{
+				ID:        procID,
+				Type:      graph.NodeProcess,
+				Label:     fmt.Sprintf("process-%d", i),
+				Certainty: graph.CertaintyObserved,
+				FirstSeen: now,
+				LastSeen:  now,
+			})
+		}
+		sinkGraph = g
 	}
+	b.StopTimer()
+
+	var memEnd runtime.MemStats
+	runtime.ReadMemStats(&memEnd)
+	b.Logf("50k-node synthetic benchmark: Alloc=%d MB, TotalAlloc=%d MB, Sys=%d MB",
+		memEnd.Alloc/(1024*1024), memEnd.TotalAlloc/(1024*1024), memEnd.Sys/(1024*1024))
 }

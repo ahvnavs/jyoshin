@@ -11,6 +11,7 @@ Jyōshin is designed under strict host safety constraints: **Zero Harm to the Ho
 | **Idle CPU Utilization** | $< 0.1\%$ | $\approx 0.02\%$ | **PASS** |
 | **Max Peak Scan CPU** | $< 2.0\%$ | $0.4\% - 1.2\%$ | **PASS** |
 | **Memory Footprint (RSS)** | $< 100\text{ MB}$ | $28.4\text{ MB} - 45.1\text{ MB}$ | **PASS** |
+| **50k-Node Graph Construction** | Bounded | $36.18\text{ ms/op}$, $19.48\text{ MB/op}$, $599,772\text{ allocs/op}$, Peak RSS $\approx 53\text{ MB}$ | **PASS** |
 | **Verdict Computation** (500 findings) | $< 100\text{ ms}$ | $13.1\text{ }\mu\text{s}$ | **PASS** |
 | **10k Node Snapshot Retrieval** | $< 50\text{ ms}$ | $5.29\text{ ms}$ | **PASS** |
 | **Workload Impact** (IO/Throughput) | Within noise ($< 0.5\%$) | Undetectable ($0.0\% - 0.2\%$) | **PASS** |

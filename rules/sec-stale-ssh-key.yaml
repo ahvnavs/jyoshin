@@ -1,0 +1,16 @@
+id: "SEC-STALE-SSH-KEY"
+name: "Stale SSH authorized key in active account"
+description: "User account possesses an authorized SSH public key unmodified for over 365 days."
+category: "security"
+severity: "medium"
+match:
+  node_type: "user"
+  properties:
+    oldest_key_age_days:
+      greater_than: 365
+consequence: "Unrotated SSH keys increase vulnerability to forgotten workstation compromise and former employee access."
+recommendation:
+  action: "Rotate SSH key pairs annually and remove expired public keys from ~/.ssh/authorized_keys."
+  risk_level: "low"
+  reversible: true
+

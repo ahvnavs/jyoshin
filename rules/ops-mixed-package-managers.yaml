@@ -1,0 +1,20 @@
+id: "OPS-MIXED-PACKAGE-MANAGERS"
+name: "Multiple distinct package manager origins detected"
+description: "Host contains packages installed across multiple conflicting system package managers."
+category: "operations"
+severity: "low"
+match:
+  node_type: "origin"
+  properties:
+    kind:
+      equals: "distro"
+  aggregate:
+    group_by: "kind"
+    count_distinct: "source"
+    greater_than: 1
+consequence: "Mixing package ecosystems (e.g. dpkg and rpm or apk) on the same host causes library conflicts and state drift."
+recommendation:
+  action: "Consolidate host software management onto the native distro package manager."
+  risk_level: "medium"
+  reversible: true
+

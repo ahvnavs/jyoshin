@@ -159,9 +159,36 @@ else
     tar -xzf "${TMP_DIR}/${TAR_NAME}" -C "${TMP_DIR}"
 fi
 
-# Cosign verification note if cosign is present
+# Cosign verification: verify release binary signature and fail closed on mismatch
 if command -v cosign >/dev/null 2>&1; then
-    log_info "Cosign binary detected; signature verification supported for official release tags."
+    log_info "Verifying cosign signature for release binary..."
+    TARGET_BIN="${TMP_DIR}/jyoshin"
+    SIG_FILE="${TMP_DIR}/jyoshin.sig"
+    KEY_FILE="${TMP_DIR}/cosign.pub"
+
+    # Download signature and public key if present in release
+    if [ ! -f "$SIG_FILE" ]; then
+        SIG_URL="https://github.com/${REPO}/releases/download/${VERSION}/jyoshin.sig"
+        PUBKEY_URL="https://github.com/${REPO}/releases/download/${VERSION}/cosign.pub"
+        curl -sSL -f "$SIG_URL" -o "$SIG_FILE" 2>/dev/null || wget -q "$SIG_URL" -O "$SIG_FILE" 2>/dev/null || true
+        curl -sSL -f "$PUBKEY_URL" -o "$KEY_FILE" 2>/dev/null || wget -q "$PUBKEY_URL" -O "$KEY_FILE" 2>/dev/null || true
+    fi
+
+    if [ -f "$SIG_FILE" ]; then
+        COSIGN_ARGS="verify-blob"
+        if [ -f "$KEY_FILE" ]; then
+            COSIGN_ARGS="${COSIGN_ARGS} --key ${KEY_FILE}"
+        fi
+        COSIGN_ARGS="${COSIGN_ARGS} --signature ${SIG_FILE} ${TARGET_BIN}"
+
+        if ! cosign $COSIGN_ARGS >/dev/null 2>&1; then
+            log_error "Cosign signature verification FAILED! Binary may be tampered with or corrupted. Aborting installation."
+            exit 1
+        fi
+        log_info "Cosign signature verified successfully."
+    else
+        log_warn "Cosign installed, but release signature file (jyoshin.sig) not found; skipping cosign verification."
+    fi
 fi
 
 # Create dedicated unprivileged user if non-existent

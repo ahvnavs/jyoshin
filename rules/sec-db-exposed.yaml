@@ -1,0 +1,18 @@
+id: "SEC-DB-EXPOSED"
+name: "Database service exposed on public network interface"
+description: "Database listener port (Redis 6379, Postgres 5432, MySQL 3306, Mongo 27017, Elasticsearch 9200) bound to all interfaces."
+category: "security"
+severity: "critical"
+match:
+  node_type: "port"
+  properties:
+    local_port:
+      in: [6379, 5432, 3306, 27017, 9200]
+    exposure_class:
+      equals: "all_interfaces"
+consequence: "Unauthenticated or weakly authenticated database ports invite automated ransomware extortion and data exfiltration."
+recommendation:
+  action: "Bind database to 127.0.0.1 or VPC private IP, or place behind an encrypted private bastion tunnel."
+  risk_level: "high"
+  reversible: true
+

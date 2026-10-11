@@ -82,6 +82,7 @@ func TestAPI_ChangesEndpoint(t *testing.T) {
 
 	// Request /api/v1/changes
 	req := httptest.NewRequest("GET", "/api/v1/changes", nil)
+	req.Header.Set("Authorization", "Bearer "+srv.AuthManager().Token())
 	w := httptest.NewRecorder()
 	srv.server.Handler.ServeHTTP(w, req)
 	resp := w.Result()
@@ -110,6 +111,7 @@ func TestAPI_ForecastsAndBaselinesEndpoints(t *testing.T) {
 
 	// 1. Initial /forecasts request: insufficient data honest state
 	reqFC := httptest.NewRequest("GET", "/api/v1/forecasts", nil)
+	reqFC.Header.Set("Authorization", "Bearer "+srv.AuthManager().Token())
 	wFC := httptest.NewRecorder()
 	srv.server.Handler.ServeHTTP(wFC, reqFC)
 	respFC := wFC.Result()
@@ -131,6 +133,7 @@ func TestAPI_ForecastsAndBaselinesEndpoints(t *testing.T) {
 	}
 
 	reqFC2 := httptest.NewRequest("GET", "/api/v1/forecasts", nil)
+	reqFC2.Header.Set("Authorization", "Bearer "+srv.AuthManager().Token())
 	wFC2 := httptest.NewRecorder()
 	srv.server.Handler.ServeHTTP(wFC2, reqFC2)
 	respFC2 := wFC2.Result()
@@ -156,6 +159,7 @@ func TestAPI_ForecastsAndBaselinesEndpoints(t *testing.T) {
 
 	// 3. /baselines endpoint
 	reqBL := httptest.NewRequest("GET", "/api/v1/baselines", nil)
+	reqBL.Header.Set("Authorization", "Bearer "+srv.AuthManager().Token())
 	wBL := httptest.NewRecorder()
 	srv.server.Handler.ServeHTTP(wBL, reqBL)
 	respBL := wBL.Result()

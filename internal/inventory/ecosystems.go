@@ -97,6 +97,87 @@ func (m *Manager) collectNonDistro(ctx context.Context) []NonDistroPackage {
 		}
 	}
 
+	// 5. Flatpak packages
+	for _, fpDir := range []string{"/var/lib/flatpak/app", "/root/.local/share/flatpak/app"} {
+		fPath := m.fs.Path(fpDir)
+		if entries, err := os.ReadDir(fPath); err == nil {
+			for _, e := range entries {
+				if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+					list = append(list, NonDistroPackage{
+						Ecosystem: "flatpak",
+						Name:      e.Name(),
+						Location:  filepath.Join(fPath, e.Name()),
+						ManagedBy: "flatpak",
+					})
+				}
+			}
+		}
+	}
+
+	// 6. Gem (Ruby gems)
+	gemPaths := []string{
+		"/var/lib/gems/*/gems",
+		"/usr/lib/ruby/gems/*/gems",
+		"/root/.gem/ruby/*/gems",
+	}
+	for _, gp := range gemPaths {
+		matches, _ := filepath.Glob(m.fs.Path(gp))
+		for _, dir := range matches {
+			if entries, err := os.ReadDir(dir); err == nil {
+				for _, e := range entries {
+					if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+						parts := strings.Split(e.Name(), "-")
+						v := ""
+						name := e.Name()
+						if len(parts) > 1 {
+							v = parts[len(parts)-1]
+							name = strings.Join(parts[:len(parts)-1], "-")
+						}
+						list = append(list, NonDistroPackage{
+							Ecosystem: "gem",
+							Name:      name,
+							Version:   v,
+							Location:  filepath.Join(dir, e.Name()),
+							ManagedBy: "gem",
+						})
+					}
+				}
+			}
+		}
+	}
+
+	// 7. Go bin binaries (GOPATH/bin, ~/go/bin)
+	for _, goBinDir := range []string{"/root/go/bin", "/usr/local/go/bin"} {
+		gbPath := m.fs.Path(goBinDir)
+		if entries, err := os.ReadDir(gbPath); err == nil {
+			for _, e := range entries {
+				if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+					list = append(list, NonDistroPackage{
+						Ecosystem: "go",
+						Name:      e.Name(),
+						Location:  filepath.Join(gbPath, e.Name()),
+						ManagedBy: "go",
+					})
+				}
+			}
+		}
+	}
+
+	// 8. Podman images & containers (read-only metadata check in /var/lib/containers/storage)
+	podmanStorage := m.fs.Path("/var/lib/containers/storage/overlay-images")
+	if entries, err := os.ReadDir(podmanStorage); err == nil {
+		for _, e := range entries {
+			if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+				list = append(list, NonDistroPackage{
+					Ecosystem: "podman",
+					Name:      e.Name(),
+					Location:  filepath.Join(podmanStorage, e.Name()),
+					ManagedBy: "podman",
+				})
+			}
+		}
+	}
+
 	return list
 }
 
@@ -128,13 +209,57 @@ func (m *Manager) collectRuntimes(ctx context.Context) []RuntimeVersion {
 	checkRuntime("ruby", "/usr/bin/ruby", "--version", "system")
 	checkRuntime("php", "/usr/bin/php", "-v", "system")
 
-	// Version manager paths (e.g. pyenv, nvm)
+	// Version manager paths (e.g. pyenv, nvm, asdf, sdkman)
 	nvmDir := m.fs.Path("/root/.nvm/versions/node")
 	if entries, err := os.ReadDir(nvmDir); err == nil {
 		for _, e := range entries {
 			if e.IsDir() {
 				nodeBin := filepath.Join("/root/.nvm/versions/node", e.Name(), "bin/node")
 				checkRuntime("node", nodeBin, "--version", "nvm")
+			}
+		}
+	}
+
+	pyenvDir := m.fs.Path("/root/.pyenv/versions")
+	if entries, err := os.ReadDir(pyenvDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				pyBin := filepath.Join("/root/.pyenv/versions", e.Name(), "bin/python")
+				checkRuntime("python", pyBin, "--version", "pyenv")
+			}
+		}
+	}
+
+	asdfDir := m.fs.Path("/root/.asdf/installs")
+	if plugins, err := os.ReadDir(asdfDir); err == nil {
+		for _, plugin := range plugins {
+			if plugin.IsDir() {
+				versionsDir := filepath.Join(asdfDir, plugin.Name())
+				if vers, err := os.ReadDir(versionsDir); err == nil {
+					for _, v := range vers {
+						if v.IsDir() {
+							binPath := filepath.Join("/root/.asdf/installs", plugin.Name(), v.Name(), "bin", plugin.Name())
+							checkRuntime(plugin.Name(), binPath, "--version", "asdf")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	sdkmanDir := m.fs.Path("/root/.sdkman/candidates")
+	if candidates, err := os.ReadDir(sdkmanDir); err == nil {
+		for _, cand := range candidates {
+			if cand.IsDir() {
+				versionsDir := filepath.Join(sdkmanDir, cand.Name())
+				if vers, err := os.ReadDir(versionsDir); err == nil {
+					for _, v := range vers {
+						if v.IsDir() && v.Name() != "current" {
+							binPath := filepath.Join("/root/.sdkman/candidates", cand.Name(), v.Name(), "bin", cand.Name())
+							checkRuntime(cand.Name(), binPath, "-version", "sdkman")
+						}
+					}
+				}
 			}
 		}
 	}

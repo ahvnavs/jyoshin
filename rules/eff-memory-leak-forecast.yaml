@@ -1,0 +1,16 @@
+id: "EFF-MEMORY-LEAK-FORECAST"
+name: "High memory utilization nearing exhaustion threshold"
+description: "System RAM usage exceeds 92% of total physical capacity."
+category: "efficiency"
+severity: "high"
+match:
+  node_type: "resource"
+  properties:
+    mem_usage_ratio:
+      greater_than: 0.92
+consequence: "Memory saturation triggers catastrophic Linux OOM-killer invocations, terminating critical application daemons."
+recommendation:
+  action: "Inspect top resident processes via top/ps, increase physical RAM tier, or adjust heap allocation ceilings."
+  risk_level: "medium"
+  reversible: true
+

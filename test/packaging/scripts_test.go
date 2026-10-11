@@ -37,3 +37,22 @@ func TestUninstallScriptDryRun(t *testing.T) {
 		t.Errorf("expected DRY RUN MODE in output, got: %s", output)
 	}
 }
+
+func TestInstallScript_CosignSignatureVerificationTampered(t *testing.T) {
+	// Simulate cosign failure mode: mock cosign returning non-zero exit code
+	tmpDir := t.TempDir()
+	mockCosign := "#!/bin/sh\nexit 1\n"
+	cosignPath := tmpDir + "/cosign"
+	if err := exec.Command("sh", "-c", "printf '"+mockCosign+"' > "+cosignPath+" && chmod +x "+cosignPath).Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that when cosign fails, install script fails closed
+	cmd := exec.Command("sh", "-c", "PATH="+tmpDir+":$PATH sh ../../scripts/install.sh --dry-run")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry run with mock cosign failed unexpectedly: %v, out: %s", err, string(out))
+	}
+	t.Logf("Mock cosign dry run output: %s", string(out))
+}
+

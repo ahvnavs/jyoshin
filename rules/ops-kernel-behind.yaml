@@ -1,0 +1,16 @@
+id: "OPS-KERNEL-BEHIND"
+name: "Running kernel behind installed kernel package"
+description: "Newer Linux kernel version installed on disk than currently running in memory (reboot required)."
+category: "operations"
+severity: "medium"
+match:
+  node_type: "system"
+  properties:
+    reboot_required:
+      equals: true
+consequence: "System cannot benefit from security patches and hardware fixes in updated kernel until system reboot."
+recommendation:
+  action: "Schedule a maintenance window and reboot the host into the updated kernel."
+  risk_level: "medium"
+  reversible: true
+

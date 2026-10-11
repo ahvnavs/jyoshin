@@ -1,0 +1,16 @@
+id: "EFF-DISK-EXHAUSTION-FORECAST"
+name: "Filesystem storage capacity nearly exhausted"
+description: "Mounted filesystem usage exceeds 90% of total storage capacity."
+category: "efficiency"
+severity: "critical"
+match:
+  node_type: "resource"
+  properties:
+    usage_ratio:
+      greater_than: 0.90
+consequence: "Full disk partitions result in write failures, database crash loops, and corrupted application transactions."
+recommendation:
+  action: "Clear journalctl logs, prune stale package caches, or expand underlying block storage volume."
+  risk_level: "low"
+  reversible: true
+

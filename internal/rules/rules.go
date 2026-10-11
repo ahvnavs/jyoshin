@@ -6,6 +6,8 @@
 package rules
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,12 +15,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/OWNER/jyoshin/data"
 	"github.com/OWNER/jyoshin/internal/graph"
 )
 
@@ -185,10 +189,35 @@ type MatchProperty struct {
 	LessThan    *float64 `yaml:"less_than,omitempty"`
 }
 
-// MatchCondition specifies how a node or join is matched.
+// MatchJoin specifies a traversal join along graph edges.
+type MatchJoin struct {
+	Relation   string                   `yaml:"relation,omitempty"`   // Edge relation name (e.g. "installed_by", "executes", "listens_on")
+	Direction  string                   `yaml:"direction,omitempty"`  // "in" (target<-source) or "out" (source->target). Default "in".
+	NodeType   graph.NodeType           `yaml:"node_type,omitempty"`  // Target node type to match along the edge
+	Properties map[string]MatchProperty `yaml:"properties,omitempty"` // Attribute match on joined node
+}
+
+// MatchAggregate specifies grouping and aggregate threshold conditions across graph nodes.
+type MatchAggregate struct {
+	GroupBy       string   `yaml:"group_by,omitempty"`       // Property name to group by
+	CountDistinct string   `yaml:"count_distinct,omitempty"` // Property name to count unique values of
+	GreaterThan   *float64 `yaml:"greater_than,omitempty"`   // Minimum threshold for group count
+}
+
+// MatchDuration specifies time duration conditions.
+type MatchDuration struct {
+	MinHours   float64 `yaml:"min_hours,omitempty"`   // Sustained time in hours
+	MinSeconds float64 `yaml:"min_seconds,omitempty"` // Sustained time in seconds
+}
+
+// MatchCondition specifies how a node, join, aggregate, or dataset match is evaluated.
 type MatchCondition struct {
 	NodeType   graph.NodeType           `yaml:"node_type"`
 	Properties map[string]MatchProperty `yaml:"properties,omitempty"`
+	Join       *MatchJoin               `yaml:"join,omitempty"`
+	Aggregate  *MatchAggregate          `yaml:"aggregate,omitempty"`
+	Duration   *MatchDuration           `yaml:"duration,omitempty"`
+	CheckEOL   bool                     `yaml:"check_eol,omitempty"` // Match against data/eol.yaml
 }
 
 // RuleDefinition represents a declarative YAML rule file.
@@ -299,6 +328,8 @@ type Engine struct {
 	suppressions map[string]bool // ruleID -> suppressed
 	history      map[string]*Finding
 	timeBudget   time.Duration
+	eolMap       map[string]map[string]string // runtime -> version -> eolDate
+	pricingTable map[string]float64           // "aws:t3.medium" -> monthly_usd
 }
 
 // NewEngine creates a new Engine with the specified time evaluation budget.
@@ -306,11 +337,14 @@ func NewEngine(budget time.Duration) *Engine {
 	if budget <= 0 {
 		budget = 5 * time.Second
 	}
-	return &Engine{
+	eng := &Engine{
 		suppressions: make(map[string]bool),
 		history:      make(map[string]*Finding),
 		timeBudget:   budget,
+		eolMap:       loadEmbeddedEOLMap(),
+		pricingTable: loadEmbeddedPricingTable(),
 	}
+	return eng
 }
 
 // LoadRule loads a single YAML rule definition.
@@ -387,6 +421,19 @@ func (e *Engine) Evaluate(ctx context.Context, nodes []graph.Node, edges []graph
 	var currentFindings []Finding
 	matchedKeys := make(map[string]bool)
 
+	// Pre-index graph nodes and edges for joins
+	nodeMap := make(map[string]graph.Node, len(nodes))
+	for _, n := range nodes {
+		nodeMap[n.ID] = n
+	}
+
+	inEdges := make(map[string][]graph.Edge)
+	outEdges := make(map[string][]graph.Edge)
+	for _, edge := range edges {
+		inEdges[edge.TargetID] = append(inEdges[edge.TargetID], edge)
+		outEdges[edge.SourceID] = append(outEdges[edge.SourceID], edge)
+	}
+
 	for _, rule := range e.rules {
 		select {
 		case <-evalCtx.Done():
@@ -398,56 +445,116 @@ func (e *Engine) Evaluate(ctx context.Context, nodes []graph.Node, edges []graph
 			continue
 		}
 
-		for _, node := range nodes {
-			if node.Type != rule.Match.NodeType {
-				continue
-			}
-
-			if matchesProperties(node.Properties, rule.Match.Properties) {
-				findingID := fmt.Sprintf("%s:%s", rule.ID, node.ID)
-				matchedKeys[findingID] = true
-
-				f := Finding{
-					ID:       findingID,
-					RuleID:   rule.ID,
-					Category: rule.Category,
-					Severity: rule.Severity,
-					What:     fmt.Sprintf("%s on %s", rule.Name, node.Label),
-					SoWhat:   rule.Consequence,
-					NowWhat:  rule.Recommendation,
-					Proof: Proof{
-						Evidence:   node.Evidence,
-						Certainty:  rule.Certainty,
-						Confidence: rule.Confidence,
-					},
-					AffectedNodeIDs: []string{node.ID},
-					LastSeen:        now,
-				}
-
-				// Exposure multiplier
-				expMultiplier := 1.0
-				if expClass, ok := node.Properties["exposure_class"].(string); ok {
-					if expClass == "all_interfaces" {
-						expMultiplier = 1.5
-					} else if expClass == "private" {
-						expMultiplier = 1.2
-					}
-				}
-
-				f.Score = CalculateScore(f, expMultiplier)
-
-				// Lifecycle tracking
-				if prev, exists := e.history[findingID]; exists {
+		// Handle Aggregate Rules
+		if rule.Match.Aggregate != nil {
+			aggFindings := e.evaluateAggregateRule(rule, nodes, nodeMap, now)
+			for _, f := range aggFindings {
+				matchedKeys[f.ID] = true
+				if prev, exists := e.history[f.ID]; exists {
 					f.FirstSeen = prev.FirstSeen
 					f.Lifecycle = LifecycleOngoing
 				} else {
 					f.FirstSeen = now
 					f.Lifecycle = LifecycleNew
 				}
-
-				e.history[findingID] = &f
+				e.history[f.ID] = &f
 				currentFindings = append(currentFindings, f)
 			}
+			continue
+		}
+
+		// Handle Standard, Join, Duration, and EOL Node Rules
+		for _, node := range nodes {
+			if node.Type != rule.Match.NodeType {
+				continue
+			}
+
+			if !matchesProperties(node.Properties, rule.Match.Properties) {
+				continue
+			}
+
+			// Duration condition check
+			if rule.Match.Duration != nil {
+				if !matchesDuration(node, rule.Match.Duration, now) {
+					continue
+				}
+			}
+
+			// EOL Condition check
+			if rule.Match.CheckEOL {
+				isEOL, _ := e.checkNodeEOL(node)
+				if !isEOL {
+					continue
+				}
+			}
+
+			// Join condition check
+			joinedNodes := []graph.Node{}
+			if rule.Match.Join != nil {
+				matched, joins := matchesJoin(node, rule.Match.Join, inEdges, outEdges, nodeMap)
+				if !matched {
+					continue
+				}
+				joinedNodes = joins
+			}
+
+			findingID := fmt.Sprintf("%s:%s", rule.ID, node.ID)
+			matchedKeys[findingID] = true
+
+			// Collect affected node IDs and combined proof evidence
+			affectedIDs := []string{node.ID}
+			evidence := make([]graph.Evidence, 0, len(node.Evidence))
+			evidence = append(evidence, node.Evidence...)
+			for _, jn := range joinedNodes {
+				affectedIDs = append(affectedIDs, jn.ID)
+				evidence = append(evidence, jn.Evidence...)
+			}
+
+			f := Finding{
+				ID:       findingID,
+				RuleID:   rule.ID,
+				Category: rule.Category,
+				Severity: rule.Severity,
+				What:     fmt.Sprintf("%s on %s", rule.Name, node.Label),
+				SoWhat:   rule.Consequence,
+				NowWhat:  rule.Recommendation,
+				Proof: Proof{
+					Evidence:   evidence,
+					Certainty:  rule.Certainty,
+					Confidence: rule.Confidence,
+				},
+				AffectedNodeIDs: affectedIDs,
+				LastSeen:        now,
+			}
+
+			// Enhance Cost Findings with pricing table reference
+			if rule.Category == CategoryCost {
+				f.What = e.enrichCostDescription(f.What, node)
+			}
+
+			// Exposure multiplier
+			expMultiplier := 1.0
+			if expClass, ok := node.Properties["exposure_class"].(string); ok {
+				if expClass == "all_interfaces" {
+					expMultiplier = 1.5
+				} else if expClass == "private" {
+					expMultiplier = 1.2
+				}
+			}
+
+			f.Score = CalculateScore(f, expMultiplier)
+
+			// Lifecycle tracking
+			if prev, exists := e.history[findingID]; exists {
+				f.FirstSeen = prev.FirstSeen
+				f.Lifecycle = LifecycleOngoing
+			} else {
+				f.FirstSeen = now
+				f.Lifecycle = LifecycleNew
+			}
+
+			e.history[findingID] = &f
+			currentFindings = append(currentFindings, f)
 		}
 	}
 
@@ -461,6 +568,233 @@ func (e *Engine) Evaluate(ctx context.Context, nodes []graph.Node, edges []graph
 
 	SortFindings(currentFindings)
 	return currentFindings, nil
+}
+
+func matchesDuration(node graph.Node, dur *MatchDuration, now time.Time) bool {
+	if dur == nil {
+		return true
+	}
+
+	// Check uptime_seconds property first if present
+	if dur.MinSeconds > 0 {
+		if uptime, ok := node.Properties["uptime_seconds"]; ok {
+			var uSec float64
+			switch v := uptime.(type) {
+			case float64:
+				uSec = v
+			case int:
+				uSec = float64(v)
+			case int64:
+				uSec = float64(v)
+			}
+			if uSec < dur.MinSeconds {
+				return false
+			}
+		}
+	}
+
+	// Check time elapsed since first seen
+	if dur.MinHours > 0 {
+		elapsedHours := now.Sub(node.FirstSeen).Hours()
+		if elapsedHours < dur.MinHours {
+			// Also check if uptime_seconds satisfies it
+			if uptime, ok := node.Properties["uptime_seconds"]; ok {
+				var uSec float64
+				switch v := uptime.(type) {
+				case float64:
+					uSec = v
+				case int:
+					uSec = float64(v)
+				case int64:
+					uSec = float64(v)
+				}
+				if uSec < dur.MinHours*3600 {
+					return false
+				}
+			} else {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func matchesJoin(node graph.Node, join *MatchJoin, inEdges, outEdges map[string][]graph.Edge, nodeMap map[string]graph.Node) (bool, []graph.Node) {
+	if join == nil {
+		return true, nil
+	}
+
+	var candidateEdges []graph.Edge
+	if join.Direction == "out" {
+		candidateEdges = outEdges[node.ID]
+	} else {
+		// Default to "in"
+		candidateEdges = inEdges[node.ID]
+	}
+
+	var matchedNodes []graph.Node
+	for _, e := range candidateEdges {
+		if join.Relation != "" && e.Relation != join.Relation {
+			continue
+		}
+
+		targetID := e.SourceID
+		if join.Direction == "out" {
+			targetID = e.TargetID
+		}
+
+		targetNode, exists := nodeMap[targetID]
+		if !exists {
+			continue
+		}
+
+		if join.NodeType != "" && targetNode.Type != join.NodeType {
+			continue
+		}
+
+		if matchesProperties(targetNode.Properties, join.Properties) {
+			matchedNodes = append(matchedNodes, targetNode)
+		}
+	}
+
+	return len(matchedNodes) > 0, matchedNodes
+}
+
+func (e *Engine) evaluateAggregateRule(rule RuleDefinition, nodes []graph.Node, nodeMap map[string]graph.Node, now time.Time) []Finding {
+	agg := rule.Match.Aggregate
+	if agg == nil {
+		return nil
+	}
+
+	var findings []Finding
+	// Group matching nodes
+	groups := make(map[string][]graph.Node)
+
+	for _, n := range nodes {
+		if n.Type != rule.Match.NodeType {
+			continue
+		}
+		if !matchesProperties(n.Properties, rule.Match.Properties) {
+			continue
+		}
+
+		groupKey := "all"
+		if agg.GroupBy != "" {
+			if val, ok := n.Properties[agg.GroupBy]; ok {
+				groupKey = fmt.Sprintf("%v", val)
+			}
+		}
+		groups[groupKey] = append(groups[groupKey], n)
+	}
+
+	for groupKey, groupNodes := range groups {
+		count := float64(len(groupNodes))
+		if agg.CountDistinct != "" {
+			distinctVals := make(map[string]bool)
+			for _, gn := range groupNodes {
+				if v, ok := gn.Properties[agg.CountDistinct]; ok {
+					distinctVals[fmt.Sprintf("%v", v)] = true
+				}
+			}
+			count = float64(len(distinctVals))
+		}
+
+		threshold := 1.0
+		if agg.GreaterThan != nil {
+			threshold = *agg.GreaterThan
+		}
+
+		if count > threshold {
+			findingID := fmt.Sprintf("%s:%s", rule.ID, groupKey)
+			var affectedIDs []string
+			var evidence []graph.Evidence
+			for _, gn := range groupNodes {
+				affectedIDs = append(affectedIDs, gn.ID)
+				evidence = append(evidence, gn.Evidence...)
+			}
+
+			f := Finding{
+				ID:       findingID,
+				RuleID:   rule.ID,
+				Category: rule.Category,
+				Severity: rule.Severity,
+				What:     fmt.Sprintf("%s (%s: count=%.0f)", rule.Name, groupKey, count),
+				SoWhat:   rule.Consequence,
+				NowWhat:  rule.Recommendation,
+				Proof: Proof{
+					Evidence:   evidence,
+					Certainty:  rule.Certainty,
+					Confidence: rule.Confidence,
+				},
+				AffectedNodeIDs: affectedIDs,
+				LastSeen:        now,
+			}
+			f.Score = CalculateScore(f, 1.0)
+			findings = append(findings, f)
+		}
+	}
+
+	return findings
+}
+
+func (e *Engine) checkNodeEOL(node graph.Node) (bool, string) {
+	if node.Properties == nil {
+		return false, ""
+	}
+
+	// Check distro
+	if distro, ok := node.Properties["distro_family"].(string); ok {
+		if ver, ok := node.Properties["distro_version"].(string); ok {
+			if eolDate, found := e.eolLookup(distro, ver); found {
+				return true, eolDate
+			}
+		}
+	}
+
+	// Check runtime / package
+	if name, ok := node.Properties["name"].(string); ok {
+		if ver, ok := node.Properties["version"].(string); ok {
+			if eolDate, found := e.eolLookup(name, ver); found {
+				return true, eolDate
+			}
+		}
+	}
+
+	return false, ""
+}
+
+func (e *Engine) eolLookup(name, version string) (string, bool) {
+	table, ok := e.eolMap[strings.ToLower(name)]
+	if !ok {
+		return "", false
+	}
+	now := time.Now().Format("2006-01-02")
+	for verPrefix, eolDate := range table {
+		if strings.Contains(version, verPrefix) && eolDate < now {
+			return eolDate, true
+		}
+	}
+	return "", false
+}
+
+func (e *Engine) enrichCostDescription(what string, node graph.Node) string {
+	provider := "aws"
+	if p, ok := node.Properties["cloud_provider"].(string); ok && p != "" && p != "none" {
+		provider = p
+	}
+	instType := "t3.medium"
+	if it, ok := node.Properties["instance_type"].(string); ok && it != "" {
+		instType = it
+	}
+
+	key := fmt.Sprintf("%s:%s", provider, instType)
+	cost, ok := e.pricingTable[key]
+	if !ok {
+		cost = 30.00 // Default reference
+	}
+
+	return fmt.Sprintf("%s (~$%.2f/mo estimate, table dated 2026-01-01)", what, cost)
 }
 
 func matchesProperties(nodeProps map[string]any, matchProps map[string]MatchProperty) bool {
@@ -505,8 +839,44 @@ func matchesProperties(nodeProps map[string]any, matchProps map[string]MatchProp
 				return false
 			}
 		}
+		if cond.GreaterThan != nil {
+			fVal, ok := toFloat(val)
+			if !ok || fVal <= *cond.GreaterThan {
+				return false
+			}
+		}
+		if cond.LessThan != nil {
+			fVal, ok := toFloat(val)
+			if !ok || fVal >= *cond.LessThan {
+				return false
+			}
+		}
 	}
 	return true
+}
+
+func toFloat(val any) (float64, bool) {
+	switch v := val.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case uint64:
+		return float64(v), true
+	case uint32:
+		return float64(v), true
+	case string:
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f, true
+		}
+	}
+	return 0, false
 }
 
 // LintRule parses and checks a rule file, reporting descriptive syntax/schema errors.
@@ -523,4 +893,59 @@ func LintRule(path string) (*RuleDefinition, error) {
 		return nil, fmt.Errorf("rule schema violation: %w", err)
 	}
 	return &r, nil
+}
+
+func loadEmbeddedEOLMap() map[string]map[string]string {
+	res := make(map[string]map[string]string)
+	dataBytes, err := data.EOLData.ReadFile("eol.yaml")
+	if err != nil {
+		return res
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(dataBytes))
+	var currentItem string
+	var currentVer string
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasSuffix(line, ":") && !strings.Contains(line, "version") && !strings.Contains(line, "distros") && !strings.Contains(line, "runtimes") {
+			currentItem = strings.TrimSuffix(line, ":")
+			if _, ok := res[currentItem]; !ok {
+				res[currentItem] = make(map[string]string)
+			}
+		}
+		if strings.HasPrefix(line, "- version: ") {
+			currentVer = strings.Trim(strings.TrimPrefix(line, "- version: "), `"'`)
+		}
+		if strings.HasPrefix(line, "eol: ") && currentItem != "" && currentVer != "" {
+			eolDate := strings.Trim(strings.TrimPrefix(line, "eol: "), `"'`)
+			res[currentItem][currentVer] = eolDate
+		}
+	}
+	return res
+}
+
+func loadEmbeddedPricingTable() map[string]float64 {
+	res := make(map[string]float64)
+	dataBytes, err := data.EOLData.ReadFile("prices.yaml")
+	if err != nil {
+		return res
+	}
+
+	var doc struct {
+		Providers map[string]map[string]struct {
+			HourlyUSD  float64 `yaml:"hourly_usd"`
+			MonthlyUSD float64 `yaml:"monthly_usd"`
+		} `yaml:"providers"`
+	}
+
+	if err := yaml.Unmarshal(dataBytes, &doc); err == nil {
+		for prov, instances := range doc.Providers {
+			for inst, price := range instances {
+				key := fmt.Sprintf("%s:%s", prov, inst)
+				res[key] = price.MonthlyUSD
+			}
+		}
+	}
+	return res
 }

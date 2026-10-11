@@ -117,7 +117,7 @@ func NewServer(
 
 	s.server = &http.Server{
 		Addr:         cfg.Address(),
-		Handler:      s.loggingMiddleware(mux),
+		Handler:      s.loggingMiddleware(s.authMiddleware(mux)),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 0, // SSE streaming requires unbounded write timeout
 		IdleTimeout:  60 * time.Second,
@@ -177,6 +177,38 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	}
 	fileServer := http.FileServer(http.FS(subFS))
 	mux.Handle("GET /", fileServer)
+}
+
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Permit health, version, auth status, and static web UI files without token
+		path := r.URL.Path
+		if path == "/api/v1/health" || path == "/api/v1/version" || path == "/api/v1/auth/status" || !strings.HasPrefix(path, "/api/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Enforce token authentication on API endpoints when auth is required
+		if s.cfg.AuthRequired && s.auth != nil {
+			authHeader := r.Header.Get("Authorization")
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			if token == "" {
+				token = r.URL.Query().Get("token")
+			}
+			if !s.auth.Validate(token) {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusUnauthorized)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error":   "unauthorized: valid bearer token required",
+					"status":  401,
+					"hint":    "run 'jyoshin token' to retrieve authentication token",
+				})
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
@@ -328,10 +360,13 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nodeCount, edgeCount := s.pGraph.Summary()
+	nodes, edges := s.pGraph.Snapshot()
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"node_count": nodeCount,
 		"edge_count": edgeCount,
+		"nodes":      nodes,
+		"edges":      edges,
 	})
 }
 

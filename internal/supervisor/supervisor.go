@@ -68,13 +68,11 @@ func New(registry *sensors.Registry, logger *slog.Logger) *Supervisor {
 }
 
 // LowerPriority lowers the process priority to minimize host disturbance.
-// Principle 3: NEVER HARM THE HOST. Low priority (nice 10+, ionice idle where available).
+// Principle 3: NEVER HARM THE HOST. Low priority (nice 19 within 0..19, ionice idle where available).
 func (s *Supervisor) LowerPriority() {
-	// Set nice to 10
-	currentNice, err := syscall.Getpriority(syscall.PRIO_PROCESS, 0)
-	if err == nil && currentNice < 10 {
-		_ = syscall.Setpriority(syscall.PRIO_PROCESS, 0, 10)
-	}
+	// Set nice to 19 (highest unprivileged niceness / lowest scheduling priority within 0..19)
+	targetNice := 19
+	_ = syscall.Setpriority(syscall.PRIO_PROCESS, 0, targetNice)
 
 	// Try setting ionice to idle/best-effort class via ioprio_set (SYS_ioprio_set) if linux
 	const (
@@ -263,7 +261,16 @@ func (s *Supervisor) GetSensorStates() []sensors.SensorState {
 // GetSelfOverhead computes own process metrics (RSS, CPU%, cgroups, nice).
 func (s *Supervisor) GetSelfOverhead() SelfOverhead {
 	pid := os.Getpid()
-	nice, _ := syscall.Getpriority(syscall.PRIO_PROCESS, 0)
+	rawPrio, err := syscall.Getpriority(syscall.PRIO_PROCESS, 0)
+	nice := 0
+	if err == nil {
+		nice = 20 - rawPrio
+		if nice < -20 {
+			nice = -20
+		} else if nice > 19 {
+			nice = 19
+		}
+	}
 
 	overhead := SelfOverhead{
 		PID:          pid,

@@ -5,6 +5,7 @@ package process
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -75,5 +76,40 @@ func TestProcessSensor_PermissionDenied(t *testing.T) {
 	// Should degrade gracefully to StatusUnknown without panicking
 	if err == nil && obs.Status != "unknown" && obs.Status != "error" {
 		t.Fatalf("expected error or degraded unknown status, got status=%s, err=%v", obs.Status, err)
+	}
+}
+
+func TestProcessSensor_Truncation(t *testing.T) {
+	root := t.TempDir()
+	mustWrite := func(relPath, content string) {
+		full := filepath.Join(root, relPath)
+		_ = os.MkdirAll(filepath.Dir(full), 0755)
+		_ = os.WriteFile(full, []byte(content), 0644)
+	}
+
+	// Create 5 process directories
+	for pid := 1; pid <= 5; pid++ {
+		mustWrite(fmt.Sprintf("/proc/%d/stat", pid), fmt.Sprintf("%d (worker%d) S 0 1 1 0 -1 4194560 100 0 0 0 10 20 0 0 20 0 1 0 50 10485760 1024 18446744073709551615", pid, pid))
+		mustWrite(fmt.Sprintf("/proc/%d/status", pid), fmt.Sprintf("Name:\tworker%d\nPid:\t%d\nUid:\t1000\t1000\t1000\t1000\n", pid, pid))
+		mustWrite(fmt.Sprintf("/proc/%d/cmdline", pid), fmt.Sprintf("/bin/worker%d\x00", pid))
+	}
+
+	rfs := fs.NewRootedFS(root)
+	sensor := New(rfs)
+	sensor.SetMaxProcesses(2)
+
+	obs, err := sensor.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(obs.Items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(obs.Items))
+	}
+	if !obs.Truncated {
+		t.Errorf("expected obs.Truncated to be true")
+	}
+	if obs.TotalSeen != 5 {
+		t.Errorf("expected obs.TotalSeen to be 5, got %d", obs.TotalSeen)
 	}
 }

@@ -67,12 +67,14 @@ type NodeType string
 const (
 	NodeFile       NodeType = "file"
 	NodePackage    NodeType = "package"
+	NodeOrigin     NodeType = "origin"
 	NodeProcess    NodeType = "process"
 	NodeService    NodeType = "service"
 	NodePort       NodeType = "port"
 	NodeConnection NodeType = "connection"
 	NodeUser       NodeType = "user"
 	NodeContainer  NodeType = "container"
+	NodeCgroup     NodeType = "cgroup"
 	NodeResource   NodeType = "resource"
 	NodeSystem     NodeType = "system"
 )

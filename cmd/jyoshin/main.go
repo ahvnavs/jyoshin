@@ -29,10 +29,16 @@ import (
 	"github.com/OWNER/jyoshin/internal/report"
 	"github.com/OWNER/jyoshin/internal/rules"
 	"github.com/OWNER/jyoshin/internal/sensors"
+	"github.com/OWNER/jyoshin/internal/sensors/container"
 	"github.com/OWNER/jyoshin/internal/sensors/host"
+	"github.com/OWNER/jyoshin/internal/sensors/kernel"
 	"github.com/OWNER/jyoshin/internal/sensors/network"
 	"github.com/OWNER/jyoshin/internal/sensors/process"
+	"github.com/OWNER/jyoshin/internal/sensors/resources"
+	"github.com/OWNER/jyoshin/internal/sensors/scheduler"
 	"github.com/OWNER/jyoshin/internal/sensors/service"
+	"github.com/OWNER/jyoshin/internal/sensors/storage"
+	"github.com/OWNER/jyoshin/internal/sensors/user"
 	"github.com/OWNER/jyoshin/internal/store"
 	"github.com/OWNER/jyoshin/internal/supervisor"
 	"github.com/OWNER/jyoshin/internal/verdict"
@@ -171,11 +177,27 @@ func runReport(args []string) error {
 	_ = registry.Register(process.New(rfs))
 	_ = registry.Register(service.New(rfs))
 	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
+
+	// Connect origin resolver
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	pGraph.SetOriginResolver(originResolver)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	for _, name := range []string{"host", "process", "service", "network"} {
+	allSensors := []string{
+		"host", "process", "service", "network",
+		"storage", "resources", "container", "user", "scheduler", "kernel",
+	}
+
+	for _, name := range allSensors {
 		if s, ok := registry.Get(name); ok {
 			if obs, err := s.Collect(ctx); err == nil {
 				pGraph.IngestObservation(obs)
@@ -340,6 +362,12 @@ func runServe(args []string) error {
 	_ = registry.Register(process.New(rfs))
 	_ = registry.Register(service.New(rfs))
 	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
 
 	sup := supervisor.New(registry, logger)
 
@@ -350,6 +378,7 @@ func runServe(args []string) error {
 
 	// Initialize Phase 4: ProvenanceGraph and BoltStore
 	pGraph := graphbuilder.NewProvenanceGraph()
+	pGraph.SetOriginResolver(originResolver)
 	bStore, err := store.Open(store.DefaultConfig(cfg.DataDir), logger)
 	if err != nil {
 		logger.Warn("could not open persistent store; running in memory", "error", err)
@@ -388,6 +417,11 @@ func runServe(args []string) error {
 		_ = sup.Stop()
 	}()
 
+	allSensors := []string{
+		"host", "process", "service", "network",
+		"storage", "resources", "container", "user", "scheduler", "kernel",
+	}
+
 	// Background loop ingesting sensor observations into pGraph, storing snapshots, diffing, and recording metric samples
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
@@ -399,7 +433,7 @@ func runServe(args []string) error {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				for _, sName := range []string{"host", "process", "service", "network"} {
+				for _, sName := range allSensors {
 					if obs, ok := sup.GetObservation(sName); ok {
 						pGraph.IngestObservation(obs)
 						// Record metrics for resource forecaster
@@ -411,6 +445,29 @@ func runServe(args []string) error {
 									}
 									if info.SwapBytes > 0 {
 										server.RecordSample("swap", float64(info.SwapBytes)/(1024*1024))
+									}
+								}
+							}
+						} else if sName == "storage" {
+							for _, it := range obs.Items {
+								if m, ok := it.Data.(storage.MountInfo); ok {
+									if m.MountPoint == "/" {
+										server.RecordSample("/", m.UsageRatio*100)
+										if m.UsedInodes > 0 {
+											server.RecordSample("/_inodes", float64(m.UsedInodes))
+										}
+									}
+								}
+							}
+						} else if sName == "resources" {
+							for _, it := range obs.Items {
+								if r, ok := it.Data.(resources.ResourceSample); ok {
+									server.RecordSample("load1", r.Load1)
+									if r.MemUsageRatio > 0 {
+										server.RecordSample("system_ram", r.MemUsageRatio*100)
+									}
+									if r.SwapUsageRatio > 0 {
+										server.RecordSample("swap", r.SwapUsageRatio*100)
 									}
 								}
 							}

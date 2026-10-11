@@ -1,0 +1,20 @@
+id: "COST-IDLE-RESOURCE"
+name: "Sustained idle host capacity wasting cloud budget"
+description: "Virtual machine running with sustained 15-minute load average below 0.05 and memory under 15%."
+category: "cost"
+severity: "medium"
+match:
+  node_type: "resource"
+  properties:
+    load15:
+      less_than: 0.05
+    mem_usage_ratio:
+      less_than: 0.15
+  duration:
+    min_hours: 24
+consequence: "Provisioned cloud VM instances under negligible utilization accumulate unnecessary cloud hosting invoices."
+recommendation:
+  action: "Right-size instance to a smaller family or power down during off-peak cycles."
+  risk_level: "low"
+  reversible: true
+

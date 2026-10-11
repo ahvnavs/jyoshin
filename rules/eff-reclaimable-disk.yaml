@@ -1,0 +1,16 @@
+id: "EFF-RECLAIMABLE-DISK"
+name: "Superfluous unused kernel versions reclaimable"
+description: "Host retains 3 or more outdated kernel images that can be safely purged from /boot."
+category: "efficiency"
+severity: "low"
+match:
+  node_type: "system"
+  properties:
+    reclaimable_count:
+      greater_than: 2
+consequence: "Accumulation of superseded kernel binaries and initramfs blobs risks exhausting /boot partition inodes and disk space."
+recommendation:
+  action: "Run apt autoremove --purge or dnf remove --oldinstallonly to clean up historical kernel images."
+  risk_level: "low"
+  reversible: false
+

@@ -56,7 +56,8 @@ func TestOrphanScanner_BudgetAndCoverage(t *testing.T) {
 	if result2.FilesInspected != 5 {
 		t.Fatalf("expected 5 files inspected, got %d", result2.FilesInspected)
 	}
-	if result2.CoveragePercent != 100.0 { // 5 / 5 = 100% of budget reached
-		t.Logf("coverage percent: %f", result2.CoveragePercent)
+	// 5 inspected out of 10 files in scope = 50% coverage, NOT 100%
+	if result2.CoveragePercent != 50.0 {
+		t.Fatalf("expected 50%% coverage (5/10), got %f", result2.CoveragePercent)
 	}
 }

@@ -1,6 +1,9 @@
-# OpenSSF Best Practices and Standards Compliance
+# OpenSSF Best Practices and Standards Alignment (Targeted)
 
-Jyōshin is designed to achieve the OpenSSF Best Practices (Gold tier) and adheres strictly to the Open Source Security Foundation standards.
+Jyōshin is designed toward alignment with OpenSSF Best Practices (targeting the Gold tier criteria) and adheres to Open Source Security Foundation recommendations.
+
+> [!NOTE]
+> Formal badge certification has not yet been applied for or granted. The items below represent internal architectural alignment, self-assessment, and automated CI checks implemented in the repository.
 
 ## 1. Security Architecture & Threat Model
 - **Threat Model**: Documented in [`docs/THREAT_MODEL.md`](file:///home/ahvnav/workspace/jyoshin/docs/THREAT_MODEL.md).
@@ -8,8 +11,8 @@ Jyōshin is designed to achieve the OpenSSF Best Practices (Gold tier) and adher
 - **Redaction Engine**: Secrets and credentials are automatically scrubbed via [`internal/redact`](file:///home/ahvnav/workspace/jyoshin/internal/redact/redact.go).
 
 ## 2. Cryptographic Signing & Provenance
-- **SLSA Level 3 Provenance**: Official SLSA generation integrated in release pipelines.
-- **Keyless Signature**: Release checksums and container images signed with Sigstore Cosign via OIDC GitHub Actions identity.
+- **SLSA Level 3 Provenance (Targeted)**: Release workflows define provenance generation steps via GitHub Actions.
+- **Keyless Signature**: Release checksums and container images configured for signing with Sigstore Cosign via OIDC GitHub Actions identity.
 - **Reproducible Builds**: All binary assets compiled with `-trimpath` and reproducible timestamps.
 
 ## 3. Sandboxing & Systemd Hardening

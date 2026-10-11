@@ -1,0 +1,20 @@
+id: "COST-DUPLICATE-RUNTIME"
+name: "Multiple distinct versions of runtime installed"
+description: "Multiple distinct versions of the same programming language runtime active on host."
+category: "cost"
+severity: "low"
+match:
+  node_type: "origin"
+  properties:
+    kind:
+      equals: "runtime"
+  aggregate:
+    group_by: "source"
+    count_distinct: "version"
+    greater_than: 1
+consequence: "Multiple runtime versions consume duplicate disk storage, require isolated dependency trees, and increase maintenance surface."
+recommendation:
+  action: "Standardize application stacks on the latest supported LTS version and uninstall deprecated runtimes."
+  risk_level: "low"
+  reversible: true
+

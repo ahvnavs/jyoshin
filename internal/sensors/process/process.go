@@ -50,8 +50,13 @@ type Sensor struct {
 func New(fs fs.FS) *Sensor {
 	return &Sensor{
 		fs:           fs,
-		maxProcesses: 2048, // Bound work per cycle
+		maxProcesses: 2048, // Default bound
 	}
+}
+
+// SetMaxProcesses configures the process collection limit. A value <= 0 disables capping.
+func (s *Sensor) SetMaxProcesses(limit int) {
+	s.maxProcesses = limit
 }
 
 func (s *Sensor) Name() string {
@@ -82,28 +87,32 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 	}
 
 	var items []sensors.Item
+	totalPids := 0
 	count := 0
 
 	for _, entry := range entries {
-		select {
-		case <-ctx.Done():
-			obs.Status = sensors.StatusUnknown
-			obs.Reason = "collection cancelled or timed out"
-			obs.Items = items
-			return obs, nil
-		default:
-		}
-
-		if count >= s.maxProcesses {
-			break
-		}
-
 		if !entry.IsDir() {
 			continue
 		}
 		pid, err := strconv.Atoi(entry.Name())
 		if err != nil {
 			continue // Not a numeric PID directory
+		}
+		totalPids++
+
+		select {
+		case <-ctx.Done():
+			obs.Status = sensors.StatusUnknown
+			obs.Reason = "collection cancelled or timed out"
+			obs.Items = items
+			obs.TotalSeen = totalPids
+			return obs, nil
+		default:
+		}
+
+		if s.maxProcesses > 0 && count >= s.maxProcesses {
+			// Continue loop to count totalSeen without silent drops
+			continue
 		}
 
 		proc, ev, ok := s.readProcess(pid, now)
@@ -123,6 +132,10 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 	}
 
 	obs.Items = items
+	obs.TotalSeen = totalPids
+	if s.maxProcesses > 0 && totalPids > s.maxProcesses {
+		obs.Truncated = true
+	}
 	obs.Duration = time.Since(start)
 	return obs, nil
 }

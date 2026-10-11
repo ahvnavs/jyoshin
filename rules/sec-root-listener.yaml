@@ -1,0 +1,23 @@
+id: "SEC-ROOT-LISTENER"
+name: "Unnecessary root service listening on public network"
+description: "Process running as UID 0 listening on all network interfaces."
+category: "security"
+severity: "high"
+match:
+  node_type: "port"
+  properties:
+    exposure_class:
+      equals: "all_interfaces"
+  join:
+    relation: "listens_on"
+    direction: "in"
+    node_type: "process"
+    properties:
+      uid:
+        equals: 0
+consequence: "Network-facing root processes expose the host to remote root compromise if vulnerable."
+recommendation:
+  action: "Configure service to drop privileges to an unprivileged system user or bind to private interfaces."
+  risk_level: "medium"
+  reversible: true
+

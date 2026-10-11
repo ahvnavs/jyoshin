@@ -59,15 +59,59 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 	cleanPath := filepath.Clean(path)
 	now := time.Now().UTC()
 
-	// 1. Check if owned by system package manager
-	if pkg, ev, ok := r.inventory.FindPackageOwner(cleanPath); ok {
-		return Origin{
-			Path:       cleanPath,
-			Kind:       KindPackage,
-			Source:     pkg,
-			Confidence: 1.0,
-			Evidence:   []graph.Evidence{ev},
-			Certainty:  graph.CertaintyObserved,
+	// Resolve symlinks and merged-/usr (/bin->/usr/bin, /lib->/usr/lib) before lookup
+	candidates := []string{cleanPath}
+
+	// If cleanPath is a symlink, resolve it relative to RootedFS
+	if target, err := r.fs.Readlink(cleanPath); err == nil {
+		resolvedTarget := target
+		if root := r.fs.Root(); root != "/" && strings.HasPrefix(resolvedTarget, root) {
+			resolvedTarget = strings.TrimPrefix(resolvedTarget, root)
+			if !strings.HasPrefix(resolvedTarget, "/") {
+				resolvedTarget = "/" + resolvedTarget
+			}
+		}
+		if !filepath.IsAbs(resolvedTarget) {
+			resolvedTarget = filepath.Join(filepath.Dir(cleanPath), resolvedTarget)
+		}
+		candidates = append(candidates, filepath.Clean(resolvedTarget))
+	}
+
+	// Expand merged-/usr aliases for all candidates
+	var expanded []string
+	for _, p := range candidates {
+		expanded = append(expanded, p)
+		switch {
+		case strings.HasPrefix(p, "/bin/"):
+			expanded = append(expanded, "/usr/bin/"+strings.TrimPrefix(p, "/bin/"))
+		case strings.HasPrefix(p, "/sbin/"):
+			expanded = append(expanded, "/usr/sbin/"+strings.TrimPrefix(p, "/sbin/"))
+		case strings.HasPrefix(p, "/lib/"):
+			expanded = append(expanded, "/usr/lib/"+strings.TrimPrefix(p, "/lib/"))
+		case strings.HasPrefix(p, "/lib64/"):
+			expanded = append(expanded, "/usr/lib64/"+strings.TrimPrefix(p, "/lib64/"))
+		case strings.HasPrefix(p, "/usr/bin/"):
+			expanded = append(expanded, "/bin/"+strings.TrimPrefix(p, "/usr/bin/"))
+		case strings.HasPrefix(p, "/usr/sbin/"):
+			expanded = append(expanded, "/sbin/"+strings.TrimPrefix(p, "/usr/sbin/"))
+		case strings.HasPrefix(p, "/usr/lib/"):
+			expanded = append(expanded, "/lib/"+strings.TrimPrefix(p, "/usr/lib/"))
+		case strings.HasPrefix(p, "/usr/lib64/"):
+			expanded = append(expanded, "/lib64/"+strings.TrimPrefix(p, "/usr/lib64/"))
+		}
+	}
+
+	// 1. Check if owned by system package manager across candidates
+	for _, cand := range expanded {
+		if pkg, ev, ok := r.inventory.FindPackageOwner(cand); ok {
+			return Origin{
+				Path:       cleanPath,
+				Kind:       KindPackage,
+				Source:     pkg,
+				Confidence: 1.0,
+				Evidence:   []graph.Evidence{ev},
+				Certainty:  graph.CertaintyObserved,
+			}
 		}
 	}
 

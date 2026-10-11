@@ -46,6 +46,8 @@ type Observation struct {
 	Duration   time.Duration     `json:"duration"`
 	Status     ObservationStatus `json:"status"`
 	Reason     string            `json:"reason,omitempty"` // Explanation if status == "unknown" or "error"
+	Truncated  bool              `json:"truncated,omitempty"`
+	TotalSeen  int               `json:"total_seen,omitempty"`
 	Items      []Item            `json:"items,omitempty"`
 }
 

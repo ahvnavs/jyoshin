@@ -1,15 +1,16 @@
 id: "SEC-PROC-TMP-EXEC"
-name: "Process executing binary out of /tmp directory"
-description: "Evaluates whether process matches target criteria."
+name: "Process executing binary out of temporary path"
+description: "Process running an executable staged in /tmp or running from a deleted file."
 category: "security"
 severity: "critical"
 match:
   node_type: "process"
   properties:
-      exe:
-        contains: "/tmp"
-consequence: "Attackers frequently stage payloads in world-writable /tmp."
+    exe:
+      contains: "/tmp"
+consequence: "Adversaries and dropped payloads frequently execute directly out of world-writable temporary directories."
 recommendation:
-  action: "Mount /tmp with noexec option or investigate process lineage."
-  risk_level: "low"
-  reversible: true
+  action: "Terminate rogue process PID immediately and remount /tmp with noexec option."
+  risk_level: "high"
+  reversible: false
+

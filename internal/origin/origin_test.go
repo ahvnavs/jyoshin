@@ -75,4 +75,21 @@ func TestOriginResolver(t *testing.T) {
 	if o5.Kind != KindUnknown || o5.Source != "file_not_found" {
 		t.Errorf("o5 mismatch: %+v", o5)
 	}
+
+	// Test 6: Merged-/usr resolution (/usr/bin/bash owned in dpkg list, queried as /bin/bash)
+	mustWrite("/var/lib/dpkg/info/bash.list", "/usr/bin/bash\n/etc/bash.bashrc\n")
+	mustWrite("/usr/bin/bash", "ELF dummy")
+	mustWrite("/bin/bash", "ELF dummy")
+
+	o6 := resolver.Resolve(ctx, "/bin/bash")
+	if o6.Kind != KindPackage || o6.Source != "bash" {
+		t.Errorf("expected /bin/bash to resolve to package bash, got: %+v", o6)
+	}
+
+	// Test 7: Symlink resolution (/bin/sh -> /usr/bin/bash)
+	_ = os.Symlink(filepath.Join(root, "usr/bin/bash"), filepath.Join(root, "bin/sh"))
+	o7 := resolver.Resolve(ctx, "/bin/sh")
+	if o7.Kind != KindPackage || o7.Source != "bash" {
+		t.Errorf("expected symlink /bin/sh to resolve to package bash, got: %+v", o7)
+	}
 }

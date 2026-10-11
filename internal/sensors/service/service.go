@@ -20,15 +20,16 @@ import (
 
 // UnitInfo models observable properties of a system service/unit.
 type UnitInfo struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`         // service, timer, socket, etc.
-	ActiveState  string `json:"active_state"` // active, inactive, failed
-	LoadState    string `json:"load_state"`   // loaded, not-found
-	Description  string `json:"description,omitempty"`
-	MainPID      int    `json:"main_pid,omitempty"`
-	ExecStart    string `json:"exec_start,omitempty"`
-	RestartCount int    `json:"restart_count,omitempty"`
-	UnitFile     string `json:"unit_file,omitempty"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`         // service, timer, socket, etc.
+	ActiveState   string `json:"active_state"` // active, inactive, failed
+	LoadState     string `json:"load_state"`   // loaded, not-found
+	Description   string `json:"description,omitempty"`
+	MainPID       int    `json:"main_pid,omitempty"`
+	ExecStart     string `json:"exec_start,omitempty"`
+	RestartCount  int    `json:"restart_count,omitempty"`
+	UnitFile      string `json:"unit_file,omitempty"`
+	WorldWritable bool   `json:"world_writable,omitempty"`
 }
 
 // ServiceReport contains overall service subsystem health and units.
@@ -209,6 +210,12 @@ func (s *Sensor) discoverUnits(ctx context.Context, now time.Time) []UnitInfo {
 				UnitFile:    unitPath,
 				ActiveState: "unknown",
 				LoadState:   "loaded",
+			}
+
+			if fi, err := s.fs.Stat(unitPath); err == nil {
+				if fi.Mode().Perm()&0002 != 0 {
+					info.WorldWritable = true
+				}
 			}
 
 			// Read unit file for Description and ExecStart

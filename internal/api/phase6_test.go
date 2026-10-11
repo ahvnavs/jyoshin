@@ -51,6 +51,7 @@ func TestAPI_VerdictEndpoint(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/v1/verdict", nil)
+	req.Header.Set("Authorization", "Bearer "+srv.AuthManager().Token())
 	w := httptest.NewRecorder()
 
 	srv.server.Handler.ServeHTTP(w, req)
@@ -85,7 +86,7 @@ func TestAPI_StreamSSE(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
 	defer cancel()
 
-	req := httptest.NewRequestWithContext(ctx, "GET", "/api/v1/stream", nil)
+	req := httptest.NewRequestWithContext(ctx, "GET", "/api/v1/stream?token="+srv.AuthManager().Token(), nil)
 	w := httptest.NewRecorder()
 
 	done := make(chan struct{})
@@ -171,3 +172,73 @@ func TestAPI_AuthStatus(t *testing.T) {
 		t.Errorf("expected authenticated with token, got %v", resAuth["authenticated"])
 	}
 }
+
+func TestAPI_TokenAuthenticationBlocksUnauthenticated(t *testing.T) {
+	cfg := config.Default()
+	cfg.AuthRequired = true
+	pGraph := graphbuilder.NewProvenanceGraph()
+	srv, err := NewServer(cfg, VersionInfo{Version: "v0.1.0"}, nil, nil, nil, nil, pGraph, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	token := srv.AuthManager().Token()
+
+	// 1. Unauthenticated request to /api/v1/verdict -> MUST return 401
+	reqUnauth := httptest.NewRequest("GET", "/api/v1/verdict", nil)
+	wUnauth := httptest.NewRecorder()
+	srv.server.Handler.ServeHTTP(wUnauth, reqUnauth)
+	respUnauth := wUnauth.Result()
+	defer respUnauth.Body.Close()
+
+	if respUnauth.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized without token, got: %d", respUnauth.StatusCode)
+	}
+
+	// 2. Request with wrong token -> MUST return 401
+	reqWrong := httptest.NewRequest("GET", "/api/v1/verdict", nil)
+	reqWrong.Header.Set("Authorization", "Bearer invalid-wrong-token")
+	wWrong := httptest.NewRecorder()
+	srv.server.Handler.ServeHTTP(wWrong, reqWrong)
+	respWrong := wWrong.Result()
+	defer respWrong.Body.Close()
+
+	if respWrong.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized with invalid token, got: %d", respWrong.StatusCode)
+	}
+
+	// 3. Request with valid Bearer token header -> MUST return 200
+	reqValid := httptest.NewRequest("GET", "/api/v1/verdict", nil)
+	reqValid.Header.Set("Authorization", "Bearer "+token)
+	wValid := httptest.NewRecorder()
+	srv.server.Handler.ServeHTTP(wValid, reqValid)
+	respValid := wValid.Result()
+	defer respValid.Body.Close()
+
+	if respValid.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK with valid token, got: %d", respValid.StatusCode)
+	}
+
+	// 4. Request with valid token in query param (e.g. for SSE EventSource) -> MUST return 200
+	reqQuery := httptest.NewRequest("GET", "/api/v1/verdict?token="+token, nil)
+	wQuery := httptest.NewRecorder()
+	srv.server.Handler.ServeHTTP(wQuery, reqQuery)
+	respQuery := wQuery.Result()
+	defer respQuery.Body.Close()
+
+	if respQuery.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK with query token, got: %d", respQuery.StatusCode)
+	}
+
+	// 5. Unauthenticated request to unauthenticated routes (/api/v1/health, /) -> MUST return 200
+	reqHealth := httptest.NewRequest("GET", "/api/v1/health", nil)
+	wHealth := httptest.NewRecorder()
+	srv.server.Handler.ServeHTTP(wHealth, reqHealth)
+	respHealth := wHealth.Result()
+	defer respHealth.Body.Close()
+
+	if respHealth.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK for /api/v1/health without token, got: %d", respHealth.StatusCode)
+	}
+}
+

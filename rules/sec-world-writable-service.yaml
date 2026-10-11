@@ -1,0 +1,16 @@
+id: "SEC-WORLD-WRITABLE-SERVICE"
+name: "Systemd service definition file world-writable"
+description: "Service unit configuration file grants write permissions to all unprivileged local users."
+category: "security"
+severity: "critical"
+match:
+  node_type: "service"
+  properties:
+    world_writable:
+      equals: true
+consequence: "Any local user can overwrite ExecStart to achieve arbitrary root code execution during service restart."
+recommendation:
+  action: "Chmod unit file to 0644 or 0640 and ensure ownership is root:root."
+  risk_level: "low"
+  reversible: true
+
