@@ -54,11 +54,15 @@ One static Go binary. One command installs it. It runs as an unprivileged system
 
 ---
 
-## One-Command Installation
+### Installation
 
-Install the pre-built, cryptographically signed release binary as an unprivileged systemd service:
+Install via the POSIX install script:
 
 ```bash
+# Offline or local installation:
+./scripts/install.sh --local-binary ./kazeshini --insecure-skip-verify
+
+# Remote release installation (requires live release endpoint):
 curl -fsSL https://get.kazeshini.dev | sh
 ```
 
@@ -68,19 +72,16 @@ Kazeshini strictly binds to `127.0.0.1:7777` and refuses remote exposure by defa
 ```bash
 ssh -L 7777:127.0.0.1:7777 user@your-server
 ```
-Then visit `http://127.0.0.1:7777` in your local browser.
+Then visit `http://127.0.0.1:7777` in your local browser, or use `kazeshini open` for automated port allocation and tunneling instructions.
 
 ### Inspect the Server Truth Immediately
-Generate a full terminal state handoff report without starting the daemon:
+Generate a full terminal state handoff report or export clean JSON / self-contained HTML:
 
 ```bash
-kazeshini report --format terminal
-```
-
-Or export clean JSON / self-contained HTML:
-```bash
+kazeshini report --format md
 kazeshini report --format html > server-report.html
 kazeshini report --format json > server-report.json
+kazeshini doctor
 ```
 
 ---
@@ -88,10 +89,12 @@ kazeshini report --format json > server-report.json
 ## Known Limitations
 
 We document our operational boundaries and known gaps honestly:
-1. **Unprivileged by Design**: Without `CAP_DAC_READ_SEARCH` or `CAP_SYS_PTRACE`, Kazeshini cannot read environment variables or socket tables of processes owned by other users. These are explicitly reported as `status: unknown (unprivileged)` rather than guessing or escalating privileges.
-2. **Linux Only**: Kazeshini relies on `/proc`, `/sys`, and Linux cgroups/sockets; it is not supported on macOS, FreeBSD, or Windows.
-3. **Containerized systemd**: In Docker containers lacking systemd init, service management queries degrade to direct process monitoring and report OpenRC / non-systemd mode.
-4. **Pure-Go RPM Parsing**: In environments lacking rpm libraries, RPM queries fall back to fixed, timeout-bounded `/usr/bin/rpm -qa` invocations.
+1. **Single Token Identity**: Kazeshini uses a single shared bearer token (`auth.token`, 0600) for API authentication; individual user accounts and multi-user RBAC are not supported.
+2. **No Actions / Read-Only Guarantee**: Kazeshini never executes remediation actions, restarts services, or alters server configurations. All recommendations must be executed manually by operators.
+3. **Linux Only**: Kazeshini relies on Linux-specific `/proc`, `/sys`, netlink/inet_diag, and cgroups APIs; macOS, FreeBSD, and Windows are not supported.
+4. **Systemd Assumed**: Full service status inspection and unit control trees assume systemd. On hosts running OpenRC, runit, or non-systemd containers, service checks degrade gracefully to process monitoring.
+5. **Coverage Limits When Non-Root**: When executed as an unprivileged non-root user without capabilities (`CAP_DAC_READ_SEARCH` / `CAP_SYS_PTRACE`), Kazeshini cannot inspect other users' `/proc/<pid>/fd`, `/proc/<pid>/environ`, or restricted `/var/log` files. Incomplete coverage is explicitly reported as `PARTIAL` or `UNKNOWN`, never falsely reported as `CALM`.
+6. **Pure-Go RPM Parsing**: In environments lacking RPM database headers, package queries fall back to timeout-bounded `/usr/bin/rpm -qa` invocations.
 
 ---
 
