@@ -70,6 +70,8 @@ type Server struct {
 	checksEngine    *checks.Engine
 	samplesMu       sync.RWMutex
 	samples         map[string][]forecast.Sample
+	lastActivityMu  sync.RWMutex
+	lastActivity    time.Time
 	logger          *slog.Logger
 }
 
@@ -245,6 +247,10 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		s.lastActivityMu.Lock()
+		s.lastActivity = start
+		s.lastActivityMu.Unlock()
+
 		next.ServeHTTP(w, r)
 		s.logger.Debug("http request handled",
 			"method", r.Method,
@@ -253,6 +259,13 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 			"duration", time.Since(start),
 		)
 	})
+}
+
+// LastActivity returns the timestamp of the most recent incoming HTTP request.
+func (s *Server) LastActivity() time.Time {
+	s.lastActivityMu.RLock()
+	defer s.lastActivityMu.RUnlock()
+	return s.lastActivity
 }
 
 func (s *Server) hostCheckMiddleware(next http.Handler) http.Handler {
@@ -1099,8 +1112,12 @@ func (s *Server) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.server.Addr, err)
 	}
+	return s.ServeListener(ln)
+}
 
-	s.logger.Info("kazeshini api server started", "addr", s.server.Addr)
+// ServeListener accepts incoming connections on an existing net.Listener.
+func (s *Server) ServeListener(ln net.Listener) error {
+	s.logger.Info("kazeshini api server started", "addr", ln.Addr().String())
 	if err := s.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("http server failure: %w", err)
 	}

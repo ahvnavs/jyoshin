@@ -142,6 +142,43 @@ func TestUI_DOMContract(t *testing.T) {
 		t.Errorf("sans-serif placed before monospace in --font: %s", fontLine)
 	}
 
+	// Phase 22 App Shell assertions: Left rail, Key hint bar, Symptom picker, Pet isolation
+	shellElements := []string{
+		"left-rail",
+		"nav-overview",
+		"nav-briefing",
+		"nav-devops",
+		"nav-cloud",
+		"nav-cloud-platform",
+		"nav-infrastructure",
+		"nav-devsecops",
+		"nav-platform",
+		"nav-network",
+		"nav-activity",
+		"quick-filter",
+		"command-palette-modal",
+		"help-modal",
+		"symptom-picker-panel",
+		"key-hint-bar",
+	}
+	for _, elemID := range shellElements {
+		if !strings.Contains(html, elemID) {
+			t.Errorf("missing App Shell UI DOM element ID: %q", elemID)
+		}
+	}
+
+	// Verify Pet JS module has zero network egress (no fetch, XMLHttpRequest, WebSocket)
+	petJS, err := web.Assets.ReadFile("js/pet.js")
+	if err != nil {
+		t.Fatalf("failed to read embedded js/pet.js: %v", err)
+	}
+	petContent := string(petJS)
+	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", "WebSocket", "EventSource"} {
+		if strings.Contains(petContent, forbidden) {
+			t.Errorf("forbidden network egress mechanism %q found in TSUMUJI pet module", forbidden)
+		}
+	}
+
 	// Check if web/fonts/JetBrainsMono-Regular.woff2 is present
 	if _, err := web.Assets.ReadFile("fonts/JetBrainsMono-Regular.woff2"); err != nil {
 		t.Logf("web/fonts/JetBrainsMono-Regular.woff2 is absent (%v); font stack gracefully uses system monospaces", err)

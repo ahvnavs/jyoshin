@@ -110,5 +110,27 @@ if grep -E 'https?://(?!127\.0\.0\.1|localhost)' "${TMP_DIR}/index.html"; then
 fi
 echo "  [OK] Zero external URLs in web UI verified."
 
+echo "==> Step 9: Verifying read-only checks endpoints..."
+call_endpoint "/api/v1/checks" "read-only checks catalog"
+call_endpoint "/api/v1/activity" "activity audit log"
+
+echo "==> Step 10: Verifying 'kazeshini open' foreground command with idle timeout..."
+OPEN_OUTPUT=$("${BIN_PATH}" open --port 7892 --idle-timeout 3s --ephemeral || true)
+if ! echo "${OPEN_OUTPUT}" | grep -q "ssh -L 7892:127.0.0.1:7892"; then
+  echo "  [FAIL] 'kazeshini open' output did not print expected ssh -L tunneling instruction."
+  echo "${OPEN_OUTPUT}"
+  exit 1
+fi
+if ! echo "${OPEN_OUTPUT}" | grep -q "DASHBOARD URL: http://127.0.0.1:7892"; then
+  echo "  [FAIL] 'kazeshini open' output missing dashboard URL."
+  exit 1
+fi
+if ! echo "${OPEN_OUTPUT}" | grep -q "Idle timeout (3s without requests) reached"; then
+  echo "  [FAIL] 'kazeshini open' did not exit cleanly upon reaching idle timeout."
+  echo "${OPEN_OUTPUT}"
+  exit 1
+fi
+echo "  [OK] 'kazeshini open' foreground server, ssh -L tunneling, and idle auto-exit verified."
+
 echo "==> Smoke test suite passed completely with zero errors."
 

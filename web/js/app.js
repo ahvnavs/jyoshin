@@ -6,17 +6,22 @@
 
   let authToken = localStorage.getItem('kazeshini_token') || '';
   let eventSource = null;
-  let lastUpdatedTime = null;
+  let lastSuccessfulFetch = Date.now();
+  let checksCache = [];
+  let filterQuery = '';
 
-  // DOM Elements
+  // DOM Elements cache
   const el = {
     verdictBanner: document.getElementById('verdict-banner'),
     verdictLead: document.getElementById('verdict-lead'),
     chaosScore: document.getElementById('chaos-score'),
     chaosBadge: document.getElementById('chaos-badge'),
     identityLine: document.getElementById('identity-line'),
-    liveStatusText: document.getElementById('live-status-text'),
+    topHostBadge: document.getElementById('top-host-badge'),
+    topVerdictBadge: document.getElementById('top-verdict-badge'),
+    topCoverageBadge: document.getElementById('top-coverage-badge'),
     pulseDot: document.getElementById('pulse-dot'),
+    liveStatusText: document.getElementById('live-status-text'),
     lastUpdated: document.getElementById('last-updated'),
     pulseHost: document.getElementById('pulse-host'),
     pulseKernel: document.getElementById('pulse-kernel'),
@@ -26,18 +31,26 @@
     wasteMonthly: document.getElementById('waste-monthly'),
     wasteList: document.getElementById('waste-list'),
     changesList: document.getElementById('changes-list'),
+    quickFilter: document.getElementById('quick-filter'),
+    helpBtn: document.getElementById('help-btn'),
+    helpModal: document.getElementById('help-modal'),
+    helpCloseBtn: document.getElementById('help-close-btn'),
+    commandPaletteModal: document.getElementById('command-palette-modal'),
+    paletteInput: document.getElementById('palette-input'),
+    paletteResults: document.getElementById('palette-results'),
     authModal: document.getElementById('auth-modal'),
     authInput: document.getElementById('auth-token-input'),
     authSubmit: document.getElementById('auth-token-submit'),
     authCancel: document.getElementById('auth-token-cancel'),
     tokenBtn: document.getElementById('token-button'),
-    mainView: document.getElementById('main-view'),
-    styleguideView: document.getElementById('styleguide-view'),
-    navMain: document.getElementById('nav-main'),
-    navStyleguide: document.getElementById('nav-styleguide'),
+    symptomResultPanel: document.getElementById('symptom-result-panel'),
+    symptomResultTitle: document.getElementById('symptom-result-title'),
+    symptomResultContent: document.getElementById('symptom-result-content'),
+    symptomCloseBtn: document.getElementById('symptom-close-btn'),
+    activityTbody: document.getElementById('activity-tbody'),
+    refreshActivityBtn: document.getElementById('refresh-activity-btn'),
   };
 
-  // Severity Glyphs & Colors
   const SEVERITY_CONFIG = {
     critical: { glyph: '[▲]', colorClass: 'badge-rose', text: 'CRITICAL' },
     high:     { glyph: '[!]', colorClass: 'badge-peach', text: 'HIGH' },
@@ -52,6 +65,14 @@
     inferred: { glyph: '[?]', colorClass: 'badge-peach', text: 'INFERRED' },
   };
 
+  function getHeaders() {
+    const h = { 'Accept': 'application/json' };
+    if (authToken) {
+      h['Authorization'] = `Bearer ${authToken}`;
+    }
+    return h;
+  }
+
   function formatDuration(seconds) {
     if (!seconds || seconds <= 0) return '0s';
     const d = Math.floor(seconds / 86400);
@@ -64,489 +85,653 @@
     return `${s}s`;
   }
 
-  function getHeaders() {
-    const h = { 'Accept': 'application/json' };
-    if (authToken) {
-      h['Authorization'] = `Bearer ${authToken}`;
+  // Stale state supervisor check (if > 60s without updates, show UNKNOWN, never healthy)
+  function checkStaleness() {
+    const elapsedMs = Date.now() - lastSuccessfulFetch;
+    if (elapsedMs > 60000) {
+      if (el.topVerdictBadge) {
+        el.topVerdictBadge.className = 'badge badge-rose';
+        el.topVerdictBadge.textContent = '[?] UNKNOWN (STALE)';
+      }
+      if (el.liveStatusText) {
+        el.liveStatusText.textContent = '[?] STALE (>60s)';
+        el.liveStatusText.style.color = 'var(--peach)';
+      }
+      if (el.pulseDot) {
+        el.pulseDot.style.color = 'var(--peach)';
+      }
     }
-    return h;
   }
 
-  // Routing: / vs /styleguide
-  function handleRoute() {
-    const hash = window.location.hash;
-    if (hash === '#styleguide') {
-      el.mainView.style.display = 'none';
-      el.styleguideView.style.display = 'block';
-      el.navMain.classList.remove('active');
-      el.navStyleguide.classList.add('active');
-    } else {
-      el.mainView.style.display = 'block';
-      el.styleguideView.style.display = 'none';
-      el.navMain.classList.add('active');
-      el.navStyleguide.classList.remove('active');
+  setInterval(checkStaleness, 5000);
+
+  // Left Rail View Switching & Hash Routing
+  const views = [
+    'overview', 'briefing', 'devops', 'cloud', 'cloud-platform',
+    'infrastructure', 'devsecops', 'platform', 'network', 'activity', 'styleguide'
+  ];
+
+  function switchView(target) {
+    views.forEach(v => {
+      const panel = document.getElementById(`view-${v}`);
+      const navItem = document.getElementById(`nav-${v}`);
+      if (panel) {
+        panel.style.display = (v === target) ? 'block' : 'none';
+      }
+      if (navItem) {
+        if (v === target) navItem.classList.add('active');
+        else navItem.classList.remove('active');
+      }
+    });
+
+    if (target === 'activity') {
+      refreshActivityLog();
+    } else if (['devops', 'cloud', 'cloud-platform', 'infrastructure', 'devsecops', 'platform', 'network'].includes(target)) {
+      renderRoleChecks(target);
     }
+  }
+
+  function handleRoute() {
+    let hash = window.location.hash.replace(/^#/, '');
+    if (!views.includes(hash)) {
+      hash = 'overview';
+    }
+    switchView(hash);
   }
 
   window.addEventListener('hashchange', handleRoute);
 
   // Auth Handling
-  el.tokenBtn.addEventListener('click', () => {
-    el.authInput.value = authToken;
-    el.authModal.style.display = 'flex';
-    el.authInput.focus();
-  });
-
-  el.authCancel.addEventListener('click', () => {
-    el.authModal.style.display = 'none';
-  });
-
-  el.authSubmit.addEventListener('click', () => {
-    const tok = el.authInput.value.trim();
-    if (tok) {
-      authToken = tok;
-      localStorage.setItem('kazeshini_token', tok);
-    } else {
-      authToken = '';
-      localStorage.removeItem('kazeshini_token');
-    }
-    el.authModal.style.display = 'none';
-    initSSE();
-    refreshAll();
-  });
-
-  // Stale detection
-  setInterval(() => {
-    if (!lastUpdatedTime) return;
-    const diffSeconds = (Date.now() - lastUpdatedTime) / 1000;
-    if (diffSeconds > 6) {
-      el.pulseDot.className = 'stale-indicator';
-      el.liveStatusText.textContent = `[!] Stale (${Math.round(diffSeconds)}s ago)`;
-    }
-  }, 1000);
-
-  // Render Verdict Hero
-  function renderVerdict(v) {
-    if (!v) return;
-    lastUpdatedTime = Date.now();
-    el.pulseDot.className = 'live-pulse';
-    el.liveStatusText.textContent = '[●] LIVE';
-    el.lastUpdated.textContent = new Date().toLocaleTimeString();
-
-    el.verdictLead.textContent = v.one_line_verdict || 'Server status evaluation active.';
-    el.chaosScore.textContent = v.chaos_index !== undefined ? v.chaos_index : '0';
-
-    let badgeClass = 'badge-mint';
-    let glyph = '[✓]';
-    if (v.state_label === 'PARTIAL') {
-      badgeClass = 'badge-lavender';
-      glyph = '[~]';
-    } else if (v.state_label === 'UNKNOWN') {
-      badgeClass = 'badge-peach';
-      glyph = '[?]';
-    } else if (v.chaos_index >= 75 || v.state_label === 'CRITICAL') {
-      badgeClass = 'badge-rose';
-      glyph = '[▲]';
-    } else if (v.chaos_index >= 45 || v.state_label === 'MESSY') {
-      badgeClass = 'badge-peach';
-      glyph = '[!]';
-    } else if (v.chaos_index >= 16 || v.state_label === 'MODERATE') {
-      badgeClass = 'badge-lavender';
-      glyph = '[●]';
-    }
-
-    el.chaosBadge.className = `badge ${badgeClass}`;
-    el.chaosBadge.textContent = `${glyph} ${v.state_label || 'CALM'}`;
-    el.identityLine.textContent = `HOST: ${v.identity_line || 'Linux Server'}`;
-
-    // Danger panel count
-    const totalRisks = (v.critical_findings || 0) + (v.high_findings || 0);
-    el.dangerCount.textContent = `${totalRisks} active`;
-    if (totalRisks > 0) {
-      el.dangerCount.className = 'badge badge-rose';
-    } else {
-      el.dangerCount.className = 'badge badge-mint';
-    }
-
-    // Waste Panel
-    el.wasteMonthly.textContent = `$${(v.estimated_waste_usd_monthly || 0).toFixed(2)} / month`;
+  if (el.tokenBtn) {
+    el.tokenBtn.addEventListener('click', () => {
+      el.authInput.value = authToken;
+      el.authModal.style.display = 'flex';
+      el.authInput.focus();
+    });
   }
 
-  // Create a Finding Card component
-  function createFindingCard(finding) {
-    const card = document.createElement('details');
-    const sev = (finding.severity || 'info').toLowerCase();
-    card.className = `finding-card ${sev}`;
+  if (el.authCancel) {
+    el.authCancel.addEventListener('click', () => {
+      el.authModal.style.display = 'none';
+    });
+  }
 
-    const sevConf = SEVERITY_CONFIG[sev] || SEVERITY_CONFIG.info;
-    const cert = (finding.proof && finding.proof.certainty ? finding.proof.certainty : 'derived').toLowerCase();
-    const certConf = CERTAINTY_CONFIG[cert] || CERTAINTY_CONFIG.derived;
+  if (el.authSubmit) {
+    el.authSubmit.addEventListener('click', () => {
+      authToken = el.authInput.value.trim();
+      localStorage.setItem('kazeshini_token', authToken);
+      el.authModal.style.display = 'none';
+      refreshAll();
+    });
+  }
+
+  // Modals (Help & Command Palette)
+  if (el.helpBtn) {
+    el.helpBtn.addEventListener('click', () => {
+      el.helpModal.style.display = 'flex';
+    });
+  }
+  if (el.helpCloseBtn) {
+    el.helpCloseBtn.addEventListener('click', () => {
+      el.helpModal.style.display = 'none';
+    });
+  }
+
+  function openCommandPalette() {
+    el.commandPaletteModal.style.display = 'flex';
+    el.paletteInput.value = '';
+    renderPaletteResults('');
+    el.paletteInput.focus();
+  }
+
+  function closeModals() {
+    if (el.commandPaletteModal) el.commandPaletteModal.style.display = 'none';
+    if (el.helpModal) el.helpModal.style.display = 'none';
+    if (el.authModal) el.authModal.style.display = 'none';
+  }
+
+  const commandsList = [
+    { name: 'Overview', desc: 'Jump to Overview verdict screen', action: () => { window.location.hash = '#overview'; } },
+    { name: 'Briefing', desc: 'Jump to plain-English Server Truth Briefing', action: () => { window.location.hash = '#briefing'; } },
+    { name: 'DevOps Checks', desc: 'Jump to DevOps checks & metrics', action: () => { window.location.hash = '#devops'; } },
+    { name: 'Cloud Checks', desc: 'Jump to Cloud provider & storage checks', action: () => { window.location.hash = '#cloud'; } },
+    { name: 'Cloud Platform Checks', desc: 'Jump to Kubernetes & container checks', action: () => { window.location.hash = '#cloud-platform'; } },
+    { name: 'Infrastructure Checks', desc: 'Jump to Disk, systemd & timesync checks', action: () => { window.location.hash = '#infrastructure'; } },
+    { name: 'DevSecOps Checks', desc: 'Jump to Sudoers, SSH & auth checks', action: () => { window.location.hash = '#devsecops'; } },
+    { name: 'Platform Checks', desc: 'Jump to Tooling, config & permission checks', action: () => { window.location.hash = '#platform'; } },
+    { name: 'Network Checks', desc: 'Jump to Sockets, DNS & probe checks', action: () => { window.location.hash = '#network'; } },
+    { name: 'Activity Log', desc: 'Jump to local audit execution log', action: () => { window.location.hash = '#activity'; } },
+    { name: 'Styleguide', desc: 'Jump to UI component gallery', action: () => { window.location.hash = '#styleguide'; } },
+    { name: ':pet off', desc: 'Turn off TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(false); } },
+    { name: ':pet on', desc: 'Turn on TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(true); } },
+    { name: 'Token', desc: 'Configure API bearer token', action: () => { el.tokenBtn.click(); } },
+    { name: 'Refresh', desc: 'Trigger immediate refresh', action: () => { refreshAll(); } },
+  ];
+
+  function renderPaletteResults(query) {
+    if (!el.paletteResults) return;
+    el.paletteResults.innerHTML = '';
+    const q = query.toLowerCase().trim();
+
+    const matches = commandsList.filter(c => c.name.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q));
+    if (matches.length === 0) {
+      el.paletteResults.innerHTML = '<div style="padding: 8px; color: var(--dim);">No matching commands.</div>';
+      return;
+    }
+
+    matches.forEach((c, idx) => {
+      const item = document.createElement('div');
+      item.className = `palette-item ${idx === 0 ? 'selected' : ''}`;
+      item.innerHTML = `<span><strong>${c.name}</strong></span><span style="font-size: 11px; color: var(--dim);">${c.desc}</span>`;
+      item.addEventListener('click', () => {
+        closeModals();
+        c.action();
+      });
+      el.paletteResults.appendChild(item);
+    });
+  }
+
+  if (el.paletteInput) {
+    el.paletteInput.addEventListener('input', (e) => {
+      renderPaletteResults(e.target.value);
+    });
+    el.paletteInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const first = el.paletteResults.querySelector('.palette-item');
+        if (first) first.click();
+      }
+    });
+  }
+
+  // Keyboard Navigation Listeners
+  window.addEventListener('keydown', (e) => {
+    // If typing in input, ignore global shortcuts except Escape and Palette Enter
+    const inInput = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+
+    if (e.key === 'Escape') {
+      closeModals();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      openCommandPalette();
+      return;
+    }
+
+    if (inInput) return;
+
+    if (e.key === '/') {
+      e.preventDefault();
+      if (el.quickFilter) {
+        el.quickFilter.focus();
+        el.quickFilter.select();
+      }
+    } else if (e.key === '?') {
+      e.preventDefault();
+      if (el.helpModal) el.helpModal.style.display = 'flex';
+    } else if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      refreshAll();
+    }
+  });
+
+  // Quick Filter listener
+  if (el.quickFilter) {
+    el.quickFilter.addEventListener('input', (e) => {
+      filterQuery = e.target.value.toLowerCase().trim();
+      const currentHash = window.location.hash.replace(/^#/, '');
+      if (['devops', 'cloud', 'cloud-platform', 'infrastructure', 'devsecops', 'platform', 'network'].includes(currentHash)) {
+        renderRoleChecks(currentHash);
+      }
+    });
+  }
+
+  // Render Check Card
+  function renderCheckCard(check, resultData) {
+    const card = document.createElement('details');
+    const status = (resultData ? resultData.status : 'unknown').toLowerCase();
+    card.className = `check-card ${status}`;
 
     const summary = document.createElement('summary');
-    summary.className = 'finding-summary';
-    summary.tabIndex = 0;
+    summary.className = 'check-summary';
+
+    let glyph = '[·]';
+    let badgeClass = 'badge-dim';
+    let statusText = 'READY';
+
+    if (resultData) {
+      switch (resultData.status) {
+        case 'OK': glyph = '[✓]'; badgeClass = 'badge-mint'; statusText = 'OK'; break;
+        case 'WARN': glyph = '[!]'; badgeClass = 'badge-peach'; statusText = 'WARN'; break;
+        case 'CRIT': glyph = '[▲]'; badgeClass = 'badge-rose'; statusText = 'CRIT'; break;
+        case 'NOT_APPLICABLE': glyph = '[·]'; badgeClass = 'badge-dim'; statusText = 'N/A'; break;
+        default: glyph = '[?]'; badgeClass = 'badge-cyan'; statusText = 'UNKNOWN'; break;
+      }
+    }
 
     const titleGroup = document.createElement('div');
-    titleGroup.className = 'finding-title-group';
+    titleGroup.className = 'check-title-group';
+    titleGroup.innerHTML = `
+      <span class="badge ${badgeClass}">${glyph} ${statusText}</span>
+      <strong>${check.title}</strong>
+      <span style="font-size: 12px; color: var(--dim); margin-left: 8px;">${resultData ? resultData.summary_plain : check.description}</span>
+    `;
 
-    const sevBadge = document.createElement('span');
-    sevBadge.className = `badge ${sevConf.colorClass}`;
-    sevBadge.textContent = `${sevConf.glyph} ${sevConf.text}`;
+    const actions = document.createElement('div');
+    actions.className = 'check-actions';
 
-    const titleText = document.createElement('span');
-    titleText.textContent = finding.what || finding.id;
+    const runBtn = document.createElement('button');
+    runBtn.className = 'btn';
+    runBtn.textContent = 'Run check';
+    runBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      runBtn.textContent = 'Running...';
+      runBtn.disabled = true;
+      try {
+        const res = await fetch(`/api/v1/checks/${encodeURIComponent(check.id)}/run`, {
+          method: 'POST',
+          headers: getHeaders(),
+        });
+        if (res.ok) {
+          const runRes = await res.json();
+          // Update check card in-place
+          const parent = card.parentElement;
+          const newCard = renderCheckCard(check, runRes);
+          newCard.open = true;
+          parent.replaceChild(newCard, card);
+        } else {
+          runBtn.textContent = 'Error';
+        }
+      } catch (err) {
+        runBtn.textContent = 'Failed';
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
 
-    titleGroup.appendChild(sevBadge);
-    titleGroup.appendChild(titleText);
-
-    const rightGroup = document.createElement('div');
-    rightGroup.style.display = 'flex';
-    rightGroup.style.alignItems = 'center';
-    rightGroup.style.gap = '8px';
-
-    const certBadge = document.createElement('span');
-    certBadge.className = `badge ${certConf.colorClass}`;
-    certBadge.textContent = `${certConf.glyph} ${certConf.text}`;
-
-    rightGroup.appendChild(certBadge);
+    actions.appendChild(runBtn);
     summary.appendChild(titleGroup);
-    summary.appendChild(rightGroup);
-
-    // Disclosure Quad: What / So What / Now What / Proof
-    const details = document.createElement('div');
-    details.className = 'finding-details';
-
-    // What
-    const secWhat = document.createElement('div');
-    secWhat.className = 'quad-section';
-    secWhat.innerHTML = `<span class="quad-label">WHAT</span><div>${finding.what || 'No explanation'}</div>`;
-
-    // So What
-    const secSoWhat = document.createElement('div');
-    secSoWhat.className = 'quad-section';
-    secSoWhat.innerHTML = `<span class="quad-label">SO WHAT</span><div style="color: var(--peach);">${finding.so_what || 'N/A'}</div>`;
-
-    // Now What
-    const secNowWhat = document.createElement('div');
-    secNowWhat.className = 'quad-section';
-    const action = (finding.now_what && finding.now_what.action) || 'Review configuration';
-    const risk = (finding.now_what && finding.now_what.risk_level) || 'none';
-    const rev = (finding.now_what && finding.now_what.reversible) ? 'Reversible: YES' : 'Reversible: NO';
-    secNowWhat.innerHTML = `<span class="quad-label">NOW WHAT (RECOMMENDATION)</span>
-      <div>${action}</div>
-      <div style="font-size: 12px; color: var(--dim); margin-top: 4px;">Risk Level: ${risk.toUpperCase()} · ${rev}</div>`;
-
-    // Proof
-    const secProof = document.createElement('div');
-    secProof.className = 'quad-section';
-    let proofHTML = `<span class="quad-label">PROOF & EVIDENCE</span>`;
-    if (finding.proof && finding.proof.evidence && finding.proof.evidence.length > 0) {
-      proofHTML += `<ul style="list-style: none; padding-left: 0; font-size: 12px; color: var(--cyan);">`;
-      finding.proof.evidence.forEach(ev => {
-        proofHTML += `<li>└─ [${ev.source}] ${ev.description}</li>`;
-      });
-      proofHTML += `</ul>`;
-    } else {
-      proofHTML += `<div style="font-size: 12px; color: var(--dim);">Deterministic graph rule evaluation.</div>`;
-    }
-    secProof.innerHTML = proofHTML;
-
-    details.appendChild(secWhat);
-    details.appendChild(secSoWhat);
-    details.appendChild(secNowWhat);
-    details.appendChild(secProof);
-
+    summary.appendChild(actions);
     card.appendChild(summary);
+
+    // Expandable Details
+    const details = document.createElement('div');
+    details.className = 'check-details';
+
+    details.innerHTML = `
+      <div class="check-read-banner">
+        <span>ℹ This only reads; it changes nothing. Read-only host safety guarantee.</span>
+      </div>
+      ${resultData && resultData.explain_levels ? `
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div><strong style="color: var(--dim); font-size: 11px;">[WHAT]</strong> <div>${resultData.explain_levels[0] || 'N/A'}</div></div>
+          <div><strong style="color: var(--peach); font-size: 11px;">[SO WHAT]</strong> <div>${resultData.explain_levels[1] || 'N/A'}</div></div>
+          <div><strong style="color: var(--mint); font-size: 11px;">[NOW WHAT (RECOMMENDATION)]</strong> <div>${resultData.explain_levels[2] || 'N/A'}</div></div>
+        </div>
+      ` : `<div>${check.description}</div>`}
+
+      ${resultData && resultData.equivalent_command ? `
+        <div style="margin-top: 6px;">
+          <div style="font-size: 11px; color: var(--dim);">EQUIVALENT SHELL INSPECTION:</div>
+          <code style="background-color: #07080b; color: var(--cyan); padding: 4px 8px; display: block; border: 1px solid var(--panel-border);">${resultData.equivalent_command}</code>
+        </div>
+      ` : ''}
+
+      ${resultData && resultData.evidence && resultData.evidence.length > 0 ? `
+        <div style="margin-top: 6px;">
+          <div style="font-size: 11px; color: var(--dim);">EVIDENCE & CERTAINTY ([✓] ${resultData.certainty || 'OBSERVED'}):</div>
+          <ul style="list-style: none; padding-left: 0; font-size: 12px; color: var(--cyan);">
+            ${resultData.evidence.map(ev => `<li>└─ [${ev.source}] ${ev.description}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+
+      ${resultData && resultData.raw_redacted ? `
+        <details style="margin-top: 6px;">
+          <summary style="cursor: pointer; font-size: 11px; color: var(--dim);">View Redacted Raw Output</summary>
+          <pre style="background-color: #06070a; color: var(--dim); padding: 8px; font-size: 11px; overflow-x: auto; max-height: 200px; margin-top: 4px; border: 1px solid var(--panel-border);">${resultData.raw_redacted}</pre>
+        </details>
+      ` : ''}
+    `;
+
     card.appendChild(details);
     return card;
   }
 
-  // Fetch Findings and populate Danger/Waste panels
-  async function refreshFindings() {
+  // Load and Render Role Checks
+  async function loadChecks() {
     try {
-      const res = await fetch('/api/v1/findings', { headers: getHeaders() });
+      const res = await fetch('/api/v1/checks', { headers: getHeaders() });
+      if (res.ok) {
+        checksCache = await res.json();
+      }
+    } catch (err) {
+      console.error('failed fetching checks list:', err);
+    }
+  }
+
+  function renderRoleChecks(role) {
+    const container = document.getElementById(`checks-list-${role}`);
+    if (!container) return;
+    container.innerHTML = '';
+
+    const roleChecks = checksCache.filter(c => c.role === role);
+    const filtered = filterQuery ? roleChecks.filter(c => c.title.toLowerCase().includes(filterQuery) || c.id.toLowerCase().includes(filterQuery) || c.description.toLowerCase().includes(filterQuery)) : roleChecks;
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div style="color: var(--dim); padding: 12px;">No checks match filter criteria.</div>';
+      return;
+    }
+
+    filtered.forEach(c => {
+      container.appendChild(renderCheckCard(c, null));
+    });
+  }
+
+  // Activity Log
+  async function refreshActivityLog() {
+    if (!el.activityTbody) return;
+    try {
+      const res = await fetch('/api/v1/activity', { headers: getHeaders() });
       if (!res.ok) return;
-      const findings = await res.json();
+      const entries = await res.json();
+      el.activityTbody.innerHTML = '';
 
-      el.dangerList.innerHTML = '';
-      el.wasteList.innerHTML = '';
+      const countEl = document.getElementById('count-activity');
+      if (countEl) countEl.textContent = entries.length;
 
-      if (!findings || findings.length === 0) {
-        el.dangerList.innerHTML = '<div style="color: var(--mint);">[✓] No danger or high-severity exposures identified.</div>';
-        el.wasteList.innerHTML = '<div style="color: var(--mint);">[✓] No idle or wasteful resources identified.</div>';
+      if (entries.length === 0) {
+        el.activityTbody.innerHTML = '<tr><td colspan="6" style="color: var(--dim);">No checks executed yet.</td></tr>';
         return;
       }
 
-      let dangerCount = 0;
-      let wasteCount = 0;
+      entries.forEach(entry => {
+        const tr = document.createElement('tr');
+        let stClass = 'badge-mint';
+        if (entry.status === 'CRIT') stClass = 'badge-rose';
+        else if (entry.status === 'WARN') stClass = 'badge-peach';
 
-      findings.forEach(f => {
-        const sev = (f.severity || '').toLowerCase();
-        const cat = (f.category || '').toLowerCase();
-
-        if (sev === 'critical' || sev === 'high' || cat === 'security') {
-          el.dangerList.appendChild(createFindingCard(f));
-          dangerCount++;
-        }
-        if (cat === 'cost' || cat === 'efficiency' || sev === 'medium' || sev === 'low') {
-          el.wasteList.appendChild(createFindingCard(f));
-          wasteCount++;
-        }
-      });
-
-      if (dangerCount === 0) {
-        el.dangerList.innerHTML = '<div style="color: var(--mint);">[✓] No security vulnerabilities or dangerous listeners found.</div>';
-      }
-      if (wasteCount === 0) {
-        el.wasteList.innerHTML = '<div style="color: var(--mint);">[✓] Resource consumption is compact and proportional.</div>';
-      }
-    } catch (err) {
-      console.error('failed fetching findings:', err);
-    }
-  }
-
-  // Fetch Host & Sensor identity
-  async function refreshPulse() {
-    try {
-      const res = await fetch('/api/v1/observations/host', { headers: getHeaders() });
-      if (!res.ok) return;
-      const obs = await res.json();
-      if (obs && obs.data) {
-        const d = obs.data;
-        if (d.hostname) el.pulseHost.textContent = d.hostname;
-        if (d.kernel) el.pulseKernel.textContent = d.kernel;
-        if (d.uptime_seconds) el.pulseUptime.textContent = formatDuration(d.uptime_seconds);
-      }
-    } catch (err) {
-      console.error('failed fetching pulse:', err);
-    }
-  }
-
-  // Fetch Changes diff from /api/v1/changes
-  async function refreshChanges() {
-    try {
-      const res = await fetch('/api/v1/changes', { headers: getHeaders() });
-      if (!res.ok) return;
-      const cs = await res.json();
-      el.changesList.innerHTML = '';
-
-      if (!cs.changes || cs.changes.length === 0) {
-        el.changesList.innerHTML = `
-          <div style="color: var(--dim); font-size: 12px; line-height: 1.6;">
-            <div>[·] First baseline snapshot captured.</div>
-            <div>[·] Provenance graph differential tracking active.</div>
-            <div style="color: var(--mint); margin-top: 4px;">${cs.summary || 'History builds over time.'}</div>
-          </div>
+        const tStr = new Date(entry.timestamp).toLocaleTimeString();
+        tr.innerHTML = `
+          <td>${tStr}</td>
+          <td><strong style="color: var(--cyan);">${entry.check_id}</strong></td>
+          <td>${entry.role}</td>
+          <td><span class="badge ${stClass}">${entry.status}</span></td>
+          <td>${entry.token_holder}</td>
+          <td>${entry.summary}</td>
         `;
-        return;
-      }
-
-      const badge = document.getElementById('changes-badge');
-      if (badge) {
-        badge.textContent = `${cs.total_changes} CHANGES`;
-        badge.className = cs.total_changes > 0 ? 'badge badge-peach' : 'badge badge-cyan';
-      }
-
-      cs.changes.slice(0, 8).forEach(ch => {
-        const item = document.createElement('div');
-        item.style.fontSize = '12px';
-        item.style.padding = '6px';
-        item.style.borderBottom = '1px dashed var(--panel-border)';
-        item.style.backgroundColor = '#131620';
-
-        let glyph = '[·]';
-        let color = 'var(--cyan)';
-        if (ch.kind === 'newly_exposed') { glyph = '[▲]'; color = 'var(--rose)'; }
-        else if (ch.kind === 'new_manual_binary') { glyph = '[!]'; color = 'var(--peach)'; }
-        else if (ch.kind === 'version_changed') { glyph = '[≈]'; color = 'var(--lavender)'; }
-        else if (ch.kind === 'new_listener') { glyph = '[●]'; color = 'var(--mint)'; }
-
-        item.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: baseline;">
-            <span style="color: ${color}; font-weight: bold;">${glyph} ${ch.kind.toUpperCase()}</span>
-            <span style="color: var(--dim);">${new Date(ch.timestamp).toLocaleTimeString()}</span>
-          </div>
-          <div style="margin-top: 2px; color: var(--text);">${ch.description}</div>
-          ${ch.probable_cause ? `<div style="color: var(--dim); font-size: 11px;">Cause: ${ch.probable_cause}</div>` : ''}
-        `;
-        el.changesList.appendChild(item);
+        el.activityTbody.appendChild(tr);
       });
     } catch (err) {
-      console.error('failed fetching changes:', err);
+      console.error('failed refreshing activity log:', err);
     }
   }
 
-  // Fetch Forecasts and render sparklines
-  async function refreshForecasts() {
-    try {
-      const res = await fetch('/api/v1/forecasts', { headers: getHeaders() });
-      if (!res.ok) return;
-      const forecasts = await res.json();
-      const sparkContainer = document.getElementById('forecast-sparklines');
-      if (!sparkContainer || !forecasts || forecasts.length === 0) return;
+  if (el.refreshActivityBtn) {
+    el.refreshActivityBtn.addEventListener('click', refreshActivityLog);
+  }
 
-      sparkContainer.innerHTML = '';
-      forecasts.slice(0, 4).forEach(f => {
-        const line = document.createElement('div');
-        let statusColor = 'var(--cyan)';
-        let statusText = f.state;
-        if (f.state === 'not_enough_data') {
-          statusColor = 'var(--dim)';
-          statusText = 'learning baseline...';
-        } else if (f.state === 'exhaustion_risk') {
-          statusColor = 'var(--rose)';
-          statusText = `exhaustion in ${Math.round(f.time_to_exhaustion / 3600000000000)}h`;
-        } else if (f.is_leak) {
-          statusColor = 'var(--peach)';
-          statusText = 'potential leak detected';
+  // Symptom Picker
+  const symptomButtons = document.querySelectorAll('.symptom-btn');
+  symptomButtons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sym = btn.getAttribute('data-symptom');
+      if (!sym) return;
+      el.symptomResultPanel.style.display = 'block';
+      el.symptomResultTitle.textContent = `[?] INVESTIGATING SYMPTOM: ${btn.textContent.trim().toUpperCase()}`;
+      el.symptomResultContent.innerHTML = '<div style="color: var(--dim);">Running targeted checks...</div>';
+
+      try {
+        // Query check definitions matching symptom
+        const checksToRun = [];
+        if (sym === 'slow') checksToRun.push('cpu-memory', 'disk-inodes', 'app-health', 'time-sync');
+        else if (sym === 'service-down') checksToRun.push('failed-services', 'app-health', 'app-logs', 'service-permissions');
+        else if (sym === 'cant-connect') checksToRun.push('listening-ports', 'dns-config', 'interfaces-routes', 'app-health');
+        else if (sym === 'disk-full') checksToRun.push('disk-inodes', 'container-storage', 'attached-storage', 'app-logs');
+        else if (sym === 'looks-hacked') checksToRun.push('users-sudo', 'ssh-settings', 'auth-logs', 'listening-ports');
+
+        el.symptomResultContent.innerHTML = '';
+        for (const cid of checksToRun) {
+          const cDef = checksCache.find(c => c.id === cid) || { id: cid, title: cid, role: 'investigation', description: cid };
+          const res = await fetch(`/api/v1/checks/${encodeURIComponent(cid)}/run`, {
+            method: 'POST',
+            headers: getHeaders(),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const card = renderCheckCard(cDef, data);
+            card.open = true;
+            el.symptomResultContent.appendChild(card);
+          }
         }
+      } catch (err) {
+        el.symptomResultContent.innerHTML = `<div style="color: var(--rose);">Symptom investigation failed: ${err.message}</div>`;
+      }
+    });
+  });
 
-        const sparklineChars = [' ', '▂', '▃', '▄', '▅', '▆', '▇'];
-        const spark = f.is_leak ? '[ ▂▃▄▅▆▇]' : '[ ▂▄▅▄▅▅]';
-
-        line.innerHTML = `<span style="color: var(--dim);">${f.resource.toUpperCase()} (${f.target}):</span> ${spark} <span style="color: ${statusColor};">${statusText}</span>`;
-        sparkContainer.appendChild(line);
-      });
-    } catch (err) {
-      console.error('failed fetching forecasts:', err);
-    }
+  if (el.symptomCloseBtn) {
+    el.symptomCloseBtn.addEventListener('click', () => {
+      el.symptomResultPanel.style.display = 'none';
+    });
   }
 
-  // Fetch Initial Verdict
+  // Refresh Verdict
   async function refreshVerdict() {
     try {
       const res = await fetch('/api/v1/verdict', { headers: getHeaders() });
       if (!res.ok) return;
       const v = await res.json();
-      renderVerdict(v);
+      lastSuccessfulFetch = Date.now();
+
+      updateVerdictUI(v);
+      updateTopBar(v);
     } catch (err) {
       console.error('failed fetching verdict:', err);
     }
   }
 
-  // Fetch and Render Plain-English Server Truth Briefing
+  function updateTopBar(v) {
+    if (el.topHostBadge && v.identity_line) {
+      el.topHostBadge.innerHTML = `HOST: <span style="color: var(--cyan);">${v.identity_line}</span>`;
+    }
+    if (el.topVerdictBadge) {
+      let bClass = 'badge-mint';
+      let glyph = '[✓]';
+      if (v.state_label === 'CRITICAL') { bClass = 'badge-rose'; glyph = '[▲]'; }
+      else if (v.state_label === 'MESSY' || v.state_label === 'WARN') { bClass = 'badge-peach'; glyph = '[!]'; }
+      else if (v.state_label === 'PARTIAL' || v.state_label === 'UNKNOWN') { bClass = 'badge-lavender'; glyph = '[?]'; }
+
+      el.topVerdictBadge.className = `badge ${bClass}`;
+      el.topVerdictBadge.textContent = `${glyph} ${v.state_label || 'CALM'}`;
+    }
+    if (el.lastUpdated) {
+      el.lastUpdated.textContent = new Date().toLocaleTimeString();
+    }
+    if (el.liveStatusText) {
+      el.liveStatusText.textContent = '[●] LIVE';
+      el.liveStatusText.style.color = 'var(--mint)';
+    }
+    if (el.pulseDot) {
+      el.pulseDot.style.color = 'var(--mint)';
+    }
+  }
+
+  function updateVerdictUI(v) {
+    if (el.verdictLead) {
+      el.verdictLead.textContent = v.plain_verdict || 'Server is operating within normal parameters.';
+    }
+    if (el.chaosScore) {
+      el.chaosScore.textContent = v.chaos_index !== undefined ? v.chaos_index : 0;
+    }
+
+    let badgeClass = 'badge-mint';
+    let glyph = '[✓]';
+    if (v.state_label === 'CRITICAL' || v.chaos_index >= 70) {
+      badgeClass = 'badge-rose'; glyph = '[▲]';
+    } else if (v.state_label === 'MESSY' || v.chaos_index >= 45) {
+      badgeClass = 'badge-peach'; glyph = '[!]';
+    } else if (v.state_label === 'MODERATE' || v.chaos_index >= 16) {
+      badgeClass = 'badge-lavender'; glyph = '[●]';
+    } else if (v.state_label === 'PARTIAL' || v.state_label === 'UNKNOWN') {
+      badgeClass = 'badge-cyan'; glyph = '[?]';
+    }
+
+    if (el.chaosBadge) {
+      el.chaosBadge.className = `badge ${badgeClass}`;
+      el.chaosBadge.textContent = `${glyph} ${v.state_label || 'CALM'}`;
+    }
+    if (el.identityLine) {
+      el.identityLine.textContent = `HOST: ${v.identity_line || 'Linux Server'}`;
+    }
+
+    if (el.dangerCount) {
+      const totalRisks = (v.critical_findings || 0) + (v.high_findings || 0);
+      el.dangerCount.textContent = `${totalRisks} active`;
+      el.dangerCount.className = totalRisks > 0 ? 'badge badge-rose' : 'badge badge-mint';
+    }
+
+    if (el.wasteMonthly) {
+      el.wasteMonthly.textContent = `$${(v.estimated_waste_usd_monthly || 0).toFixed(2)} / month`;
+    }
+  }
+
+  // Refresh Briefing & Coverage
   async function refreshBriefing() {
     try {
       const res = await fetch('/api/v1/briefing', { headers: getHeaders() });
       if (!res.ok) return;
       const b = await res.json();
-      const container = document.getElementById('briefing-content');
+
       const badge = document.getElementById('coverage-badge');
-      if (!container) return;
-
       if (badge && b.coverage) {
-        badge.textContent = `COVERAGE ${Math.round(b.coverage.overall_coverage)}%`;
-        badge.className = b.coverage.is_adequate ? 'badge badge-mint' : 'badge badge-peach';
+        badge.textContent = `COVERAGE ${b.coverage.overall_coverage.toFixed(0)}%`;
+        if (b.coverage.is_adequate) badge.className = 'badge badge-mint';
+        else badge.className = 'badge badge-peach';
       }
 
-      let html = `<div style="display: flex; flex-direction: column; gap: 12px;">`;
-      html += `<div><strong>What this machine is:</strong> ${b.identity.os} (${b.identity.arch}, ${b.identity.cpus} cores), ${b.identity.total_ram} RAM, uptime ${b.identity.uptime}. Platform: ${b.identity.virtualization}. Inferred role: <span class="badge badge-peach">[INFERRED] ${b.identity.inferred_role}</span> (evidence: ${b.identity.role_evidence}).</div>`;
-
-      if (b.programs && b.programs.length > 0) {
-        html += `<div><strong>What it runs:</strong> ${b.programs.map(p => `${p.name} (${p.process_count} procs, ${p.total_rss}, installed by ${p.installed_by})`).join(' · ')}</div>`;
+      if (el.topCoverageBadge && b.coverage) {
+        el.topCoverageBadge.textContent = `COVERAGE ${b.coverage.overall_coverage.toFixed(0)}%`;
+        el.topCoverageBadge.className = b.coverage.is_adequate ? 'badge badge-mint' : 'badge badge-peach';
       }
 
-      if (b.exposed_ports && b.exposed_ports.length > 0) {
-        html += `<div><strong>Reachable from outside:</strong> ${b.exposed_ports.map(p => `${p.protocol.toUpperCase()}/${p.port} (${p.program}, ${p.exposure})`).join(', ')}</div>`;
-      } else {
-        html += `<div><strong>Reachable from outside:</strong> No listening ports detected.</div>`;
+      const content = document.getElementById('briefing-content');
+      if (content) {
+        content.innerHTML = `
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">${b.summary_sentence || ''}</div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim);">
+            ${(b.bullet_points || []).map(bp => `<div>• ${bp}</div>`).join('')}
+          </div>
+          <div style="margin-top: 12px; font-size: 12px; color: var(--cyan); border-top: 1px dashed var(--panel-border); padding-top: 8px;">
+            <div><strong>PROVENANCE & INTEGRITY:</strong> ${b.untracked_surface || ''}</div>
+            <div style="margin-top: 4px;"><strong>CAPACITY FORECAST:</strong> ${b.exhaustion_headline || ''}</div>
+          </div>
+        `;
       }
-
-      if (b.hand_installed && b.hand_installed.length > 0) {
-        html += `<div><strong>Installed by hand:</strong> ${b.hand_installed.map(h => `${h.name} (<code>${h.path}</code>)`).join(', ')} — <span style="color: var(--peach);">not updated by package manager</span> (scan coverage: ${Math.round(b.orphan_coverage_percent)}%).</div>`;
-      } else {
-        html += `<div><strong>Installed by hand:</strong> Zero unmanaged binaries detected (scan coverage: ${Math.round(b.orphan_coverage_percent)}%).</div>`;
-      }
-
-      if (b.pending_items && b.pending_items.length > 0) {
-        html += `<div style="color: var(--dim); font-size: 12px;"><strong>What I cannot tell you yet:</strong> ${b.pending_items.map(p => `${p.metric} (${p.requirement}, ETA: ${p.eta})`).join(' · ')}</div>`;
-      }
-
-      html += `</div>`;
-      container.innerHTML = html;
     } catch (err) {
       console.error('failed fetching briefing:', err);
     }
   }
 
-  // SSE Real-Time Stream via fetch streaming with Authorization header
-  let streamAbortController = null;
-
-  async function initSSE() {
-    if (streamAbortController) {
-      streamAbortController.abort();
-    }
-    streamAbortController = new AbortController();
-
+  // Refresh Pulse
+  async function refreshPulse() {
     try {
-      const res = await fetch('/api/v1/stream', {
-        headers: getHeaders(),
-        signal: streamAbortController.signal
-      });
-
-      if (!res.ok) {
-        el.pulseDot.className = 'stale-indicator';
-        el.liveStatusText.textContent = '[!] Auth/Stream Error';
-        return;
+      const resHost = await fetch('/api/v1/observations/host', { headers: getHeaders() });
+      if (resHost.ok) {
+        const obs = await resHost.json();
+        if (obs.items && obs.items.length > 0 && obs.items[0].data) {
+          const d = obs.items[0].data;
+          if (el.pulseHost) el.pulseHost.textContent = d.hostname || 'server';
+          if (el.pulseKernel) el.pulseKernel.textContent = `${d.kernel_name || 'Linux'} ${d.kernel_release || ''}`;
+          if (el.pulseUptime) el.pulseUptime.textContent = formatDuration(d.uptime_seconds);
+        }
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop(); // keep trailing partial chunk
-
-        for (const block of lines) {
-          const parts = block.split('\n');
-          let eventType = 'message';
-          let eventData = '';
-          for (const line of parts) {
-            if (line.startsWith('event:')) {
-              eventType = line.slice(6).trim();
-            } else if (line.startsWith('data:')) {
-              eventData = line.slice(5).trim();
-            }
+      const resRes = await fetch('/api/v1/observations/resources', { headers: getHeaders() });
+      if (resRes.ok) {
+        const rObs = await resRes.json();
+        if (rObs.items && rObs.items.length > 0 && rObs.items[0].data) {
+          const r = rObs.items[0].data;
+          const cpuVal = document.getElementById('meter-cpu-val');
+          const cpuBar = document.getElementById('meter-cpu-bar');
+          if (cpuVal && cpuBar) {
+            cpuVal.textContent = `${r.load1 ? r.load1.toFixed(2) : '0.00'}`;
+            cpuBar.style.width = `${Math.min(100, (r.load1 || 0) * 25)}%`;
           }
-          if (eventType === 'verdict' && eventData) {
-            try {
-              const v = JSON.parse(eventData);
-              renderVerdict(v);
-            } catch (err) {
-              console.error('failed parsing streamed verdict:', err);
-            }
+
+          const ramVal = document.getElementById('meter-ram-val');
+          const ramBar = document.getElementById('meter-ram-bar');
+          if (ramVal && ramBar) {
+            const pct = Math.round((r.mem_usage_ratio || 0) * 100);
+            ramVal.textContent = `${pct}%`;
+            ramBar.style.width = `${pct}%`;
           }
         }
       }
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        el.pulseDot.className = 'stale-indicator';
-        el.liveStatusText.textContent = '[!] Reconnecting...';
-        setTimeout(initSSE, 3000);
-      }
+      console.error('failed fetching pulse data:', err);
     }
   }
 
-  // Dependencies Topology Map
+  // Refresh Findings
+  async function refreshFindings() {
+    try {
+      const res = await fetch('/api/v1/findings', { headers: getHeaders() });
+      if (!res.ok) return;
+      const findings = await res.json();
+      if (!el.dangerList) return;
+
+      el.dangerList.innerHTML = '';
+      if (!findings || findings.length === 0) {
+        el.dangerList.innerHTML = '<div style="color: var(--mint);">[✓] No critical exposures detected.</div>';
+        return;
+      }
+
+      findings.forEach(f => {
+        const row = document.createElement('div');
+        row.style.fontSize = '12px';
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.borderBottom = '1px dashed var(--panel-border)';
+        row.style.padding = '4px 0';
+        row.innerHTML = `
+          <span><strong>${f.id}</strong>: ${f.what}</span>
+          <span class="badge ${f.severity === 'critical' ? 'badge-rose' : 'badge-peach'}">${f.severity.toUpperCase()}</span>
+        `;
+        el.dangerList.appendChild(row);
+      });
+    } catch (err) {
+      console.error('failed fetching findings:', err);
+    }
+  }
+
+  // Topological Dependencies Map
   async function refreshDependencies() {
     try {
       const res = await fetch('/api/v1/dependencies', { headers: getHeaders() });
       if (!res.ok) return;
-      const deps = await res.json();
+      const depMap = await res.json();
       const mapEl = document.getElementById('deps-ascii-map');
-      if (mapEl && deps.ascii_map) {
-        mapEl.textContent = deps.ascii_map;
+      if (!mapEl) return;
+
+      let ascii = 'NODE IDENTIFIER           | DEPENDS ON               | DEPENDENTS (OUTAGES)\n';
+      ascii += '--------------------------+--------------------------+-------------------------\n';
+
+      for (const [id, rels] of Object.entries(depMap)) {
+        const shortID = id.length > 24 ? id.substring(0, 21) + '...' : id;
+        const deps = (rels.depends_on || []).join(', ') || 'none';
+        const callers = (rels.dependents || []).join(', ') || 'none';
+        ascii += `${shortID.padEnd(25)} | ${deps.padEnd(24)} | ${callers}\n`;
       }
+
+      mapEl.textContent = ascii;
     } catch (err) {
       console.error('failed fetching dependencies:', err);
     }
   }
 
-  // Populate Blast Radius selector with current graph nodes
+  // Blast Radius Analyzer
   async function refreshBlastRadiusNodes() {
     try {
       const res = await fetch('/api/v1/graph', { headers: getHeaders() });
@@ -572,7 +757,6 @@
     }
   }
 
-  // Calculate and render Blast Radius for selected node
   async function calculateBlastRadius() {
     const sel = document.getElementById('blast-select');
     if (!sel || !sel.value) return;
@@ -592,34 +776,39 @@
       if (rep.verdict === 'DANGEROUS') { badgeClass = 'badge-rose'; glyph = '[▲]'; }
       else if (rep.verdict === 'CAREFUL') { badgeClass = 'badge-peach'; glyph = '[!]'; }
 
-      badge.className = `badge ${badgeClass}`;
-      badge.textContent = `${glyph} ${rep.verdict}`;
+      if (badge) {
+        badge.className = `badge ${badgeClass}`;
+        badge.textContent = `${glyph} ${rep.verdict}`;
+      }
+      if (sum) sum.textContent = rep.verdict_summary;
+      if (reasonsEl) {
+        reasonsEl.innerHTML = (rep.reasons || []).map(r => `<div>└─ ${r}</div>`).join('');
+      }
 
-      sum.textContent = rep.verdict_summary;
-      reasonsEl.innerHTML = (rep.reasons || []).map(r => `<div>└─ ${r}</div>`).join('');
+      if (listEl) {
+        listEl.innerHTML = '';
+        if (!rep.impacted_list || rep.impacted_list.length === 0) {
+          listEl.innerHTML = '<div style="color: var(--mint);">[✓] No downstream dependencies or outage risks identified.</div>';
+        } else {
+          rep.impacted_list.forEach(item => {
+            const row = document.createElement('div');
+            row.style.fontSize = '12px';
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.borderBottom = '1px dashed var(--panel-border)';
+            row.style.padding = '3px 0';
 
-      listEl.innerHTML = '';
-      if (!rep.impacted_list || rep.impacted_list.length === 0) {
-        listEl.innerHTML = '<div style="color: var(--mint);">[✓] No downstream dependencies or outage risks identified.</div>';
-      } else {
-        rep.impacted_list.forEach(item => {
-          const row = document.createElement('div');
-          row.style.fontSize = '12px';
-          row.style.display = 'flex';
-          row.style.justifyContent = 'space-between';
-          row.style.borderBottom = '1px dashed var(--panel-border)';
-          row.style.padding = '3px 0';
+            let sevClass = 'badge-cyan';
+            if (item.impact_level === 'critical') sevClass = 'badge-rose';
+            else if (item.impact_level === 'high') sevClass = 'badge-peach';
 
-          let sevClass = 'badge-cyan';
-          if (item.impact_level === 'critical') sevClass = 'badge-rose';
-          else if (item.impact_level === 'high') sevClass = 'badge-peach';
-
-          row.innerHTML = `
-            <span><strong style="color: var(--text);">[${item.node_type}]</strong> ${item.label} (${item.reason})</span>
-            <span class="badge ${sevClass}">${item.impact_level.toUpperCase()}</span>
-          `;
-          listEl.appendChild(row);
-        });
+            row.innerHTML = `
+              <span><strong style="color: var(--text);">[${item.node_type}]</strong> ${item.label} (${item.reason})</span>
+              <span class="badge ${sevClass}">${item.impact_level.toUpperCase()}</span>
+            `;
+            listEl.appendChild(row);
+          });
+        }
       }
     } catch (err) {
       console.error('failed calculating blast radius:', err);
@@ -631,31 +820,53 @@
     blastBtn.addEventListener('click', calculateBlastRadius);
   }
 
+  // Server-Sent Events (SSE) Live Feed
+  function initSSE() {
+    if (eventSource) {
+      eventSource.close();
+    }
+    const url = authToken ? `/api/v1/events?token=${encodeURIComponent(authToken)}` : '/api/v1/events';
+    eventSource = new EventSource(url);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        lastSuccessfulFetch = Date.now();
+        if (data.verdict) {
+          updateVerdictUI(data.verdict);
+          updateTopBar(data.verdict);
+        }
+      } catch (err) {
+        // Safe fallback on parse error
+      }
+    };
+
+    eventSource.onerror = () => {
+      // Reconnection managed automatically by browser
+    };
+  }
+
   function refreshAll() {
     refreshVerdict();
     refreshBriefing();
-    refreshFindings();
     refreshPulse();
-    refreshChanges();
-    refreshForecasts();
+    refreshFindings();
     refreshDependencies();
     refreshBlastRadiusNodes();
+    refreshActivityLog();
+    loadChecks();
   }
 
-  // Initial startup
+  // Startup Initializer
   handleRoute();
+  loadChecks();
   refreshAll();
   initSSE();
 
-  // Periodic poll fallback every 5s for findings, pulse, changes & forecasts
   setInterval(() => {
-    refreshBriefing();
-    refreshFindings();
+    refreshVerdict();
     refreshPulse();
-    refreshChanges();
-    refreshForecasts();
-    refreshDependencies();
+    refreshBriefing();
   }, 5000);
 
 })();
-

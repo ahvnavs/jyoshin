@@ -111,6 +111,9 @@ func run(args []string) error {
 	case "check":
 		return runCheck(subargs)
 
+	case "open":
+		return runOpen(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -128,6 +131,7 @@ Usage:
   kazeshini <command> [options]
 
 Commands:
+  open       Foreground local server truth dashboard for headless/SSH servers (no root, ephemeral)
   briefing   Print plain-English server truth briefing in terminal (works over SSH)
   doctor     Inspect host sensor visibility and coverage honesty table
   check      Execute read-only diagnostics (list, run, symptom)
@@ -138,7 +142,7 @@ Commands:
   snapshot   Capture a point-in-time provenance snapshot (stub)
   version    Print binary version information
 
-Run 'kazeshini check help' or 'kazeshini serve --help' for options.`)
+Run 'kazeshini open --help' or 'kazeshini check help' for options.`)
 }
 
 func runToken(args []string) error {
@@ -831,4 +835,203 @@ func runCheck(args []string) error {
 	default:
 		return fmt.Errorf("unknown check subcommand %q (supported: list, run, symptom)", subcmd)
 	}
+}
+
+func runOpen(args []string) error {
+	flags := flag.NewFlagSet("open", flag.ContinueOnError)
+	portFlag := flags.Int("port", 0, "Local port to listen on (default: random free port)")
+	idleTimeoutFlag := flags.Duration("idle-timeout", 30*time.Minute, "Idle timeout without HTTP requests before exiting")
+	ephemeralFlag := flags.Bool("ephemeral", true, "Store state in a temporary directory and delete on exit")
+	tuiFlag := flags.Bool("tui", false, "Render interactive terminal TUI table of verdict, coverage, and checks")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	rfs := fs.Default()
+	cfg := config.Default()
+	cfg.Host = "127.0.0.1"
+
+	// Bind listener upfront (random free port if 0)
+	bindAddr := fmt.Sprintf("127.0.0.1:%d", *portFlag)
+	ln, err := net.Listen("tcp", bindAddr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", bindAddr, err)
+	}
+	defer ln.Close()
+
+	cfg.Port = ln.Addr().(*net.TCPAddr).Port
+
+	// Handle ephemeral data directory
+	var tempDir string
+	if *ephemeralFlag {
+		var err error
+		tempDir, err = os.MkdirTemp("", "kazeshini-open-*")
+		if err != nil {
+			return fmt.Errorf("failed creating ephemeral directory: %w", err)
+		}
+		cfg.DataDir = tempDir
+		defer func() {
+			_ = os.RemoveAll(tempDir)
+		}()
+	}
+
+	// Initialize subsystems
+	logger := logging.Setup(logging.Config{Level: "warn", Format: "text"})
+	supervisor.LowerProcessPriority()
+
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
+
+	sup := supervisor.New(registry, logger)
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	orphanScanner := orphan.NewScanner(rfs, originResolver)
+	pGraph := graphbuilder.NewProvenanceGraph()
+	pGraph.SetOriginResolver(originResolver)
+
+	ruleEngine := rules.NewEngine(3 * time.Second)
+	_, _ = ruleEngine.LoadDirectory("rules")
+
+	server, err := api.NewServer(cfg, getVersionInfo(), sup, invManager, originResolver, orphanScanner, pGraph, nil, ruleEngine, logger)
+	if err != nil {
+		return fmt.Errorf("failed initializing server: %w", err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := sup.Start(ctx); err != nil {
+		return fmt.Errorf("failed starting supervisor: %w", err)
+	}
+	defer func() {
+		_ = sup.Stop()
+	}()
+
+	// Query initial sensor sweep for coverage
+	assessor := coverage.NewAssessor(sup, invManager, orphanScanner, rfs)
+	cov := assessor.Assess(ctx)
+
+	// Fetch token
+	authMgr, _ := auth.NewManager(cfg.DataDir)
+	tokenStr := ""
+	if authMgr != nil {
+		tokenStr = authMgr.Token()
+	}
+
+	// Terminal Banner
+	fmt.Println("======================================================================")
+	fmt.Println("風死 · KAZESHINI OPEN — FOREGROUND SERVER TRUTH DASHBOARD")
+	fmt.Println("======================================================================")
+	fmt.Printf("STATUS:        Foreground server active (PID: %d)\n", os.Getpid())
+	fmt.Printf("DASHBOARD URL: http://127.0.0.1:%d\n", cfg.Port)
+	fmt.Printf("ACCESS TOKEN:  %s\n\n", tokenStr)
+
+	fmt.Println("HEADLESS / REMOTE SSH ACCESS:")
+	fmt.Println("  Run this on your local laptop to tunnel the port securely:")
+	fmt.Printf("  \033[1;36mssh -L %d:127.0.0.1:%d %s@<server-ip>\033[0m\n\n", cfg.Port, cfg.Port, os.Getenv("USER"))
+
+	isRoot := os.Geteuid() == 0
+	if !isRoot {
+		fmt.Printf("VISIBILITY:    Non-root user (Coverage: %.0f%%)\n", cov.OverallCoverage)
+		if !cov.IsAdequate {
+			fmt.Println("               Some sensor visibility is limited by host access controls.")
+			fmt.Printf("               For 100%% full visibility, run: \033[1;33msudo kazeshini open --port %d\033[0m\n\n", cfg.Port)
+		}
+	} else {
+		fmt.Println("VISIBILITY:    Root execution (Full kernel & process visibility enabled)")
+	}
+
+	fmt.Printf("LIFECYCLE:     Exits on Ctrl+C or after %s of inactivity\n", idleTimeoutFlag.String())
+	if *ephemeralFlag {
+		fmt.Printf("STORAGE:       Ephemeral directory: %s (will delete on exit)\n", tempDir)
+	}
+	fmt.Println("======================================================================")
+
+	if *tuiFlag {
+		renderTUI(ctx, rfs, cov)
+	}
+
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- server.ServeListener(ln)
+	}()
+
+	// Idle timeout monitor loop
+	idleTicker := time.NewTicker(1 * time.Second)
+	defer idleTicker.Stop()
+
+	startTime := time.Now()
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("\nReceived termination signal. Shutting down gracefully...")
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = server.Shutdown(shutdownCtx)
+			return nil
+		case err := <-errChan:
+			return err
+		case <-idleTicker.C:
+			lastReq := server.LastActivity()
+			if lastReq.IsZero() {
+				// No requests yet; compare against startup time
+				lastReq = startTime
+			}
+			if *idleTimeoutFlag > 0 && time.Since(lastReq) >= *idleTimeoutFlag {
+				fmt.Printf("\nIdle timeout (%s without requests) reached. Shutting down...\n", idleTimeoutFlag.String())
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				_ = server.Shutdown(shutdownCtx)
+				return nil
+			}
+		}
+	}
+}
+
+func renderTUI(ctx context.Context, rfs fs.FS, cov coverage.Report) {
+	fmt.Println("\n--- TERMINAL TUI SCREEN (STDLIB ANSI) ---")
+	verdictLabel := "CALM"
+	colorCode := "\033[1;32m" // Green
+	if !cov.IsAdequate {
+		verdictLabel = "PARTIAL"
+		colorCode = "\033[1;33m" // Yellow
+	}
+	fmt.Printf("VERDICT: %s[%s]\033[0m   COVERAGE: %.0f%% (%s)\n\n", colorCode, verdictLabel, cov.OverallCoverage, cov.SummaryNote)
+
+	engine := checks.NewEngine(nil, nil, rfs)
+	all := engine.Registry().All()
+
+	fmt.Printf("%-22s | %-16s | %-10s | %s\n", "CHECK ID", "ROLE", "STATUS", "SUMMARY")
+	fmt.Println(strings.Repeat("-", 76))
+
+	for _, c := range all {
+		res, _ := c.Run(ctx, rfs, nil)
+		stColor := "\033[1;32m"
+		switch res.Status {
+		case contract.StatusCrit:
+			stColor = "\033[1;31m"
+		case contract.StatusWarn:
+			stColor = "\033[1;33m"
+		case contract.StatusUnknown, contract.StatusNotApplicable:
+			stColor = "\033[1;34m"
+		}
+		summaryShort := res.SummaryPlain
+		if len(summaryShort) > 36 {
+			summaryShort = summaryShort[:33] + "..."
+		}
+		fmt.Printf("%-22s | %-16s | %s%-10s\033[0m | %s\n", c.ID(), c.Role(), stColor, string(res.Status), summaryShort)
+	}
+	fmt.Println(strings.Repeat("-", 76))
+	fmt.Println("--- END TERMINAL TUI ---")
+	fmt.Println()
 }
