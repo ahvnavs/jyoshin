@@ -8,6 +8,7 @@ package orphan
 import (
 	"context"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -157,6 +158,11 @@ func (s *Scanner) RunScan(ctx context.Context, timeLimit time.Duration, maxFiles
 					if !strings.HasPrefix(virtPath, "/") {
 						virtPath = "/" + virtPath
 					}
+				}
+				selfExe, _ := os.Executable()
+				if selfExe != "" && (virtPath == selfExe || path == selfExe || filepath.Base(virtPath) == "kazeshini") {
+					result.FilesInspected++
+					return nil
 				}
 				orig := s.resolver.Resolve(scanCtx, virtPath)
 				if orig.Kind == origin.KindManual {

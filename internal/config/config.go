@@ -36,6 +36,7 @@ type Config struct {
 	LogFormat    string        `json:"log_format"`
 	ScanInterval time.Duration `json:"scan_interval"`
 	AuthRequired bool          `json:"auth_required"`
+	AllowedHosts []string      `json:"allowed_hosts"`
 	OTel         OTelConfig    `json:"otel"`
 }
 
@@ -158,6 +159,9 @@ func Load(configPath string) (Config, error) {
 	}
 	if authReqStr := os.Getenv("KAZESHINI_AUTH_REQUIRED"); authReqStr != "" {
 		cfg.AuthRequired = strings.ToLower(authReqStr) == "true" || authReqStr == "1"
+	}
+	if allowedHosts := os.Getenv("KAZESHINI_ALLOWED_HOSTS"); allowedHosts != "" {
+		cfg.AllowedHosts = strings.Split(allowedHosts, ",")
 	}
 
 	if err := cfg.Validate(); err != nil {

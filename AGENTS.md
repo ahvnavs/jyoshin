@@ -14,4 +14,6 @@
 10. **GRACEFUL DEGRADATION**: Missing permissions report "unknown, here's why", never crash.
 11. **COVERAGE HONESTY**: Never say healthy/calm unless the sensors that matter could actually see. "Found nothing" and "couldn't look" must look different.
 12. **HUMAN-FIRST**: Plain sentences, human units (GB, days, "3 hours ago"), no raw keys or jargon without a one-line gloss.
+13. **CHECKS ARE READ-ONLY. EXEC ONLY VIA ALLOW-LIST. THE ONLY EGRESS IS A USER-CLICKED ACTIVE PROBE TO A USER-NAMED TARGET.**
+
 

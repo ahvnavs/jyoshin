@@ -103,3 +103,59 @@ func TestServiceSensor_NonSystemdDegradation(t *testing.T) {
 		t.Errorf("expected init system 'init', got %s", report.InitSystem)
 	}
 }
+
+func TestServiceSensor_ParseSystemctlShow(t *testing.T) {
+	sampleOutput := `Id=dbus.service
+LoadState=loaded
+ActiveState=active
+SubState=running
+MainPID=789
+NRestarts=0
+
+Id=crash-loop.service
+LoadState=loaded
+ActiveState=failed
+SubState=failed
+MainPID=0
+NRestarts=14
+
+Id=cron.service
+LoadState=loaded
+ActiveState=active
+SubState=running
+MainPID=1024
+NRestarts=2
+`
+
+	unitMap := map[string]*UnitInfo{
+		"dbus.service": {
+			Name:        "dbus.service",
+			ActiveState: "unknown",
+		},
+		"crash-loop.service": {
+			Name:        "crash-loop.service",
+			ActiveState: "unknown",
+		},
+		"cron.service": {
+			Name:        "cron.service",
+			ActiveState: "unknown",
+		},
+	}
+
+	ParseSystemctlShow([]byte(sampleOutput), unitMap)
+
+	dbus := unitMap["dbus.service"]
+	if dbus.ActiveState != "active" || dbus.LoadState != "loaded" || dbus.MainPID != 789 || dbus.RestartCount != 0 {
+		t.Errorf("unexpected dbus.service values: %+v", dbus)
+	}
+
+	crash := unitMap["crash-loop.service"]
+	if crash.ActiveState != "failed" || crash.LoadState != "loaded" || crash.RestartCount != 14 {
+		t.Errorf("unexpected crash-loop.service values: %+v", crash)
+	}
+
+	cron := unitMap["cron.service"]
+	if cron.ActiveState != "active" || cron.RestartCount != 2 || cron.MainPID != 1024 {
+		t.Errorf("unexpected cron.service values: %+v", cron)
+	}
+}

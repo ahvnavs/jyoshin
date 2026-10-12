@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/OWNER/kazeshini/data"
+	"github.com/OWNER/kazeshini/internal/contract"
 	"github.com/OWNER/kazeshini/internal/coverage"
 	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/orphan"
@@ -136,18 +137,19 @@ type PendingItem struct {
 
 // Briefing encapsulates the full 7-section plain-English briefing.
 type Briefing struct {
-	Verdict               verdict.Summary       `json:"verdict"`
-	Coverage              coverage.Report       `json:"coverage"`
-	Identity              MachineIdentity       `json:"identity"`
-	Programs              []ProgramGroup        `json:"programs"`
-	ExposedPorts          []ExposedPort         `json:"exposed_ports"`
-	HandInstalled         []HandInstalledBinary `json:"hand_installed"`
-	OrphanCoveragePercent float64               `json:"orphan_coverage_percent"`
-	OrphanFilesInspected  int                   `json:"orphan_files_inspected"`
-	Waste                 []WasteItem           `json:"waste"`
-	AttentionFindings     []rules.Finding       `json:"attention_findings"`
-	CollapsedFindings     int                   `json:"collapsed_findings"`
-	PendingItems          []PendingItem         `json:"pending_items"`
+	Verdict               verdict.Summary        `json:"verdict"`
+	Coverage              coverage.Report        `json:"coverage"`
+	Identity              MachineIdentity        `json:"identity"`
+	Programs              []ProgramGroup         `json:"programs"`
+	ExposedPorts          []ExposedPort          `json:"exposed_ports"`
+	HandInstalled         []HandInstalledBinary  `json:"hand_installed"`
+	OrphanCoveragePercent float64                `json:"orphan_coverage_percent"`
+	OrphanFilesInspected  int                    `json:"orphan_files_inspected"`
+	Waste                 []WasteItem            `json:"waste"`
+	AttentionFindings     []rules.Finding        `json:"attention_findings"`
+	CollapsedFindings     int                    `json:"collapsed_findings"`
+	PendingItems          []PendingItem          `json:"pending_items"`
+	Results               []contract.CheckResult `json:"results,omitempty"`
 }
 
 // Builder constructs deterministic briefings from snapshot nodes and findings.
@@ -390,12 +392,24 @@ func (b *Builder) Build(
 	orphanCoverage := 100.0
 	filesInspected := 0
 
+	selfExe, _ := os.Executable()
+	isSelf := func(p string) bool {
+		if selfExe != "" && p == selfExe {
+			return true
+		}
+		base := filepath.Base(p)
+		return base == "kazeshini"
+	}
+
 	for _, n := range nodes {
 		if n.Type == graph.NodeFile {
 			if origKind, ok := n.Properties["origin_kind"].(string); ok && origKind == "manual" {
 				path, _ := n.Properties["path"].(string)
 				if path == "" {
 					path = n.Label
+				}
+				if isSelf(path) {
+					continue
 				}
 				handInstalled = append(handInstalled, HandInstalledBinary{
 					Name:    filepath.Base(path),
@@ -411,6 +425,9 @@ func (b *Builder) Build(
 		orphanCoverage = last.CoveragePercent
 		filesInspected = last.FilesInspected
 		for _, o := range last.Orphans {
+			if isSelf(o.Path) {
+				continue
+			}
 			name := filepath.Base(o.Path)
 			alreadyIn := false
 			for _, hi := range handInstalled {
@@ -478,6 +495,52 @@ func (b *Builder) Build(
 	// Compute verdict with coverage honesty
 	vSum := verdict.ComputeVerdictWithCoverage(nodes, findings, len(handInstalled), cov.IsAdequate, cov.SummaryNote)
 
+	// 8. One Result Contract: populate standardized CheckResults from findings
+	procSeen := 0
+	procTotal := 0
+	for _, it := range cov.Items {
+		if it.Category == "process" || it.Name == "Processes Readable" {
+			procSeen = it.Readable
+			procTotal = it.Total
+			break
+		}
+	}
+
+	var checkResults []contract.CheckResult
+	for _, f := range attention {
+		st := contract.StatusWarn
+		if f.Severity == rules.SeverityCritical {
+			st = contract.StatusCrit
+		} else if f.Severity == rules.SeverityInfo || f.Severity == rules.SeverityLow {
+			st = contract.StatusOK
+		}
+
+		cr := contract.CheckResult{
+			ID:           f.ID,
+			Role:         string(f.Category),
+			Title:        f.What,
+			Status:       st,
+			SummaryPlain: f.SoWhat,
+			ExplainLevels: [3]string{
+				f.What,
+				f.SoWhat,
+				f.NowWhat.Action,
+			},
+			Evidence:          f.Proof.Evidence,
+			Certainty:         f.Proof.Certainty,
+			EquivalentCommand: "",
+			NextStepCommand:   f.NowWhat.Action,
+			ReadOnly:          true,
+			CollectedAt:       now,
+			Coverage: contract.CoverageSummary{
+				Seen:   procSeen,
+				Total:  procTotal,
+				Reason: cov.SummaryNote,
+			},
+		}
+		checkResults = append(checkResults, cr)
+	}
+
 	return Briefing{
 		Verdict:               vSum,
 		Coverage:              cov,
@@ -491,6 +554,7 @@ func (b *Builder) Build(
 		AttentionFindings:     attention,
 		CollapsedFindings:     collapsed,
 		PendingItems:          pending,
+		Results:               checkResults,
 	}
 }
 
@@ -521,6 +585,7 @@ func (b *Briefing) RenderTerminal() string {
 	sb.WriteString(fmt.Sprintf("  Memory:         %s total\n", b.Identity.TotalRAM))
 	sb.WriteString(fmt.Sprintf("  Uptime:         %s\n", b.Identity.Uptime))
 	sb.WriteString(fmt.Sprintf("  Platform:       %s (cloud: %s)\n", b.Identity.Virtualization, b.Identity.CloudProvider))
+	sb.WriteString("  This tool:      kazeshini (read-only observer, nice 19, ionice idle, zero host changes)\n")
 	sb.WriteString(fmt.Sprintf("  Inferred Role:  %s [INFERRED]\n", b.Identity.InferredRole))
 	sb.WriteString(fmt.Sprintf("                  Evidence: %s\n\n", b.Identity.RoleEvidence))
 

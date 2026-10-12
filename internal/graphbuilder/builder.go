@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -374,9 +375,10 @@ func (g *ProvenanceGraph) ingestHost(obs sensors.Observation, now time.Time) {
 }
 
 func (g *ProvenanceGraph) ingestProcess(obs sensors.Observation, now time.Time) {
+	myPID := os.Getpid()
 	for _, it := range obs.Items {
 		p, ok := it.Data.(process.ProcessInfo)
-		if !ok {
+		if !ok || p.PID == myPID {
 			continue
 		}
 

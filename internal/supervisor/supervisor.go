@@ -71,7 +71,9 @@ func New(registry *sensors.Registry, logger *slog.Logger) *Supervisor {
 func LowerProcessPriority() {
 	// Set nice to 19 (highest unprivileged niceness / lowest scheduling priority within 0..19)
 	targetNice := 19
-	_ = syscall.Setpriority(syscall.PRIO_PROCESS, 0, targetNice)
+	if err := syscall.Setpriority(syscall.PRIO_PROCESS, 0, targetNice); err != nil {
+		slog.Default().Warn("unable to lower process scheduling priority (setpriority)", "error", err, "target_nice", targetNice)
+	}
 
 	// Try setting ionice to idle/best-effort class via ioprio_set (SYS_ioprio_set) if linux
 	const (
@@ -80,7 +82,9 @@ func LowerProcessPriority() {
 		ioprioWhoProcess = 1
 	)
 	idlePrio := (ioprioClassIdle << ioprioClassShift)
-	_, _, _ = syscall.Syscall(syscall.SYS_IOPRIO_SET, uintptr(ioprioWhoProcess), 0, uintptr(idlePrio))
+	if _, _, errno := syscall.Syscall(syscall.SYS_IOPRIO_SET, uintptr(ioprioWhoProcess), 0, uintptr(idlePrio)); errno != 0 {
+		slog.Default().Warn("unable to set idle IO priority (ioprio_set)", "errno", errno)
+	}
 }
 
 // LowerPriority lowers the process priority to minimize host disturbance.

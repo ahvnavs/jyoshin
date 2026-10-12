@@ -103,3 +103,47 @@ func TestAPI_EmbeddedUI(t *testing.T) {
 		t.Fatalf("expected embedded html content with KAZESHINI, got: %s", string(body))
 	}
 }
+
+func TestAPI_HostHeaderValidation(t *testing.T) {
+	cfg := config.Default()
+	cfg.AllowedHosts = []string{"monitor.local"}
+	srv, err := NewServer(cfg, VersionInfo{Version: "v0.0.1"}, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	tests := []struct {
+		name       string
+		host       string
+		wantStatus int
+	}{
+		{"IPv4 loopback", "127.0.0.1:7777", http.StatusOK},
+		{"IPv4 bare loopback", "127.0.0.1", http.StatusOK},
+		{"localhost", "localhost:7777", http.StatusOK},
+		{"IPv6 loopback", "[::1]:7777", http.StatusOK},
+		{"Configured allowed host", "monitor.local:7777", http.StatusOK},
+		{"Rebinding attacker host", "evil.attacker.com", http.StatusForbidden},
+		{"Rebinding internal domain", "internal.corp.com:7777", http.StatusForbidden},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/v1/health", nil)
+			req.Host = tt.host
+			w := httptest.NewRecorder()
+
+			srv.server.Handler.ServeHTTP(w, req)
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("Host %q: expected status %d, got %d", tt.host, tt.wantStatus, resp.StatusCode)
+			}
+
+			// Principle: No CORS headers allowed
+			if cors := resp.Header.Get("Access-Control-Allow-Origin"); cors != "" {
+				t.Errorf("expected no Access-Control-Allow-Origin header, got %q", cors)
+			}
+		})
+	}
+}

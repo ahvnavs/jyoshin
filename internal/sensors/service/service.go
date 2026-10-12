@@ -8,6 +8,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -97,6 +100,10 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 
 	// 2. Discover units from /run/systemd/units and system unit search paths
 	units := s.discoverUnits(ctx, now)
+
+	// 3. Query real runtime state via allow-listed /usr/bin/systemctl
+	s.queryRuntimeUnitStates(ctx, units)
+
 	report.Units = units
 
 	evidence := []graph.Evidence{
@@ -249,4 +256,142 @@ func parseUnitFile(data []byte, u *UnitInfo) {
 			}
 		}
 	}
+}
+
+// queryRuntimeUnitStates queries /usr/bin/systemctl show for real runtime state.
+// Invariants enforced:
+// 1. Allow-listed absolute binary path: /usr/bin/systemctl or /bin/systemctl
+// 2. Fixed arguments: show --property=Id,ActiveState,SubState,NRestarts,MainPID,LoadState
+// 3. Unit names validated strictly against discovered units (no injection or meta-characters)
+// 4. Timeout context (bounded work per cycle)
+// 5. 1 MB output cap
+// 6. Cleared / sanitized environment: LC_ALL=C, PATH=/usr/bin:/bin
+func (s *Sensor) queryRuntimeUnitStates(ctx context.Context, units []UnitInfo) {
+	if len(units) == 0 {
+		return
+	}
+
+	systemctlPath := "/usr/bin/systemctl"
+	if fi, err := os.Stat(systemctlPath); err != nil || fi.IsDir() {
+		systemctlPath = "/bin/systemctl"
+		if fi, err := os.Stat(systemctlPath); err != nil || fi.IsDir() {
+			return // systemctl binary not present on host
+		}
+	}
+
+	// Validate unit names: alphanumeric, dots, dashes, underscores, at-signs (@)
+	unitMap := make(map[string]*UnitInfo, len(units))
+	var validUnitNames []string
+	for i := range units {
+		name := units[i].Name
+		if isValidUnitName(name) {
+			unitMap[name] = &units[i]
+			validUnitNames = append(validUnitNames, name)
+		}
+	}
+
+	if len(validUnitNames) == 0 {
+		return
+	}
+
+	// Batch units in chunks of 50 to avoid exceeding arg length bounds
+	chunkSize := 50
+	for i := 0; i < len(validUnitNames); i += chunkSize {
+		end := i + chunkSize
+		if end > len(validUnitNames) {
+			end = len(validUnitNames)
+		}
+		chunk := validUnitNames[i:end]
+
+		queryCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		args := append([]string{"show", "--property=Id,ActiveState,SubState,NRestarts,MainPID,LoadState", "--"}, chunk...)
+		cmd := exec.CommandContext(queryCtx, systemctlPath, args...)
+		cmd.Env = []string{"LC_ALL=C", "PATH=/usr/bin:/bin"}
+
+		outReader, err := cmd.StdoutPipe()
+		if err != nil {
+			cancel()
+			continue
+		}
+
+		if err := cmd.Start(); err != nil {
+			cancel()
+			continue
+		}
+
+		// Enforce 1 MB maximum output cap via io.LimitReader
+		lr := io.LimitReader(outReader, 1024*1024)
+		out, _ := io.ReadAll(lr)
+		_ = cmd.Wait()
+		cancel()
+
+		ParseSystemctlShow(out, unitMap)
+	}
+}
+
+func isValidUnitName(name string) bool {
+	if len(name) == 0 || len(name) > 256 {
+		return false
+	}
+	for _, ch := range name {
+		if (ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') && (ch < '0' || ch > '9') && ch != '.' && ch != '-' && ch != '_' && ch != '@' {
+			return false
+		}
+	}
+	return true
+}
+
+// ParseSystemctlShow parses systemctl show key-value blocks separated by blank lines into UnitInfo.
+func ParseSystemctlShow(data []byte, units map[string]*UnitInfo) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	var currentID string
+	props := make(map[string]string)
+
+	flush := func() {
+		if currentID != "" {
+			if u, ok := units[currentID]; ok {
+				if act, ok := props["ActiveState"]; ok && act != "" {
+					u.ActiveState = act
+				}
+				if load, ok := props["LoadState"]; ok && load != "" {
+					u.LoadState = load
+				}
+				if nr, ok := props["NRestarts"]; ok {
+					if n, err := strconv.Atoi(nr); err == nil {
+						u.RestartCount = n
+					}
+				}
+				if mpid, ok := props["MainPID"]; ok {
+					if pid, err := strconv.Atoi(mpid); err == nil && pid > 0 {
+						u.MainPID = pid
+					}
+				}
+			}
+		}
+		currentID = ""
+		props = make(map[string]string)
+	}
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			flush()
+			continue
+		}
+		eqIdx := strings.Index(line, "=")
+		if eqIdx == -1 {
+			continue
+		}
+		k := line[:eqIdx]
+		v := line[eqIdx+1:]
+		if k == "Id" {
+			// In case previous block did not end with blank line
+			if currentID != "" && currentID != v {
+				flush()
+			}
+			currentID = v
+		}
+		props[k] = v
+	}
+	flush()
 }

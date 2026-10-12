@@ -29,8 +29,9 @@ ProtectKernelModules=true
 ProtectKernelLogs=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
-SystemCallFilter=@system-service
-SystemCallFilter=~@privileged @resources @debug
+SystemCallFilter=@system-service setpriority ioprio_set
+SystemCallFilter=~@privileged @debug
+SystemCallErrorNumber=EPERM
 CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 

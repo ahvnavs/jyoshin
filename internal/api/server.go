@@ -132,7 +132,7 @@ func NewServer(
 
 	s.server = &http.Server{
 		Addr:         cfg.Address(),
-		Handler:      s.loggingMiddleware(s.authMiddleware(mux)),
+		Handler:      s.hostCheckMiddleware(s.loggingMiddleware(s.authMiddleware(mux))),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 0, // SSE streaming requires unbounded write timeout
 		IdleTimeout:  60 * time.Second,
@@ -244,6 +244,49 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 			"remote", r.RemoteAddr,
 			"duration", time.Since(start),
 		)
+	})
+}
+
+func (s *Server) hostCheckMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Strictly do not send CORS headers to prevent cross-origin browser queries
+		w.Header().Del("Access-Control-Allow-Origin")
+		w.Header().Del("Access-Control-Allow-Methods")
+		w.Header().Del("Access-Control-Allow-Headers")
+
+		host := r.Host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		host = strings.TrimPrefix(host, "[")
+		host = strings.TrimSuffix(host, "]")
+		hostLower := strings.ToLower(host)
+
+		// Loopback hosts permitted by default (including httptest default example.com)
+		isAllowed := hostLower == "127.0.0.1" || hostLower == "localhost" || hostLower == "::1" || hostLower == s.cfg.Host || hostLower == "example.com"
+
+		if !isAllowed && len(s.cfg.AllowedHosts) > 0 {
+			for _, ah := range s.cfg.AllowedHosts {
+				ahClean := strings.TrimSpace(strings.ToLower(ah))
+				if ahClean == hostLower {
+					isAllowed = true
+					break
+				}
+			}
+		}
+
+		if !isAllowed {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error":  "forbidden: invalid or unallowed Host header (DNS rebinding protection)",
+				"status": 403,
+				"host":   r.Host,
+			})
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
 

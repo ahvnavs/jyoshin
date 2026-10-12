@@ -27,3 +27,14 @@ Every API response, event watcher alert, and generated report passes through [`i
 - Passwords, Bearer tokens, private keys (`id_rsa`, `id_ed25519`, `*.pem`), and cloud credentials are substituted with `[REDACTED]`.
 - Non-secret metadata (such as file paths and ownership) is retained for auditability.
 
+## Exec Allow-List (Principle 13)
+In strict compliance with Principle 13 (*"Checks are read-only. Exec only via allow-list."*), Kazeshini permits command execution solely against a strictly controlled, hardcoded allow-list with invariant safety constraints:
+
+| Binary (Absolute Path) | Fixed Arguments | Invariant Constraints & Sandbox | Purpose |
+| :--- | :--- | :--- | :--- |
+| `/usr/bin/systemctl` (or `/bin/systemctl`) | `show --property=Id,ActiveState,SubState,NRestarts,MainPID,LoadState -- <validated_units...>` | Absolute path only; unit names strictly validated against regex `^[a-zA-Z0-9._@-]+$`; cleared environment (`LC_ALL=C`, `PATH=/usr/bin:/bin`); 3s execution timeout; 1 MB output cap. | Query real runtime service state (ActiveState, restart count, main PID) |
+| `/usr/bin/rpm` (or `/bin/rpm`) | `-qa --queryformat %{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n` | Absolute path only; immutable query arguments; cleared environment; 3s timeout; 10 MB output cap. | Query installed RPM package database when pure-Go db parser is absent. |
+
+Zero other binaries, shells, interpreters, or user-supplied command strings are permitted to execute.
+
+

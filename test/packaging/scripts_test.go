@@ -122,3 +122,57 @@ func TestInstallScript_CosignSignatureBehavioral(t *testing.T) {
 		t.Fatalf("expected --insecure-skip-verify to succeed without cosign, got: %v; output: %s", errSkip, string(outSkip))
 	}
 }
+
+func TestSystemdUnit_SyscallFilters(t *testing.T) {
+	unitPath := "../../packaging/systemd/kazeshini.service"
+	content, err := os.ReadFile(unitPath)
+	if err != nil {
+		t.Fatalf("failed reading unit file %s: %v", unitPath, err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var (
+		allowedSyscalls []string
+		deniedSyscalls  []string
+		errorNumber     string
+	)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "SystemCallFilter=") {
+			val := strings.TrimPrefix(line, "SystemCallFilter=")
+			if strings.HasPrefix(val, "~") {
+				deniedSyscalls = append(deniedSyscalls, strings.Fields(strings.TrimPrefix(val, "~"))...)
+			} else {
+				allowedSyscalls = append(allowedSyscalls, strings.Fields(val)...)
+			}
+		} else if strings.HasPrefix(line, "SystemCallErrorNumber=") {
+			errorNumber = strings.TrimPrefix(line, "SystemCallErrorNumber=")
+		}
+	}
+
+	// 1. Verify setpriority and ioprio_set are in allowedSyscalls or not in deniedSyscalls
+	required := []string{"setpriority", "ioprio_set"}
+	for _, req := range required {
+		foundAllowed := false
+		for _, a := range allowedSyscalls {
+			if a == req {
+				foundAllowed = true
+				break
+			}
+		}
+		if !foundAllowed {
+			t.Errorf("expected %q to be explicitly allowed in SystemCallFilter allow-list", req)
+		}
+		for _, d := range deniedSyscalls {
+			if d == req || d == "@resources" {
+				t.Errorf("%q or its group @resources must not be denied in SystemCallFilter", req)
+			}
+		}
+	}
+
+	// 2. Verify SystemCallErrorNumber=EPERM
+	if errorNumber != "EPERM" {
+		t.Errorf("expected SystemCallErrorNumber=EPERM, got %q", errorNumber)
+	}
+}

@@ -109,4 +109,3 @@ func TestCoverage_FaultInjection(t *testing.T) {
 		t.Errorf("expected verdict state PARTIAL or UNKNOWN, got %s", vSum.StateLabel)
 	}
 }
-
