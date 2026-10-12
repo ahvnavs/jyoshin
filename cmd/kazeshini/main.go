@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -19,7 +20,9 @@ import (
 	"github.com/OWNER/kazeshini/internal/api"
 	"github.com/OWNER/kazeshini/internal/auth"
 	"github.com/OWNER/kazeshini/internal/briefing"
+	"github.com/OWNER/kazeshini/internal/checks"
 	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/contract"
 	"github.com/OWNER/kazeshini/internal/coverage"
 	"github.com/OWNER/kazeshini/internal/diff"
 	"github.com/OWNER/kazeshini/internal/fs"
@@ -105,6 +108,9 @@ func run(args []string) error {
 	case "report":
 		return runReport(subargs)
 
+	case "check":
+		return runCheck(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -124,6 +130,7 @@ Usage:
 Commands:
   briefing   Print plain-English server truth briefing in terminal (works over SSH)
   doctor     Inspect host sensor visibility and coverage honesty table
+  check      Execute read-only diagnostics (list, run, symptom)
   serve      Start the local API and web dashboard
   report     Generate a standalone State of this Server report (html, json, md)
   token      Print the local API authentication token (0600)
@@ -131,7 +138,7 @@ Commands:
   snapshot   Capture a point-in-time provenance snapshot (stub)
   version    Print binary version information
 
-Run 'kazeshini serve --help' for serve flags.`)
+Run 'kazeshini check help' or 'kazeshini serve --help' for options.`)
 }
 
 func runToken(args []string) error {
@@ -633,5 +640,195 @@ func runServe(args []string) error {
 		return nil
 	case err := <-errChan:
 		return err
+	}
+}
+
+func runCheck(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: kazeshini check <list|run <id>|run --role <role>|symptom <name>> [--json]")
+	}
+
+	rfs := fs.Default()
+	cfg, _ := config.Load("")
+	actLog := checks.NewActivityLog(cfg.DataDir)
+	engine := checks.NewEngine(nil, actLog, rfs)
+
+	subcmd := args[0]
+	subargs := args[1:]
+
+	switch subcmd {
+	case "list":
+		all := engine.Registry().All()
+		jsonOutput := false
+		for _, a := range subargs {
+			if a == "--json" {
+				jsonOutput = true
+			}
+		}
+
+		if jsonOutput {
+			type checkMeta struct {
+				ID          string `json:"id"`
+				Role        string `json:"role"`
+				Title       string `json:"title"`
+				Description string `json:"description"`
+			}
+			var list []checkMeta
+			for _, c := range all {
+				list = append(list, checkMeta{
+					ID:          c.ID(),
+					Role:        c.Role(),
+					Title:       c.Title(),
+					Description: c.Description(),
+				})
+			}
+			data, _ := json.MarshalIndent(list, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		}
+
+		fmt.Println("======================================================================")
+		fmt.Println("風死 · KAZESHINI READ-ONLY CHECKS")
+		fmt.Println("======================================================================")
+		fmt.Printf("%-24s | %-16s | %s\n", "CHECK ID", "ROLE", "TITLE")
+		fmt.Println(strings.Repeat("-", 70))
+		for _, c := range all {
+			fmt.Printf("%-24s | %-16s | %s\n", c.ID(), c.Role(), c.Title())
+		}
+		fmt.Println(strings.Repeat("-", 70))
+		return nil
+
+	case "run":
+		flags := flag.NewFlagSet("check run", flag.ContinueOnError)
+		roleFlag := flags.String("role", "", "Role category to run (devops, cloud, cloud-platform, infrastructure, devsecops, platform, network)")
+		jsonFlag := flags.Bool("json", false, "Output results in JSON format")
+		targetFlag := flags.String("target", "", "Target host:port for active connectivity probe (e.g. 127.0.0.1:80)")
+		fileFlag := flags.String("file", "", "Target file for log/config checks")
+		unitFlag := flags.String("unit", "", "Target unit for app-health")
+
+		if err := flags.Parse(subargs); err != nil {
+			return err
+		}
+
+		params := make(map[string]string)
+		if *targetFlag != "" {
+			params["target"] = *targetFlag
+		}
+		if *fileFlag != "" {
+			params["file"] = *fileFlag
+		}
+		if *unitFlag != "" {
+			params["unit"] = *unitFlag
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if *roleFlag != "" {
+			results, err := engine.RunRole(ctx, *roleFlag, params, "local-cli")
+			if err != nil {
+				return err
+			}
+			if *jsonFlag {
+				data, _ := json.MarshalIndent(results, "", "  ")
+				fmt.Println(string(data))
+				return nil
+			}
+			fmt.Println("======================================================================")
+			fmt.Printf("風死 · KAZESHINI CHECK RUN — ROLE: [%s]\n", strings.ToUpper(*roleFlag))
+			fmt.Println("======================================================================")
+			for _, r := range results {
+				fmt.Print(r.RenderTerminal())
+				fmt.Println(strings.Repeat("-", 70))
+			}
+			return nil
+		}
+
+		remArgs := flags.Args()
+		if len(remArgs) == 0 {
+			return errors.New("usage: kazeshini check run <id> or kazeshini check run --role <role>")
+		}
+
+		checkID := remArgs[0]
+		res, err := engine.RunCheck(ctx, checkID, params, "local-cli")
+		if err != nil {
+			return err
+		}
+
+		if *jsonFlag {
+			data, _ := json.MarshalIndent(res, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		}
+
+		fmt.Println("======================================================================")
+		fmt.Printf("風死 · KAZESHINI CHECK: %s\n", checkID)
+		fmt.Println("======================================================================")
+		fmt.Print(res.RenderTerminal())
+		fmt.Println("======================================================================")
+		return nil
+
+	case "symptom":
+		if len(subargs) == 0 {
+			fmt.Println("Available symptoms:")
+			for _, s := range checks.AvailableSymptoms() {
+				fmt.Printf("  • %-16s — %s\n", s.ID, s.Description)
+			}
+			return nil
+		}
+
+		query := subargs[0]
+		jsonFlag := false
+		for _, a := range subargs[1:] {
+			if a == "--json" {
+				jsonFlag = true
+			}
+		}
+
+		sym, err := checks.FindSymptom(query)
+		if err != nil {
+			return err
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		var results []contract.CheckResult
+		for _, cid := range sym.CheckIDs {
+			res, _ := engine.RunCheck(ctx, cid, nil, "local-cli")
+			results = append(results, res)
+		}
+
+		if jsonFlag {
+			output := map[string]any{
+				"symptom": sym,
+				"results": results,
+			}
+			data, _ := json.MarshalIndent(output, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		}
+
+		fmt.Println("======================================================================")
+		fmt.Printf("風死 · KAZESHINI SYMPTOM INVESTIGATION: %s\n", strings.ToUpper(sym.Name))
+		fmt.Printf("Description: %s\n", sym.Description)
+		fmt.Println("======================================================================")
+		for i, cid := range sym.CheckIDs {
+			fmt.Printf("\n[%d] CHECK: %s\n", i+1, cid)
+			if i < len(sym.Reasons) {
+				fmt.Printf("    Rationale: %s\n", sym.Reasons[i])
+			}
+			res := results[i]
+			fmt.Printf("    Status:    [%s]\n", res.Status)
+			fmt.Printf("    Observed:  %s\n", res.SummaryPlain)
+			if res.ExplainLevels[1] != "" {
+				fmt.Printf("    Possible Cause: %s\n", res.ExplainLevels[1])
+			}
+		}
+		fmt.Println("\n======================================================================")
+		return nil
+
+	default:
+		return fmt.Errorf("unknown check subcommand %q (supported: list, run, symptom)", subcmd)
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/OWNER/kazeshini/internal/auth"
 	"github.com/OWNER/kazeshini/internal/blastradius"
 	"github.com/OWNER/kazeshini/internal/briefing"
+	"github.com/OWNER/kazeshini/internal/checks"
 	"github.com/OWNER/kazeshini/internal/config"
 	"github.com/OWNER/kazeshini/internal/coverage"
 	"github.com/OWNER/kazeshini/internal/decisions"
@@ -66,6 +67,7 @@ type Server struct {
 	watchers        *watchers.Manager
 	blastAnalyzer   *blastradius.Analyzer
 	decisionsEngine *decisions.Engine
+	checksEngine    *checks.Engine
 	samplesMu       sync.RWMutex
 	samples         map[string][]forecast.Sample
 	logger          *slog.Logger
@@ -113,6 +115,7 @@ func NewServer(
 		watchers:        watchers.NewManager(30 * time.Second),
 		blastAnalyzer:   blastradius.NewAnalyzer(pGraph),
 		decisionsEngine: decisions.NewEngine(pGraph),
+		checksEngine:    checks.NewEngine(nil, checks.NewActivityLog(cfg.DataDir), internalfs.Default()),
 		samples:         make(map[string][]forecast.Sample),
 		logger:          logger,
 	}
@@ -187,6 +190,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Phase 18: Coverage Honesty & Plain Briefing
 	mux.HandleFunc("GET /api/v1/coverage", s.handleCoverage)
 	mux.HandleFunc("GET /api/v1/briefing", s.handleBriefing)
+
+	// Phase 21: Read-Only Checks & Activity Log
+	mux.HandleFunc("GET /api/v1/checks", s.handleChecks)
+	mux.HandleFunc("POST /api/v1/checks/{id}/run", s.handleCheckRun)
+	mux.HandleFunc("GET /api/v1/activity", s.handleActivity)
 
 	// Profiling endpoints (for external overhead inspection)
 	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
@@ -602,6 +610,131 @@ func (s *Server) handleBriefing(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(br)
+}
+
+func (s *Server) handleChecks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if s.checksEngine == nil {
+		http.Error(w, `{"error":"checks engine not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	role := r.URL.Query().Get("role")
+	var checksList []checks.Check
+	if role != "" {
+		checksList = s.checksEngine.Registry().ByRole(role)
+	} else {
+		checksList = s.checksEngine.Registry().All()
+	}
+
+	type checkMeta struct {
+		ID          string `json:"id"`
+		Role        string `json:"role"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+
+	res := make([]checkMeta, len(checksList))
+	for i, c := range checksList {
+		res[i] = checkMeta{
+			ID:          c.ID(),
+			Role:        c.Role(),
+			Title:       c.Title(),
+			Description: c.Description(),
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(res)
+}
+
+func (s *Server) handleCheckRun(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if s.checksEngine == nil {
+		http.Error(w, `{"error":"checks engine not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, `{"error":"check id required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Parse JSON body or query params for check parameters
+	params := make(map[string]string)
+	for k, v := range r.URL.Query() {
+		if len(v) > 0 {
+			params[k] = v[0]
+		}
+	}
+
+	if r.Header.Get("Content-Type") == "application/json" {
+		var bodyParams map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&bodyParams); err == nil {
+			for k, v := range bodyParams {
+				params[k] = v
+			}
+		}
+	}
+
+	// Validate parameters against path traversal and command injection
+	for k, v := range params {
+		if !checks.ValidateSafeParam(v) {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": fmt.Sprintf("invalid parameter %q: traversal or injection rejected", k),
+			})
+			return
+		}
+	}
+
+	tokenHolder := "api-bearer"
+	if s.auth != nil {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenHolder = "token-holder"
+		}
+	}
+
+	res, err := s.checksEngine.RunCheck(r.Context(), id, params, tokenHolder)
+	if err != nil {
+		if errors.Is(err, checks.ErrInvalidParam) {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(res)
+}
+
+func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if s.checksEngine == nil || s.checksEngine.ActivityLog() == nil {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	limit := 100
+	entries, err := s.checksEngine.ActivityLog().Entries(limit)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"disclaimer": "Local audit activity log; size-capped and not tamper-proof against host compromise.",
+		"entries":    entries,
+	})
 }
 
 func (s *Server) handleVerdict(w http.ResponseWriter, r *http.Request) {
