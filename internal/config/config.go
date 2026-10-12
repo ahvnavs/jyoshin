@@ -38,6 +38,10 @@ type Config struct {
 	AuthRequired bool          `json:"auth_required"`
 	AllowedHosts []string      `json:"allowed_hosts"`
 	OTel         OTelConfig    `json:"otel"`
+	Debug        bool          `json:"debug"`
+	Stateless    bool          `json:"stateless"`
+	DesiredPath  string        `json:"desired_path"`
+	LabelsPath   string        `json:"labels_path"`
 }
 
 // ResolveDefaultDataDir returns /var/lib/kazeshini if root, or XDG_STATE_HOME/~/.local/state/kazeshini if unprivileged.
@@ -57,10 +61,15 @@ func ResolveDefaultDataDir() string {
 		return filepath.Join(xdg, "kazeshini")
 	}
 	home := os.Getenv("HOME")
-	if home == "" {
-		home = "/tmp"
+	if home != "" {
+		p := filepath.Join(home, ".local", "state", "kazeshini")
+		if err := os.MkdirAll(p, 0700); err == nil {
+			return p
+		}
 	}
-	return filepath.Join(home, ".local", "state", "kazeshini")
+	tmpData := filepath.Join(os.TempDir(), "kazeshini")
+	_ = os.MkdirAll(tmpData, 0700)
+	return tmpData
 }
 
 // Default returns the default configuration.
@@ -162,6 +171,15 @@ func Load(configPath string) (Config, error) {
 	}
 	if allowedHosts := os.Getenv("KAZESHINI_ALLOWED_HOSTS"); allowedHosts != "" {
 		cfg.AllowedHosts = strings.Split(allowedHosts, ",")
+	}
+	if statelessStr := os.Getenv("KAZESHINI_STATELESS"); statelessStr != "" {
+		cfg.Stateless = strings.ToLower(statelessStr) == "true" || statelessStr == "1"
+	}
+	if desiredPath := os.Getenv("KAZESHINI_DESIRED"); desiredPath != "" {
+		cfg.DesiredPath = desiredPath
+	}
+	if labelsPath := os.Getenv("KAZESHINI_LABELS"); labelsPath != "" {
+		cfg.LabelsPath = labelsPath
 	}
 
 	if err := cfg.Validate(); err != nil {

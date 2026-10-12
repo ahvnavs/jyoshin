@@ -257,6 +257,7 @@ func TestChecks_Infrastructure(t *testing.T) {
 	}
 
 	// FailedServices Positive & Negative
+	_ = os.MkdirAll(filepath.Join(tmp, "run", "systemd", "system"), 0755)
 	fsCheck := &checks.FailedServicesCheck{}
 	resFS, _ := fsCheck.Run(ctx, rfs, nil)
 	if resFS.Status != contract.StatusOK {
@@ -356,7 +357,9 @@ func TestChecks_Platform(t *testing.T) {
 
 	// ServicePermissions
 	_ = os.MkdirAll(filepath.Join(tmp, "etc", "systemd", "system"), 0755)
-	_ = os.WriteFile(filepath.Join(tmp, "etc", "systemd", "system", "vulnerable.service"), []byte("[Service]\nExecStart=/bin/sh\n"), 0666) // World writable!
+	vulnPath := filepath.Join(tmp, "etc", "systemd", "system", "vulnerable.service")
+	_ = os.WriteFile(vulnPath, []byte("[Service]\nExecStart=/bin/sh\n"), 0666)
+	_ = os.Chmod(vulnPath, 0666) // Explicit chmod to bypass umask!
 	sp := &checks.ServicePermissionsCheck{}
 	resSP, _ := sp.Run(ctx, rfs, nil)
 	if resSP.Status != contract.StatusCrit || !strings.Contains(resSP.SummaryPlain, "world-writable") {
@@ -495,3 +498,47 @@ func TestChecks_ActivityLog(t *testing.T) {
 		t.Errorf("unexpected entry content: %+v", entries[0])
 	}
 }
+
+type allDeniedFS struct {
+	fs.FS
+}
+
+func (a *allDeniedFS) ReadFile(name string) ([]byte, error) { return nil, os.ErrPermission }
+func (a *allDeniedFS) ReadDir(name string) ([]os.DirEntry, error) { return nil, os.ErrPermission }
+func (a *allDeniedFS) Stat(name string) (os.FileInfo, error) { return nil, os.ErrPermission }
+func (a *allDeniedFS) Open(name string) (*os.File, error) { return nil, os.ErrPermission }
+func (a *allDeniedFS) Readlink(name string) (string, error) { return "", os.ErrPermission }
+
+func TestChecks_HonestyHarness_EmptyAndDenied(t *testing.T) {
+	ctx := context.Background()
+	reg := checks.NewRegistry()
+	all := reg.All()
+
+	// Case A: Empty Rooted FS
+	emptyRoot := t.TempDir()
+	emptyFS := fs.NewRootedFS(emptyRoot)
+
+	t.Log("=== HONESTY HARNESS: EMPTY ROOTED FS ===")
+	for _, c := range all {
+		res, _ := c.Run(ctx, emptyFS, nil)
+		if res.Status == contract.StatusOK {
+			t.Errorf("HONESTY VIOLATION: check %q returned OK on empty filesystem! summary: %s", c.ID(), res.SummaryPlain)
+		} else {
+			t.Logf("  PASS empty-fs: %-22s -> [%s] %s", c.ID(), res.Status, res.SummaryPlain)
+		}
+	}
+
+	// Case B: FS where every file is unreadable (os.ErrPermission)
+	deniedFS := &allDeniedFS{emptyFS}
+
+	t.Log("=== HONESTY HARNESS: PERMISSION DENIED FS ===")
+	for _, c := range all {
+		res, _ := c.Run(ctx, deniedFS, nil)
+		if res.Status == contract.StatusOK {
+			t.Errorf("HONESTY VIOLATION: check %q returned OK on permission-denied filesystem! summary: %s", c.ID(), res.SummaryPlain)
+		} else {
+			t.Logf("  PASS denied-fs: %-22s -> [%s] %s", c.ID(), res.Status, res.SummaryPlain)
+		}
+	}
+}
+

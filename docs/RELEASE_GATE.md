@@ -29,11 +29,11 @@ Because external release infrastructure (`https://get.kazeshini.dev` and publish
 | **Read-Only Checks Catalog** | **VERIFIED** | `./kazeshini check list` | Lists all 22 read-only checks categorized across 7 roles with titles. |
 | **Human-First Symptom Investigation** | **VERIFIED** | `./kazeshini check symptom slow` | Executes targeted checks (`cpu-memory`, `disk-inodes`, `app-health`, `time-sync`) with plain-English rationales. |
 | **Embedded Web App Shell (Zero External Assets)** | **VERIFIED** | `go test -v ./test/ui` | Asserts monospace-first font stack, zero external URLs, left-rail navigation, key hint bar, and bundle size < 300 KB (81 KB actual). |
-| **TSUMUJI Wind-Wisp Pet Module** | **VERIFIED** | `grep -E "fetch|XMLHttpRequest|WebSocket" web/js/pet.js` | Zero occurrences of network egress; verified 500ms max ticker and 0 timers when `document.hidden`. |
+| **TSUMUJI Wind-Wisp Pet Module** | **PARTIAL** | `grep -E "fetch|XMLHttpRequest|WebSocket" web/js/pet.js` | Zero occurrences of network egress; verified 500ms max ticker and 0 timers when `document.hidden`. Marked PARTIAL as real browser animation loop was verified via code inspection and static analysis, not live headless browser execution. |
 | **Local Offline Installer (`install.sh`)** | **VERIFIED** | `./scripts/install.sh --local-binary ./kazeshini --dry-run` | Successfully simulates local service installation, user/group creation, and systemd unit placement. |
-| **Remote One-Command Installer (`curl -fsSL https://get.kazeshini.dev | sh`)** | **PARTIAL** | `curl -fsSL https://get.kazeshini.dev` | Fails resolution (`curl: (6) Could not resolve host: get.kazeshini.dev`) because remote DNS and production CDN are not yet live. Softened in README to indicate remote release endpoint requirement. |
+| **Remote One-Command Installer (`curl -fsSL https://get.kazeshini.dev | sh`)** | **PARTIAL** | `curl -fsSL https://get.kazeshini.dev` | Fails resolution (`curl: (6) Could not resolve host: get.kazeshini.dev`) because remote DNS and production CDN are not yet live. Removed from README quickstart; replaced by direct release artifact download instructions. |
 | **Embedded JetBrains Mono WOFF2 Asset** | **PARTIAL** | `ls -la web/fonts/` | `web/fonts/` contains no `.woff2` binaries; font stack gracefully and honestly uses system monospaces first without falling back to sans-serif. |
-| **Headless Browser CPU Measurement** | **NOT VERIFIED** | `which chromium google-chrome playwright node` | No browser binary installed in container environment. Documented with manual DevTools verification steps. |
+| **Headless Browser CPU Measurement** | **NOT VERIFIED** | `which chromium google-chrome playwright node` | No browser binary installed in environment. Documented with manual DevTools verification steps. |
 
 ---
 

@@ -12,22 +12,22 @@ import (
 func (c CheckResult) RenderTerminal() string {
 	var sb strings.Builder
 	statusTag := fmt.Sprintf("[%s]", c.Status)
-	sb.WriteString(fmt.Sprintf("%-6s %s (%s)\n", statusTag, c.Title, c.Role))
-	sb.WriteString(fmt.Sprintf("       Summary:  %s\n", c.SummaryPlain))
+	fmt.Fprintf(&sb, "%-6s %s (%s)\n", statusTag, c.Title, c.Role)
+	fmt.Fprintf(&sb, "       Summary:  %s\n", c.SummaryPlain)
 	if c.ExplainLevels[0] != "" {
-		sb.WriteString(fmt.Sprintf("       What:     %s\n", c.ExplainLevels[0]))
+		fmt.Fprintf(&sb, "       What:     %s\n", c.ExplainLevels[0])
 	}
 	if c.ExplainLevels[1] != "" {
-		sb.WriteString(fmt.Sprintf("       So what:  %s\n", c.ExplainLevels[1]))
+		fmt.Fprintf(&sb, "       So what:  %s\n", c.ExplainLevels[1])
 	}
 	if c.ExplainLevels[2] != "" {
-		sb.WriteString(fmt.Sprintf("       Now what: %s\n", c.ExplainLevels[2]))
+		fmt.Fprintf(&sb, "       Now what: %s\n", c.ExplainLevels[2])
 	}
 	if c.NextStepCommand != "" {
-		sb.WriteString(fmt.Sprintf("       Next cmd: %s\n", c.NextStepCommand))
+		fmt.Fprintf(&sb, "       Next cmd: %s\n", c.NextStepCommand)
 	}
 	if c.Certainty != "" {
-		sb.WriteString(fmt.Sprintf("       Certainty: [%s]\n", strings.ToUpper(string(c.Certainty))))
+		fmt.Fprintf(&sb, "       Certainty: [%s]\n", strings.ToUpper(string(c.Certainty)))
 	}
 	return sb.String()
 }

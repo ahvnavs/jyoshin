@@ -76,9 +76,10 @@ tmpfs /run tmpfs rw,nosuid,nodev 0 0
 	var rootMount, dataMount *MountInfo
 	for _, it := range obs.Items {
 		if m, ok := it.Data.(MountInfo); ok {
-			if m.MountPoint == "/" {
+			switch m.MountPoint {
+			case "/":
 				rootMount = &m
-			} else if m.MountPoint == "/data" {
+			case "/data":
 				dataMount = &m
 			}
 		}

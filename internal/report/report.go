@@ -127,28 +127,28 @@ func (g *Generator) RenderMarkdown() string {
 	h := g.Generate()
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("# %s\n\n", h.Title))
-	sb.WriteString(fmt.Sprintf("**Generated At**: %s | **Tool Version**: %s\n\n", h.GeneratedAt.Format(time.RFC3339), h.ToolVersion))
-	sb.WriteString(fmt.Sprintf("## Verdict: %s\n", h.Verdict.OneLineVerdict))
-	sb.WriteString(fmt.Sprintf("- **Chaos Index**: %d / 100 (%s)\n", h.Verdict.ChaosIndex, h.Verdict.StateLabel))
-	sb.WriteString(fmt.Sprintf("- **Identity**: %s\n", h.Verdict.IdentityLine))
-	sb.WriteString(fmt.Sprintf("- **Monthly Waste**: $%.2f\n\n", h.Verdict.EstimatedWasteUSD))
+	fmt.Fprintf(&sb, "# %s\n\n", h.Title)
+	fmt.Fprintf(&sb, "**Generated At**: %s | **Tool Version**: %s\n\n", h.GeneratedAt.Format(time.RFC3339), h.ToolVersion)
+	fmt.Fprintf(&sb, "## Verdict: %s\n", h.Verdict.OneLineVerdict)
+	fmt.Fprintf(&sb, "- **Chaos Index**: %d / 100 (%s)\n", h.Verdict.ChaosIndex, h.Verdict.StateLabel)
+	fmt.Fprintf(&sb, "- **Identity**: %s\n", h.Verdict.IdentityLine)
+	fmt.Fprintf(&sb, "- **Monthly Waste**: $%.2f\n\n", h.Verdict.EstimatedWasteUSD)
 
 	sb.WriteString("## Decommissioning Readiness\n")
-	sb.WriteString(fmt.Sprintf("> %s\n\n", h.Decommission.Verdict))
+	fmt.Fprintf(&sb, "> %s\n\n", h.Decommission.Verdict)
 	if len(h.Decommission.Blockers) > 0 {
 		sb.WriteString("### Blockers:\n")
 		for _, b := range h.Decommission.Blockers {
-			sb.WriteString(fmt.Sprintf("- [!] %s\n", b))
+			fmt.Fprintf(&sb, "- [!] %s\n", b)
 		}
 		sb.WriteString("\n")
 	}
 
 	sb.WriteString("## What Must Move (Migration Plan)\n")
-	sb.WriteString(fmt.Sprintf("- **Active Services**: %s\n", strings.Join(h.Migration.Services, ", ")))
-	sb.WriteString(fmt.Sprintf("- **Listening Ports**: %s\n", strings.Join(h.Migration.Ports, ", ")))
-	sb.WriteString(fmt.Sprintf("- **Unique Data Paths**: %s\n", strings.Join(h.Migration.DataPaths, ", ")))
-	sb.WriteString(fmt.Sprintf("- **Secrets Paths (Redacted Metadata)**: %s\n\n", strings.Join(h.Migration.SecretsPaths, ", ")))
+	fmt.Fprintf(&sb, "- **Active Services**: %s\n", strings.Join(h.Migration.Services, ", "))
+	fmt.Fprintf(&sb, "- **Listening Ports**: %s\n", strings.Join(h.Migration.Ports, ", "))
+	fmt.Fprintf(&sb, "- **Unique Data Paths**: %s\n", strings.Join(h.Migration.DataPaths, ", "))
+	fmt.Fprintf(&sb, "- **Secrets Paths (Redacted Metadata)**: %s\n\n", strings.Join(h.Migration.SecretsPaths, ", "))
 
 	sb.WriteString("## Dependency Topology\n```\n")
 	sb.WriteString(h.Dependencies.ASCIIMap)

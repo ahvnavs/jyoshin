@@ -22,9 +22,12 @@ import (
 	"github.com/OWNER/kazeshini/internal/briefing"
 	"github.com/OWNER/kazeshini/internal/checks"
 	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/contract"
 	"github.com/OWNER/kazeshini/internal/coverage"
 	"github.com/OWNER/kazeshini/internal/decisions"
+	"github.com/OWNER/kazeshini/internal/desired"
 	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/drift"
 	"github.com/OWNER/kazeshini/internal/forecast"
 	internalfs "github.com/OWNER/kazeshini/internal/fs"
 	"github.com/OWNER/kazeshini/internal/graph"
@@ -32,7 +35,10 @@ import (
 	"github.com/OWNER/kazeshini/internal/inventory"
 	"github.com/OWNER/kazeshini/internal/origin"
 	"github.com/OWNER/kazeshini/internal/orphan"
+	"github.com/OWNER/kazeshini/internal/plan"
+	"github.com/OWNER/kazeshini/internal/policy"
 	"github.com/OWNER/kazeshini/internal/report"
+	"github.com/OWNER/kazeshini/internal/resource"
 	"github.com/OWNER/kazeshini/internal/rules"
 	"github.com/OWNER/kazeshini/internal/store"
 	"github.com/OWNER/kazeshini/internal/supervisor"
@@ -96,9 +102,23 @@ func NewServer(
 		logger = slog.Default()
 	}
 
-	authMgr, err := auth.NewManager(cfg.DataDir)
-	if err != nil {
-		logger.Warn("could not initialize persistent auth token; continuing in-memory", "error", err)
+	var authMgr *auth.Manager
+	if cfg.Stateless {
+		authMgr = auth.NewMemoryManager()
+	} else {
+		var err error
+		authMgr, err = auth.NewManager(cfg.DataDir)
+		if err != nil {
+			logger.Warn("could not initialize persistent auth token; continuing in-memory", "error", err)
+			authMgr = auth.NewMemoryManager()
+		}
+	}
+
+	var actLog *checks.ActivityLog
+	if cfg.Stateless {
+		actLog = checks.NewMemoryActivityLog()
+	} else {
+		actLog = checks.NewActivityLog(cfg.DataDir)
 	}
 
 	s := &Server{
@@ -117,7 +137,7 @@ func NewServer(
 		watchers:        watchers.NewManager(30 * time.Second),
 		blastAnalyzer:   blastradius.NewAnalyzer(pGraph),
 		decisionsEngine: decisions.NewEngine(pGraph),
-		checksEngine:    checks.NewEngine(nil, checks.NewActivityLog(cfg.DataDir), internalfs.Default()),
+		checksEngine:    checks.NewEngine(nil, actLog, internalfs.Default()),
 		samples:         make(map[string][]forecast.Sample),
 		logger:          logger,
 	}
@@ -198,12 +218,18 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/checks/{id}/run", s.handleCheckRun)
 	mux.HandleFunc("GET /api/v1/activity", s.handleActivity)
 
-	// Profiling endpoints (for external overhead inspection)
-	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
-	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+	// Phase 25: Desired State, Drift, and Remediation Plans
+	mux.HandleFunc("GET /api/v1/drift", s.handleDrift)
+	mux.HandleFunc("GET /api/v1/plans", s.handlePlans)
+
+	// Profiling endpoints (served only when --debug is set, behind auth)
+	if s.cfg.Debug {
+		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+		mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+	}
 
 	// Embedded web UI
 	subFS, err := fs.Sub(web.Assets, ".")
@@ -219,7 +245,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Permit health, version, auth status, and static web UI files without token
 		path := r.URL.Path
-		if path == "/api/v1/health" || path == "/api/v1/version" || path == "/api/v1/auth/status" || !strings.HasPrefix(path, "/api/") {
+		if path == "/api/v1/health" || path == "/api/v1/version" || path == "/api/v1/auth/status" || (!strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/debug/")) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -578,7 +604,15 @@ func (s *Server) computeCurrentVerdict(ctx context.Context) verdict.Summary {
 	if s.orphanScan != nil {
 		orphanCount = s.orphanScan.Count()
 	}
-	return verdict.ComputeVerdictWithCoverage(nodes, findings, orphanCount, cov.IsAdequate, cov.SummaryNote)
+	var checkResults []contract.CheckResult
+	if s.checksEngine != nil {
+		for _, c := range s.checksEngine.Registry().All() {
+			if res, err := c.Run(ctx, internalfs.Default(), nil); err == nil {
+				checkResults = append(checkResults, res)
+			}
+		}
+	}
+	return verdict.ComputeVerdictWithChecks(nodes, findings, orphanCount, cov.IsAdequate, cov.SummaryNote, checkResults)
 }
 
 func (s *Server) handleCoverage(w http.ResponseWriter, r *http.Request) {
@@ -750,6 +784,115 @@ func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleDrift(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	desiredPath := s.cfg.DesiredPath
+	if qPath := r.URL.Query().Get("desired"); qPath != "" {
+		desiredPath = qPath
+	}
+
+	if desiredPath == "" {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":   "no_desired_state",
+			"message":  "No kazeshini.desired.yaml configured. Specify path via --desired, KAZESHINI_DESIRED, or ?desired=path",
+			"items":    []drift.Item{},
+			"summary":  drift.Summary{},
+		})
+		return
+	}
+
+	manifest, err := desired.LoadFile(desiredPath)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	labels, _ := desired.LoadHostLabels(s.cfg.LabelsPath)
+	desiredState := manifest.ForHost(labels)
+
+	var nodes []graph.Node
+	if s.pGraph != nil {
+		nodes, _ = s.pGraph.Snapshot()
+	}
+	resources := make([]resource.Resource, len(nodes))
+	for i, n := range nodes {
+		resources[i] = resource.FromGraphNode(n)
+	}
+
+	cov := s.computeCurrentCoverage(r.Context())
+	engine := drift.NewEngine()
+	items, summary := engine.Evaluate(r.Context(), desiredState, resources, cov)
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":   "evaluated",
+		"items":    items,
+		"summary":  summary,
+		"coverage": cov.SummaryNote,
+	})
+}
+
+func (s *Server) handlePlans(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	desiredPath := s.cfg.DesiredPath
+	if qPath := r.URL.Query().Get("desired"); qPath != "" {
+		desiredPath = qPath
+	}
+
+	if desiredPath == "" {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":  "no_desired_state",
+			"message": "No desired state configured to generate remediation plans.",
+		})
+		return
+	}
+
+	manifest, err := desired.LoadFile(desiredPath)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	labels, _ := desired.LoadHostLabels(s.cfg.LabelsPath)
+	desiredState := manifest.ForHost(labels)
+
+	var nodes []graph.Node
+	if s.pGraph != nil {
+		nodes, _ = s.pGraph.Snapshot()
+	}
+	resources := make([]resource.Resource, len(nodes))
+	for i, n := range nodes {
+		resources[i] = resource.FromGraphNode(n)
+	}
+
+	cov := s.computeCurrentCoverage(r.Context())
+	driftEngine := drift.NewEngine()
+	driftItems, _ := driftEngine.Evaluate(r.Context(), desiredState, resources, cov)
+
+	planner := plan.NewPlanner(s.blastAnalyzer)
+	p, err := planner.CreatePlan(driftItems)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	polEngine := policy.NewEngine(policy.DefaultConfig())
+	decision := polEngine.EvaluatePlan(r.Context(), p)
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"plan":     p,
+		"decision": decision,
+	})
+}
+
 func (s *Server) handleVerdict(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	sum := s.computeCurrentVerdict(r.Context())
@@ -790,7 +933,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	// Initial push
 	v := s.computeCurrentVerdict(r.Context())
 	data, _ := json.Marshal(v)
-	fmt.Fprintf(w, "event: verdict\ndata: %s\n\n", data)
+	_, _ = fmt.Fprintf(w, "event: verdict\ndata: %s\n\n", data)
 	flusher.Flush()
 
 	for {
@@ -801,7 +944,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 			current := s.computeCurrentVerdict(r.Context())
 			d, err := json.Marshal(current)
 			if err == nil {
-				fmt.Fprintf(w, "event: verdict\ndata: %s\n\n", d)
+				_, _ = fmt.Fprintf(w, "event: verdict\ndata: %s\n\n", d)
 				flusher.Flush()
 			}
 		}
@@ -854,7 +997,10 @@ func (s *Server) RecordSampleAt(target string, value float64, ts time.Time) {
 func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if s.store == nil || s.diffEngine == nil {
-		http.Error(w, `{"error":"store or diff engine not available"}`, http.StatusServiceUnavailable)
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(diff.ChangeSet{
+			Summary: "Running in stateless mode: history and change tracking require persistent or accumulated snapshots.",
+		})
 		return
 	}
 
@@ -951,6 +1097,9 @@ func (s *Server) handleForecasts(w http.ResponseWriter, r *http.Request) {
 			capacity = 1000000.0
 		}
 		res := s.forecaster.Forecast(kind, target, capacity, smps)
+		if s.cfg.Stateless && (res.State == forecast.StateNotEnoughData || len(smps) < 5) {
+			res.Message = "Forecast requires historical metrics; running in stateless mode (needs persistence to accumulate trend over restarts)."
+		}
 		if s.watchers != nil {
 			_ = s.watchers.ProcessForecast(res)
 		}
@@ -961,6 +1110,9 @@ func (s *Server) handleForecasts(w http.ResponseWriter, r *http.Request) {
 	for target, def := range defaultTargets {
 		smps := s.samples[target]
 		res := s.forecaster.Forecast(def.kind, target, def.capacity, smps)
+		if s.cfg.Stateless && (res.State == forecast.StateNotEnoughData || len(smps) < 5) {
+			res.Message = "Forecast requires historical metrics; running in stateless mode (needs persistence to accumulate trend over restarts)."
+		}
 		if s.watchers != nil {
 			_ = s.watchers.ProcessForecast(res)
 		}

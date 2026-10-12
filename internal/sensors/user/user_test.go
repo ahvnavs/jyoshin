@@ -72,9 +72,10 @@ command="ls" ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCSECRET bob-key
 	var bob *UserData
 	for _, it := range obs.Items {
 		u := it.Data.(UserData)
-		if u.Username == "alice" {
+		switch u.Username {
+		case "alice":
 			alice = &u
-		} else if u.Username == "bob" {
+		case "bob":
 			bob = &u
 		}
 	}

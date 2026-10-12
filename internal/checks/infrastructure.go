@@ -16,6 +16,7 @@ import (
 	"github.com/OWNER/kazeshini/internal/contract"
 	"github.com/OWNER/kazeshini/internal/fs"
 	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/sensors/storage"
 )
 
 // DiskInodesCheck inspects statfs and real block mounts for disk capacity and inode saturation.
@@ -54,18 +55,30 @@ func (c *DiskInodesCheck) Run(ctx context.Context, rfs fs.FS, params map[string]
 	checkedMounts := 0
 	scanner := bufio.NewScanner(bytes.NewReader(mountData))
 
+	seenMounts := make(map[string]bool)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) < 3 {
 			continue
 		}
-		mp := fields[1]
-		fstype := fields[2]
+		var dev, mp, fstype string
+		if strings.HasPrefix(fields[0], "/") && (len(fields) < 4 || !strings.HasPrefix(fields[1], "/")) {
+			dev = "none"
+			mp = fields[0]
+			fstype = fields[1]
+		} else if len(fields) >= 3 {
+			dev = fields[0]
+			mp = fields[1]
+			fstype = fields[2]
+		}
 
-		// Skip pseudo/virtual mounts like proc, sysfs, devtmpfs, cgroup
-		if fstype == "proc" || fstype == "sysfs" || fstype == "cgroup" || fstype == "cgroup2" || fstype == "devpts" || fstype == "mqueue" || fstype == "autofs" {
+		if !storage.IsRealBlockMount(dev, fstype, mp) {
 			continue
 		}
+		if seenMounts[mp] {
+			continue
+		}
+		seenMounts[mp] = true
 
 		checkedMounts++
 		var stat syscall.Statfs_t
@@ -118,7 +131,24 @@ func (c *FailedServicesCheck) Description() string {
 }
 
 func (c *FailedServicesCheck) Run(ctx context.Context, rfs fs.FS, params map[string]string) (contract.CheckResult, error) {
-	// Look for failed service marker in /run/systemd/units or /run/systemd/system
+	// Verify systemd is running: check /run/systemd/system directory
+	if _, err := rfs.Stat("/run/systemd/system"); err != nil {
+		return contract.CheckResult{
+			ID:           c.ID(),
+			Role:         c.Role(),
+			Title:        c.Title(),
+			Status:       contract.StatusUnknown,
+			SummaryPlain: "systemd is not running or offline (/run/systemd/system not present)",
+			ExplainLevels: [3]string{
+				"Systemd runtime directory /run/systemd/system is absent",
+				"Cannot audit failed services when systemd daemon is not active",
+				"Ensure systemd is running as PID 1",
+			},
+			Certainty: graph.CertaintyObserved,
+			ReadOnly:  true,
+		}, nil
+	}
+
 	unitDirs := []string{"/run/systemd/units", "/run/systemd/system", "/etc/systemd/system"}
 	var failedUnits []string
 	permDenied := false
@@ -198,6 +228,59 @@ func (c *TimeSyncCheck) Description() string {
 }
 
 func (c *TimeSyncCheck) Run(ctx context.Context, rfs fs.FS, params map[string]string) (contract.CheckResult, error) {
+	// If /proc cannot be read, report UNKNOWN with reason
+	if _, err := rfs.ReadDir("/proc"); err != nil {
+		if os.IsPermission(err) {
+			return contract.CheckResult{
+				ID:           c.ID(),
+				Role:         c.Role(),
+				Title:        c.Title(),
+				Status:       contract.StatusUnknown,
+				SummaryPlain: "Cannot inspect /proc: permission denied",
+				ExplainLevels: [3]string{
+					"Permission denied reading /proc filesystem",
+					"Cannot inspect running time daemons or kernel osrelease",
+					"Grant read access to /proc",
+				},
+				Certainty: graph.CertaintyObserved,
+				ReadOnly:  true,
+			}, nil
+		}
+		return contract.CheckResult{
+			ID:           c.ID(),
+			Role:         c.Role(),
+			Title:        c.Title(),
+			Status:       contract.StatusUnknown,
+			SummaryPlain: fmt.Sprintf("Cannot inspect /proc: %v", err),
+			ExplainLevels: [3]string{
+				"Procfs filesystem is unavailable or unmounted",
+				"Cannot audit time synchronization state without /proc",
+				"Ensure /proc is mounted",
+			},
+			Certainty: graph.CertaintyObserved,
+			ReadOnly:  true,
+		}, nil
+	}
+
+	// Detect WSL or container environments
+	osRelease, _ := rfs.ReadFile("/proc/sys/kernel/osrelease")
+	if strings.Contains(strings.ToLower(string(osRelease)), "microsoft") || strings.Contains(strings.ToLower(string(osRelease)), "wsl") {
+		return contract.CheckResult{
+			ID:           c.ID(),
+			Role:         c.Role(),
+			Title:        c.Title(),
+			Status:       contract.StatusUnknown,
+			SummaryPlain: "Time synchronization unknown in WSL/container: clock is managed by hypervisor host",
+			ExplainLevels: [3]string{
+				"WSL guest kernel clock is steered directly by the Windows hypervisor",
+				"Guest NTP daemons and adjtimex sync status cannot be independently verified",
+				"Host clock synchronization should be verified on the Windows hypervisor",
+			},
+			Certainty: graph.CertaintyObserved,
+			ReadOnly:  true,
+		}, nil
+	}
+
 	var tx syscall.Timex
 	state, err := syscall.Adjtimex(&tx)
 	if err != nil {
@@ -217,29 +300,49 @@ func (c *TimeSyncCheck) Run(ctx context.Context, rfs fs.FS, params map[string]st
 				ReadOnly:  true,
 			}, nil
 		}
-		// If adjtimex fails for another reason, fallback to checking daemon configs
 	}
 
 	// In Linux, TIME_OK = 0, TIME_INS = 1, TIME_DEL = 2, TIME_OOP = 3, TIME_WAIT = 4, TIME_BAD/ERROR = 5
-	isSynchronized := (err == nil && state != 5)
+	// tx.Status & 64 != 0 indicates STA_UNSYNC (clock unsynchronized)
+	staUnsync := (tx.Status & 64) != 0
+	isSynchronized := (err == nil && state != 5 && !staUnsync)
 
-	// Check daemon presence
-	daemons := []string{"/lib/systemd/systemd-timesyncd", "/usr/sbin/chronyd", "/usr/sbin/ntpd"}
-	foundDaemon := ""
-	for _, d := range daemons {
-		if _, err := rfs.Stat(d); err == nil {
-			foundDaemon = d
-			break
+	// Check if a time sync daemon is actually RUNNING in /proc
+	runningDaemon := ""
+	daemons := []string{"systemd-timesyn", "chronyd", "ntpd"}
+	if procEntries, err := rfs.ReadDir("/proc"); err == nil {
+		for _, pe := range procEntries {
+			if !pe.IsDir() {
+				continue
+			}
+			commData, err := rfs.ReadFile(fmt.Sprintf("/proc/%s/comm", pe.Name()))
+			if err == nil {
+				comm := strings.TrimSpace(string(commData))
+				for _, d := range daemons {
+					if strings.Contains(comm, d) {
+						runningDaemon = comm
+						break
+					}
+				}
+				if runningDaemon != "" {
+					break
+				}
+			}
 		}
 	}
 
 	st := contract.StatusOK
 	sum := "System clock is synchronized with external time source"
-	if !isSynchronized && foundDaemon == "" {
+	if !isSynchronized && runningDaemon == "" {
 		st = contract.StatusWarn
-		sum = "System clock is not synchronized (kernel reports unsynchronized; no active chrony or timesyncd found)"
-	} else if isSynchronized && foundDaemon != "" {
-		sum = fmt.Sprintf("System clock is synchronized (managed by %s)", foundDaemon)
+		sum = "System clock is not synchronized (kernel reports STA_UNSYNC; no active chrony or timesyncd process running)"
+	} else if isSynchronized && runningDaemon != "" {
+		sum = fmt.Sprintf("System clock is synchronized (verified via kernel adjtimex and running daemon %s)", runningDaemon)
+	} else if runningDaemon != "" && !isSynchronized {
+		st = contract.StatusWarn
+		sum = fmt.Sprintf("Time sync daemon %s is running but kernel reports clock unsynchronized (STA_UNSYNC)", runningDaemon)
+	} else if isSynchronized && runningDaemon == "" {
+		sum = "System clock is synchronized (verified via kernel adjtimex; no dedicated NTP daemon detected)"
 	}
 
 	return contract.CheckResult{

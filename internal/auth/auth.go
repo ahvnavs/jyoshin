@@ -39,9 +39,22 @@ func NewManager(dataDir string) (*Manager, error) {
 	return m, nil
 }
 
+// NewMemoryManager creates a strictly in-memory auth manager that never touches disk.
+func NewMemoryManager() *Manager {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return &Manager{
+		token: hex.EncodeToString(b),
+	}
+}
+
 func (m *Manager) loadOrGenerate() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if m.token != "" {
+		return nil
+	}
 
 	// Check if token exists
 	if data, err := os.ReadFile(m.tokenPath); err == nil {

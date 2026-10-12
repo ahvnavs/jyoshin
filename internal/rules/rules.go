@@ -539,9 +539,10 @@ func (e *Engine) Evaluate(ctx context.Context, nodes []graph.Node, edges []graph
 			// Exposure multiplier
 			expMultiplier := 1.0
 			if expClass, ok := node.Properties["exposure_class"].(string); ok {
-				if expClass == "all_interfaces" {
+				switch expClass {
+				case "all_interfaces":
 					expMultiplier = 1.5
-				} else if expClass == "private" {
+				case "private":
 					expMultiplier = 1.2
 				}
 			}

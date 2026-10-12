@@ -149,11 +149,11 @@ func (e *Engine) GetDependencies() DependencyMap {
 		sb.WriteString("|  (no inbound traffic)    -->   [LOCAL HOST]   -->  (isolated) |\n")
 	} else {
 		for _, in := range inbound {
-			sb.WriteString(fmt.Sprintf("| [IN] %-20s -> [%-12s]               |\n", in.Address, in.Role))
+			fmt.Fprintf(&sb, "| [IN] %-20s -> [%-12s]               |\n", in.Address, in.Role)
 		}
 		sb.WriteString("|                                                              |\n")
 		for _, out := range outbound {
-			sb.WriteString(fmt.Sprintf("|                            [HOST] -> [OUT] %-17s |\n", fmt.Sprintf("%s:%d", out.Address, out.Port)))
+			fmt.Fprintf(&sb, "|                            [HOST] -> [OUT] %-17s |\n", fmt.Sprintf("%s:%d", out.Address, out.Port))
 		}
 	}
 	sb.WriteString("+--------------------------------------------------------------+\n")

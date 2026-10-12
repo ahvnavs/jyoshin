@@ -108,9 +108,10 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 	groupsMap := make(map[string]*ConnectionGroup)
 
 	for _, sock := range sockets {
-		if sock.State == "LISTEN" {
+		switch sock.State {
+		case "LISTEN":
 			listeners = append(listeners, sock)
-		} else if sock.State == "ESTABLISHED" {
+		case "ESTABLISHED":
 			established = append(established, sock)
 			key := fmt.Sprintf("%s:%d", sock.RemoteIP, sock.PID)
 			if g, exists := groupsMap[key]; exists {

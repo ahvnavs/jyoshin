@@ -29,6 +29,10 @@ import (
 // TestIdleMinuteProfile captures a 60-second idle CPU profile while running
 // all sensors through the supervisor at their normal cadence.
 func TestIdleMinuteProfile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping 60s idle profile capture in short test mode")
+	}
+
 	profFile, err := os.Create("/tmp/idle_minute.pprof")
 	if err != nil {
 		t.Fatalf("failed to create profile file: %v", err)

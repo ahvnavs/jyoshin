@@ -24,14 +24,20 @@ import (
 	"github.com/OWNER/kazeshini/internal/config"
 	"github.com/OWNER/kazeshini/internal/contract"
 	"github.com/OWNER/kazeshini/internal/coverage"
+	"github.com/OWNER/kazeshini/internal/desired"
 	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/drift"
 	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/graphbuilder"
 	"github.com/OWNER/kazeshini/internal/inventory"
 	"github.com/OWNER/kazeshini/internal/logging"
 	"github.com/OWNER/kazeshini/internal/origin"
 	"github.com/OWNER/kazeshini/internal/orphan"
+	"github.com/OWNER/kazeshini/internal/plan"
+	"github.com/OWNER/kazeshini/internal/policy"
 	"github.com/OWNER/kazeshini/internal/report"
+	"github.com/OWNER/kazeshini/internal/resource"
 	"github.com/OWNER/kazeshini/internal/rules"
 	"github.com/OWNER/kazeshini/internal/sensors"
 	"github.com/OWNER/kazeshini/internal/sensors/container"
@@ -114,6 +120,15 @@ func run(args []string) error {
 	case "open":
 		return runOpen(subargs)
 
+	case "desired":
+		return runDesired(subargs)
+
+	case "drift":
+		return runDrift(subargs)
+
+	case "plan":
+		return runPlan(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -138,6 +153,9 @@ Commands:
   serve      Start the local API and web dashboard
   report     Generate a standalone State of this Server report (html, json, md)
   token      Print the local API authentication token (0600)
+  desired    Manage declarative desired state manifests (e.g. kazeshini desired lint <file>)
+  drift      Audit discrepancies between desired state and observed host resources
+  plan       Generate deterministic topologically sorted remediation DAG (read-only, shown only)
   rules      Lint or evaluate declarative rules (e.g. kazeshini rules lint <file>)
   snapshot   Capture a point-in-time provenance snapshot (stub)
   version    Print binary version information
@@ -413,6 +431,8 @@ func runServe(args []string) error {
 		configPathFlag  string
 		logLevelFlag    string
 		logFormatFlag   string
+		debugFlag       bool
+		statelessFlag   bool
 	)
 
 	flags.StringVar(&hostFlag, "host", "", "Host address to bind (default: 127.0.0.1)")
@@ -421,6 +441,8 @@ func runServe(args []string) error {
 	flags.StringVar(&configPathFlag, "config", "", "Path to configuration file")
 	flags.StringVar(&logLevelFlag, "log-level", "", "Logging level (debug, info, warn, error)")
 	flags.StringVar(&logFormatFlag, "log-format", "", "Logging format (text, json)")
+	flags.BoolVar(&debugFlag, "debug", false, "Enable debug mode and pprof profiling endpoints")
+	flags.BoolVar(&statelessFlag, "stateless", false, "Run strictly stateless with zero disk touches (Memory store only)")
 
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -429,6 +451,10 @@ func runServe(args []string) error {
 	cfg, err := config.Load(configPathFlag)
 	if err != nil {
 		return fmt.Errorf("configuration loading error: %w", err)
+	}
+
+	if statelessFlag {
+		cfg.Stateless = true
 	}
 
 	if hostFlag != "" {
@@ -445,6 +471,9 @@ func runServe(args []string) error {
 	}
 	if logFormatFlag != "" {
 		cfg.LogFormat = logFormatFlag
+	}
+	if debugFlag {
+		cfg.Debug = true
 	}
 
 	// Validate configuration (including loopback check)
@@ -493,15 +522,22 @@ func runServe(args []string) error {
 	originResolver := origin.NewResolver(rfs, invManager)
 	orphanScanner := orphan.NewScanner(rfs, originResolver)
 
-	// Initialize Phase 4: ProvenanceGraph and BoltStore
+	// Initialize Phase 4: ProvenanceGraph and Store
 	pGraph := graphbuilder.NewProvenanceGraph()
 	pGraph.SetOriginResolver(originResolver)
-	bStore, err := store.Open(store.DefaultConfig(cfg.DataDir), logger)
-	if err != nil {
-		logger.Warn("could not open persistent store; running in memory", "error", err)
-	} else if latestSnap, err := bStore.GetLatestSnapshot(context.Background()); err == nil && latestSnap != nil {
-		pGraph.SeedFromSnapshot(latestSnap.Nodes)
-		logger.Info("seeded provenance graph from persistent store", "nodes", len(latestSnap.Nodes))
+
+	var bStore *store.BoltStore
+	if cfg.Stateless {
+		logger.Info("running in stateless mode: zero disk persistence (Memory store only)")
+	} else {
+		var err error
+		bStore, err = store.Open(store.DefaultConfig(cfg.DataDir), logger)
+		if err != nil {
+			logger.Warn("could not open persistent store; running in memory", "error", err)
+		} else if latestSnap, err := bStore.GetLatestSnapshot(context.Background()); err == nil && latestSnap != nil {
+			pGraph.SeedFromSnapshot(latestSnap.Nodes)
+			logger.Info("seeded provenance graph from persistent store", "nodes", len(latestSnap.Nodes))
+		}
 	}
 	defer func() {
 		if bStore != nil {
@@ -528,7 +564,11 @@ func runServe(args []string) error {
 	}
 
 	fmt.Printf("Kazeshini dashboard: http://%s:%d\n", cfg.Host, cfg.Port)
-	fmt.Println("Access token: run 'kazeshini token' or check data directory auth.token")
+	if cfg.Stateless && server.AuthManager() != nil {
+		fmt.Printf("Access token (stateless in-memory): %s\n", server.AuthManager().Token())
+	} else {
+		fmt.Println("Access token: run 'kazeshini token' or check data directory auth.token")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -566,7 +606,8 @@ func runServe(args []string) error {
 							pGraph.IngestObservation(obs)
 						}
 						// Record metrics for resource forecaster
-						if sName == "host" {
+						switch sName {
+						case "host":
 							for _, it := range obs.Items {
 								if info, ok := it.Data.(host.HostInfo); ok {
 									if info.MemoryBytes > 0 {
@@ -577,11 +618,11 @@ func runServe(args []string) error {
 									}
 								}
 							}
-						} else if sName == "storage" {
+						case "storage":
 							for _, it := range obs.Items {
 								if m, ok := it.Data.(storage.MountInfo); ok {
-									// Forecast only real block-device mounts, skip tmpfs/ro pseudo mounts
-									if (m.IsBlockDevice || m.MountPoint == "/") && !m.ReadOnly && m.FSType != "tmpfs" {
+									// Forecast only real block-device mounts
+									if m.IsBlockDevice {
 										server.RecordSample(m.MountPoint, m.UsageRatio*100)
 										if m.UsedInodes > 0 {
 											server.RecordSample(m.MountPoint+"_inodes", float64(m.UsedInodes))
@@ -589,7 +630,7 @@ func runServe(args []string) error {
 									}
 								}
 							}
-						} else if sName == "resources" {
+						case "resources":
 							for _, it := range obs.Items {
 								if r, ok := it.Data.(resources.ResourceSample); ok {
 									server.RecordSample("load1", r.Load1)
@@ -607,14 +648,16 @@ func runServe(args []string) error {
 
 				if hasNewData {
 					nodes, edges := pGraph.Snapshot()
-					if len(nodes) > 0 && bStore != nil {
+					if len(nodes) > 0 {
 						newSnap := store.Snapshot{
 							ID:        fmt.Sprintf("snap-%d", time.Now().Unix()),
 							Timestamp: time.Now().UTC(),
 							Nodes:     nodes,
 							Edges:     edges,
 						}
-						_ = bStore.SaveSnapshot(ctx, newSnap)
+						if bStore != nil {
+							_ = bStore.SaveSnapshot(ctx, newSnap)
+						}
 
 						// Diff against previous snapshot and process watchers
 						if lastSnap != nil {
@@ -858,7 +901,9 @@ func runOpen(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", bindAddr, err)
 	}
-	defer ln.Close()
+	defer func() {
+		_ = ln.Close()
+	}()
 
 	cfg.Port = ln.Addr().(*net.TCPAddr).Port
 
@@ -1035,3 +1080,242 @@ func renderTUI(ctx context.Context, rfs fs.FS, cov coverage.Report) {
 	fmt.Println("--- END TERMINAL TUI ---")
 	fmt.Println()
 }
+
+func runDesired(args []string) error {
+	if len(args) == 0 {
+		fmt.Println("Usage: kazeshini desired lint <file-or-dir>")
+		return nil
+	}
+	switch args[0] {
+	case "lint":
+		target := "kazeshini.desired.yaml"
+		if len(args) > 1 {
+			target = args[1]
+		}
+		manifest, err := desired.LoadFile(target)
+		if err != nil {
+			return fmt.Errorf("desired manifest lint failed: %w", err)
+		}
+		fmt.Printf("[OK] Valid DesiredState manifest: %q (apiVersion: %s, rules: %d)\n",
+			manifest.Metadata.Name, manifest.APIVersion, len(manifest.Rules))
+		return nil
+	default:
+		return fmt.Errorf("unknown desired subcommand %q (try 'lint')", args[0])
+	}
+}
+
+func collectHostObservation() ([]graph.Node, coverage.Report) {
+	rfs := fs.Default()
+	pGraph := graphbuilder.NewProvenanceGraph()
+
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	orphanScanner := orphan.NewScanner(rfs, originResolver)
+	pGraph.SetOriginResolver(originResolver)
+
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
+
+	sup := supervisor.New(registry, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, s := range registry.All() {
+		if obs, err := sup.RunSensorSafe(ctx, s, 3*time.Second); err == nil {
+			pGraph.IngestObservation(obs)
+		}
+	}
+
+	if inv, err := invManager.CollectInventory(ctx); err == nil {
+		now := time.Now().UTC()
+		for _, pkg := range inv.Packages {
+			pkgNodeID := graphbuilder.GenerateNodeID(graph.NodePackage, pkg.Name)
+			_ = pGraph.UpsertNode(graph.Node{
+				ID:        pkgNodeID,
+				Type:      graph.NodePackage,
+				Label:     pkg.Name,
+				Properties: map[string]any{
+					"version": pkg.Version,
+					"manager": pkg.Manager,
+					"arch":    pkg.Arch,
+				},
+				Certainty: graph.CertaintyObserved,
+				FirstSeen: now,
+				LastSeen:  now,
+			})
+		}
+	}
+
+	assessor := coverage.NewAssessor(sup, invManager, orphanScanner, rfs)
+	cov := assessor.Assess(ctx)
+
+	nodes, _ := pGraph.Snapshot()
+	return nodes, cov
+}
+
+func runDrift(args []string) error {
+	flags := flag.NewFlagSet("drift", flag.ContinueOnError)
+	var (
+		desiredPath string
+		labelsPath  string
+		format      string
+	)
+	flags.StringVar(&desiredPath, "desired", "kazeshini.desired.yaml", "Path to kazeshini.desired.yaml")
+	flags.StringVar(&labelsPath, "labels", "", "Path to host labels YAML")
+	flags.StringVar(&format, "format", "text", "Output format (text, json)")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	manifest, err := desired.LoadFile(desiredPath)
+	if err != nil {
+		return fmt.Errorf("failed to load desired manifest %q: %w", desiredPath, err)
+	}
+
+	labels, _ := desired.LoadHostLabels(labelsPath)
+	desiredState := manifest.ForHost(labels)
+
+	nodes, cov := collectHostObservation()
+	resources := make([]resource.Resource, len(nodes))
+	for i, n := range nodes {
+		resources[i] = resource.FromGraphNode(n)
+	}
+
+	engine := drift.NewEngine()
+	items, summary := engine.Evaluate(context.Background(), desiredState, resources, cov)
+
+	if strings.ToLower(format) == "json" {
+		data, _ := json.MarshalIndent(map[string]any{
+			"summary": summary,
+			"items":   items,
+		}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Printf("風死 · KAZESHINI DRIFT AUDIT — [DESIRED: %s]\n", manifest.Metadata.Name)
+	fmt.Println("======================================================================")
+	fmt.Printf("TOTAL DRIFT: %d | Missing: %d | Extra: %d | Mismatch: %d | WrongState: %d | UnexpectedPorts: %d | Unknown: %d\n",
+		summary.TotalDrift, summary.Missing, summary.Extra, summary.Mismatch, summary.WrongState, summary.Ports, summary.Unknown)
+	fmt.Println(strings.Repeat("-", 70))
+
+	if len(items) == 0 {
+		fmt.Println("[OK] Host matches desired state perfectly. Zero drift detected.")
+		fmt.Println("======================================================================")
+		return nil
+	}
+
+	for _, it := range items {
+		statusTag := fmt.Sprintf("[%s]", strings.ToUpper(string(it.Kind)))
+		fmt.Printf("%-18s %-10s %s\n", statusTag, it.ResourceKind, it.Name)
+		fmt.Printf("  Summary:  %s\n", it.Summary)
+		fmt.Printf("  Expected: %s\n", it.Expected)
+		fmt.Printf("  Actual:   %s\n", it.Actual)
+		fmt.Printf("  Certainty: [%s]\n", it.Certainty)
+		fmt.Println()
+	}
+	fmt.Println("======================================================================")
+	return nil
+}
+
+func runPlan(args []string) error {
+	flags := flag.NewFlagSet("plan", flag.ContinueOnError)
+	var (
+		desiredPath string
+		labelsPath  string
+		format      string
+	)
+	flags.StringVar(&desiredPath, "desired", "kazeshini.desired.yaml", "Path to kazeshini.desired.yaml")
+	flags.StringVar(&labelsPath, "labels", "", "Path to host labels YAML")
+	flags.StringVar(&format, "format", "text", "Output format (text, json)")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	manifest, err := desired.LoadFile(desiredPath)
+	if err != nil {
+		return fmt.Errorf("failed to load desired manifest %q: %w", desiredPath, err)
+	}
+
+	labels, _ := desired.LoadHostLabels(labelsPath)
+	desiredState := manifest.ForHost(labels)
+
+	nodes, cov := collectHostObservation()
+	resources := make([]resource.Resource, len(nodes))
+	for i, n := range nodes {
+		resources[i] = resource.FromGraphNode(n)
+	}
+
+	engine := drift.NewEngine()
+	driftItems, _ := engine.Evaluate(context.Background(), desiredState, resources, cov)
+
+	planner := plan.NewPlanner(nil)
+	p, err := planner.CreatePlan(driftItems)
+	if err != nil {
+		return fmt.Errorf("planner error: %w", err)
+	}
+
+	polEngine := policy.NewEngine(policy.DefaultConfig())
+	decision := polEngine.EvaluatePlan(context.Background(), p)
+
+	if strings.ToLower(format) == "json" {
+		data, _ := json.MarshalIndent(map[string]any{
+			"plan":     p,
+			"decision": decision,
+		}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Printf("風死 · KAZESHINI REMEDIATION PLAN — [ID: %s]\n", p.ID)
+	fmt.Println("======================================================================")
+	fmt.Printf("DECISION:       [%s]\n", strings.ToUpper(string(decision.Decision)))
+	fmt.Printf("POLICY STATUS:  %s\n", decision.Summary)
+	fmt.Printf("HASH (SHA-256): %s\n", p.Hash)
+	fmt.Printf("TOTAL STEPS:    %d | Max Risk: %s | Reversible: %v | Reboot Needed: %v\n",
+		p.TotalSteps, p.MaxRisk, p.IsReversible, p.RequiresReboot)
+	fmt.Println(strings.Repeat("-", 70))
+
+	if len(p.Steps) == 0 {
+		fmt.Println("Zero remediation steps required (host has zero drift).")
+		fmt.Println("======================================================================")
+		return nil
+	}
+
+	for i, s := range p.Steps {
+		fmt.Printf("Step %d: [%s] %s (%s)\n", i+1, s.Action, s.Title, s.ResourceName)
+		fmt.Printf("  Description:     %s\n", s.Description)
+		if len(s.Dependencies) > 0 {
+			fmt.Printf("  Dependencies:    %s\n", strings.Join(s.Dependencies, ", "))
+		}
+		if len(s.Preconditions) > 0 {
+			fmt.Printf("  Preconditions:   %s\n", strings.Join(s.Preconditions, "; "))
+		}
+		if len(s.Postconditions) > 0 {
+			fmt.Printf("  Postconditions:  %s\n", strings.Join(s.Postconditions, "; "))
+		}
+		if len(s.EquivalentCommands) > 0 {
+			fmt.Println("  Equivalent Commands (SHOWN ONLY, NEVER AUTO-APPLIED):")
+			for _, cmd := range s.EquivalentCommands {
+				fmt.Printf("    $ %s\n", cmd)
+			}
+		}
+		fmt.Println()
+	}
+	fmt.Println("======================================================================")
+	return nil
+}
+

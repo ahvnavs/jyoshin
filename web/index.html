@@ -53,9 +53,12 @@
             <span>[🌐] Network</span>
             <span class="rail-count" id="count-network">4</span>
           </a>
+          <a href="#desired" id="nav-desired" class="rail-item">
+            <span>[⚖] Desired vs Actual</span>
+            <span class="rail-count" id="count-desired">0</span>
+          </a>
           <a href="#activity" id="nav-activity" class="rail-item">
-            <span>[📝] Activity</span>
-            <span class="rail-count" id="count-activity">0</span>
+            <span>[📝] Activity Log</span>
           </a>
           <a href="#styleguide" id="nav-styleguide" class="rail-item">
             <span>[🎨] Styleguide</span>
@@ -338,6 +341,33 @@
                   <tr><td colspan="6" style="color: var(--dim);">No checks executed yet.</td></tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. DESIRED VS ACTUAL VIEW (Phase 25) -->
+        <section id="view-desired" class="view-panel" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Compares desired manifest against observed actual state. Remediation commands are SHOWN ONLY.</span>
+          </div>
+          <div class="panel" style="margin-top: var(--space-16);">
+            <div class="panel-header">
+              <h2 class="panel-title">[⚖] DESIRED VS ACTUAL (DRIFT AUDIT)</h2>
+              <span id="drift-summary-badge" class="badge badge-mint">ZERO DRIFT</span>
+            </div>
+            <div id="drift-items-container" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+              <div style="color: var(--dim); font-size: 13px;">Loading desired state evaluation...</div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top: var(--space-16);">
+            <div class="panel-header">
+              <h2 class="panel-title">[🛠] REMEDIATION PLAN (WHAT WOULD CHANGE)</h2>
+              <span id="plan-policy-badge" class="badge badge-cyan">READ-ONLY PLAN</span>
+            </div>
+            <div id="plan-steps-container" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+              <div style="color: var(--dim); font-size: 13px;">No remediation plan required.</div>
             </div>
           </div>
         </section>

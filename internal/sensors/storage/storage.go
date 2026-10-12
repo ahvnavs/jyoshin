@@ -115,7 +115,7 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 		}
 
 		// Filter virtual pseudo-mounts (cgroup, sysfs, proc, devpts, tracefs, etc.)
-		if isPseudoFS(fsType, mountPoint) {
+		if IsPseudoFS(fsType, mountPoint) {
 			continue
 		}
 
@@ -124,7 +124,7 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 		}
 		seenMounts[mountPoint] = true
 
-		isBlock := strings.HasPrefix(device, "/dev/") && fsType != "tmpfs" && fsType != "devtmpfs"
+		isBlock := IsRealBlockMount(device, fsType, mountPoint)
 		info := MountInfo{
 			Device:        device,
 			MountPoint:    mountPoint,
@@ -175,7 +175,7 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 	return obs, nil
 }
 
-func isPseudoFS(fsType, mountPoint string) bool {
+func IsPseudoFS(fsType, mountPoint string) bool {
 	switch fsType {
 	case "proc", "sysfs", "cgroup", "cgroup2", "devpts", "devtmpfs", "securityfs",
 		"pstore", "bpf", "autofs", "tracefs", "debugfs", "hugetlbfs", "mqueue",
@@ -187,6 +187,25 @@ func isPseudoFS(fsType, mountPoint string) bool {
 	}
 	return false
 }
+
+// IsRealBlockMount returns true if device and fstype represent a real physical/virtual block device mount.
+func IsRealBlockMount(device, fsType, mountPoint string) bool {
+	if IsPseudoFS(fsType, mountPoint) {
+		return false
+	}
+	if fsType == "tmpfs" || fsType == "devtmpfs" {
+		return false
+	}
+	// Real block devices are either under /dev/ (excluding loop/ram devices)
+	if strings.HasPrefix(device, "/dev/") {
+		if strings.HasPrefix(device, "/dev/loop") || strings.HasPrefix(device, "/dev/ram") {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 
 // LargeDir captures size and entry count of inspected directory.
 type LargeDir struct {

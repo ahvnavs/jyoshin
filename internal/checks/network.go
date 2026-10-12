@@ -69,7 +69,10 @@ func (c *InterfacesRoutesCheck) Run(ctx context.Context, rfs fs.FS, params map[s
 
 	st := contract.StatusOK
 	sum := fmt.Sprintf("Network routing healthy: %d routes configured including active default gateway", routeCount)
-	if !hasDefaultRoute && routeCount > 0 {
+	if routeCount == 0 {
+		st = contract.StatusWarn
+		sum = "No network routes configured in /proc/net/route"
+	} else if !hasDefaultRoute {
 		st = contract.StatusWarn
 		sum = fmt.Sprintf("No default IPv4 gateway detected in /proc/net/route (%d host routes configured)", routeCount)
 	}

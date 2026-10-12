@@ -10,9 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/OWNER/kazeshini/internal/coverage"
+	"github.com/OWNER/kazeshini/internal/desired"
+	"github.com/OWNER/kazeshini/internal/drift"
 	"github.com/OWNER/kazeshini/internal/fs"
 	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/inventory"
+	"github.com/OWNER/kazeshini/internal/plan"
+	"github.com/OWNER/kazeshini/internal/policy"
+	"github.com/OWNER/kazeshini/internal/resource"
 	"github.com/OWNER/kazeshini/internal/rules"
 	"github.com/OWNER/kazeshini/internal/verdict"
 )
@@ -288,5 +294,92 @@ func TestChaosFixtureHost(t *testing.T) {
 	// Verify unmanaged binary file exists
 	if _, err := os.Stat(filepath.Join(tempDir, "usr/local/bin/custom-collector")); err != nil {
 		t.Errorf("expected custom-collector binary in fixture: %v", err)
+	}
+}
+
+func TestChaosFixture_DriftAndPlan(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cmd := exec.Command("sh", "../../test/chaos/setup_chaos.sh", tempDir)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("setup_chaos.sh failed: %v, out: %s", err, string(out))
+	}
+
+	rfs := fs.NewRootedFS(tempDir)
+	invMgr := inventory.NewManager(rfs)
+	inv, err := invMgr.CollectInventory(t.Context())
+	if err != nil {
+		t.Fatalf("failed to collect inventory: %v", err)
+	}
+
+	// Build observed resources
+	var observed []resource.Resource
+	for _, p := range inv.Packages {
+		observed = append(observed, resource.Resource{
+			Kind: resource.KindPackage,
+			Name: p.Name,
+			Spec: map[string]any{"version": p.Version},
+		})
+	}
+	// Add unexpected listening port and unmanaged service
+	observed = append(observed,
+		resource.Resource{
+			Kind: resource.KindPort,
+			Name: "23/tcp",
+			Spec: map[string]any{"port": 23, "protocol": "tcp"},
+		},
+		resource.Resource{
+			Kind: resource.KindService,
+			Name: "telnetd",
+			Spec: map[string]any{"active_state": "active"},
+		},
+	)
+
+	// Desired specification: requires git, forbids openssl, allows only port 22
+	desiredState := desired.DesiredState{
+		RequiredPackages: []desired.PackageExpectation{
+			{Name: "git", Version: "2.39"},
+		},
+		ForbiddenPackages: []string{"openssl"},
+		RequiredServices: []desired.ServiceExpectation{
+			{Name: "cron", State: "active"},
+		},
+		AllowedPorts: []desired.PortExpectation{
+			{Port: 22, Protocol: "tcp"},
+		},
+	}
+
+	adequateCov := coverage.Report{
+		IsAdequate: true,
+		Items: []coverage.ItemCoverage{
+			{Name: "packages", Category: "packages", Status: "full", Readable: 10, Total: 10},
+			{Name: "services", Category: "services", Status: "full", Readable: 10, Total: 10},
+			{Name: "sockets", Category: "network", Status: "full", Readable: 10, Total: 10},
+		},
+	}
+
+	engine := drift.NewEngine()
+	driftItems, summary := engine.Evaluate(t.Context(), desiredState, observed, adequateCov)
+
+	if summary.TotalDrift != 4 {
+		t.Errorf("expected 4 drift items on chaos fixture, got %d (missing: %d, extra: %d, wrong_state: %d, ports: %d)",
+			summary.TotalDrift, summary.Missing, summary.Extra, summary.WrongState, summary.Ports)
+	}
+
+	planner := plan.NewPlanner(nil)
+	remediationPlan, err := planner.CreatePlan(driftItems)
+	if err != nil {
+		t.Fatalf("failed creating plan for chaos fixture: %v", err)
+	}
+
+	if remediationPlan.TotalSteps != 4 {
+		t.Errorf("expected 4 steps in plan, got %d", remediationPlan.TotalSteps)
+	}
+
+	// Policy gate
+	polEngine := policy.NewEngine(policy.DefaultConfig())
+	decision := polEngine.EvaluatePlan(t.Context(), remediationPlan)
+	if decision.IsBlocked {
+		t.Errorf("unexpected policy blocking on chaos fixture: %+v", decision)
 	}
 }

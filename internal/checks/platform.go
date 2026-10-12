@@ -257,8 +257,18 @@ func (c *ServicePermissionsCheck) Run(ctx context.Context, rfs fs.FS, params map
 		for _, e := range entries {
 			if strings.HasSuffix(e.Name(), ".service") {
 				path := fmt.Sprintf("%s/%s", dir, e.Name())
+				// Skip symlinks (e.g., masked units pointing to /dev/null)
+				if target, err := rfs.Readlink(path); err == nil {
+					if target == "/dev/null" || strings.HasSuffix(target, "/dev/null") {
+						continue
+					}
+				}
 				fi, err := rfs.Stat(path)
 				if err == nil {
+					// Service files must be regular files; skip non-regular files
+					if !fi.Mode().IsRegular() {
+						continue
+					}
 					checkedFiles++
 					// 0002 is world-writable
 					if fi.Mode().Perm()&0002 != 0 {
@@ -280,6 +290,23 @@ func (c *ServicePermissionsCheck) Run(ctx context.Context, rfs fs.FS, params map
 				"Permission denied reading systemd unit directories",
 				"Unit file file modes cannot be audited",
 				"Ensure read access to systemd directories",
+			},
+			Certainty: graph.CertaintyObserved,
+			ReadOnly:  true,
+		}, nil
+	}
+
+	if checkedFiles == 0 {
+		return contract.CheckResult{
+			ID:           c.ID(),
+			Role:         c.Role(),
+			Title:        c.Title(),
+			Status:       contract.StatusNotApplicable,
+			SummaryPlain: "No systemd service units found in /etc/systemd/system or /lib/systemd/system",
+			ExplainLevels: [3]string{
+				"Unit directories are empty or non-systemd environment",
+				"No service files present to audit",
+				"Applicable on systemd-managed Linux hosts",
 			},
 			Certainty: graph.CertaintyObserved,
 			ReadOnly:  true,

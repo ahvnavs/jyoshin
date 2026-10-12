@@ -75,7 +75,7 @@ func (c *UsersSudoCheck) Run(ctx context.Context, rfs fs.FS, params map[string]s
 				"Run with sudo or appropriate group permissions to audit sudoers rules",
 			},
 			Certainty: graph.CertaintyObserved,
-			Coverage:  contract.CoverageSummary{Seen: userCount, Total: userCount, Reason: "/etc/sudoers unreadable without root"},
+			Coverage:  contract.CoverageSummary{Seen: 2, Total: 3, Reason: "/etc/sudoers unreadable without root (2 of 3 sources readable: /etc/passwd and /etc/sudoers.d)"},
 			ReadOnly:  true,
 		}, nil
 	}
@@ -126,6 +126,11 @@ func (c *UsersSudoCheck) Run(ctx context.Context, rfs fs.FS, params map[string]s
 			fmt.Sprintf("Audited %d user accounts in /etc/passwd, /etc/sudoers, and /etc/sudoers.d", userCount),
 			"NOPASSWD rules bypass password re-prompting and allow rapid privilege escalation",
 			"Require password authentication for sensitive sudo actions",
+		},
+		Coverage: contract.CoverageSummary{
+			Seen:   3, // /etc/passwd, /etc/sudoers, /etc/sudoers.d
+			Total:  3,
+			Reason: "All 3 user and privilege databases inspected (/etc/passwd, /etc/sudoers, /etc/sudoers.d)",
 		},
 		Evidence: []graph.Evidence{
 			{Source: "/etc/passwd", Collector: "users-sudo", Details: fmt.Sprintf("%d users", userCount), Certainty: graph.CertaintyObserved, Timestamp: time.Now().UTC()},

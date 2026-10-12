@@ -15,6 +15,7 @@ import (
 	"github.com/OWNER/kazeshini/internal/contract"
 	"github.com/OWNER/kazeshini/internal/fs"
 	"github.com/OWNER/kazeshini/internal/graph"
+	"github.com/OWNER/kazeshini/internal/sensors/storage"
 )
 
 // CloudInitCheck inspects /run/cloud-init status and result files.
@@ -242,12 +243,26 @@ func (c *AttachedStorageCheck) Run(ctx context.Context, rfs fs.FS, params map[st
 	}
 
 	mountedDevs := make(map[string]bool)
+	mountedPoints := make(map[string]bool)
 	scanner := bufio.NewScanner(bytes.NewReader(mountData))
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
-		if len(fields) >= 2 {
-			mountedDevs[fields[0]] = true
-			mountedDevs[fields[1]] = true // mount point
+		if len(fields) < 3 {
+			continue
+		}
+		var dev, mp, fstype string
+		if strings.HasPrefix(fields[0], "/") && (len(fields) < 4 || !strings.HasPrefix(fields[1], "/")) {
+			dev = "none"
+			mp = fields[0]
+			fstype = fields[1]
+		} else if len(fields) >= 3 {
+			dev = fields[0]
+			mp = fields[1]
+			fstype = fields[2]
+		}
+		if storage.IsRealBlockMount(dev, fstype, mp) {
+			mountedDevs[dev] = true
+			mountedPoints[mp] = true
 		}
 	}
 
@@ -264,7 +279,7 @@ func (c *AttachedStorageCheck) Run(ctx context.Context, rfs fs.FS, params map[st
 			fields := strings.Fields(line)
 			if len(fields) >= 2 {
 				mp := fields[1]
-				if mp != "none" && mp != "swap" && !mountedDevs[mp] {
+				if mp != "none" && mp != "swap" && !mountedPoints[mp] {
 					missingMounts++
 				}
 			}
@@ -272,7 +287,7 @@ func (c *AttachedStorageCheck) Run(ctx context.Context, rfs fs.FS, params map[st
 	}
 
 	st := contract.StatusOK
-	sum := fmt.Sprintf("Storage mount configuration verified across %d mounted filesystems", len(mountedDevs))
+	sum := fmt.Sprintf("Storage mount configuration verified across %d real block mounts", len(mountedPoints))
 	if missingMounts > 0 {
 		st = contract.StatusWarn
 		sum = fmt.Sprintf("Fstab integrity warning: %d defined filesystems in /etc/fstab are not mounted", missingMounts)

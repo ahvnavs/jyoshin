@@ -253,6 +253,21 @@ func (s *Supervisor) RunSensorSafe(ctx context.Context, sensor sensors.Sensor, t
 	return obs, err
 }
 
+// Registry returns the supervisor's sensor registry.
+func (s *Supervisor) Registry() *sensors.Registry {
+	return s.registry
+}
+
+// RunAllSensorsNow runs a synchronous sweep across all registered sensors.
+func (s *Supervisor) RunAllSensorsNow(ctx context.Context, timeoutPerSensor time.Duration) {
+	if s.registry == nil {
+		return
+	}
+	for _, sensor := range s.registry.All() {
+		_, _ = s.RunSensorSafe(ctx, sensor, timeoutPerSensor)
+	}
+}
+
 // GetObservation returns the most recent observation for a sensor.
 func (s *Supervisor) GetObservation(name string) (sensors.Observation, bool) {
 	s.mu.RLock()

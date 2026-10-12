@@ -59,11 +59,13 @@ One static Go binary. One command installs it. It runs as an unprivileged system
 Install via the POSIX install script:
 
 ```bash
-# Offline or local installation:
-./scripts/install.sh --local-binary ./kazeshini --insecure-skip-verify
+# Download the release archive and verify sha256 checksums:
+curl -fsSLO https://github.com/OWNER/kazeshini/releases/download/v0.1.0-beta.1/kazeshini_v0.1.0-beta.1_linux_amd64.tar.gz
+sha256sum -c kazeshini_v0.1.0-beta.1_linux_amd64.tar.gz.sha256
+tar -xzf kazeshini_v0.1.0-beta.1_linux_amd64.tar.gz
 
-# Remote release installation (requires live release endpoint):
-curl -fsSL https://get.kazeshini.dev | sh
+# Run install script:
+sudo ./scripts/install.sh --local-binary ./kazeshini
 ```
 
 ### Accessing the Dashboard via SSH Tunnel

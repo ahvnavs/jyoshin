@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/OWNER/kazeshini/internal/fs"
 	"github.com/OWNER/kazeshini/internal/inventory"
@@ -57,6 +58,12 @@ func NewAssessor(sup *supervisor.Supervisor, inv *inventory.Manager, orph *orpha
 
 // Assess computes the live coverage report.
 func (a *Assessor) Assess(ctx context.Context) Report {
+	if a.sup != nil {
+		if _, ok := a.sup.GetObservation("process"); !ok {
+			a.sup.RunAllSensorsNow(ctx, 3*time.Second)
+		}
+	}
+
 	var items []ItemCoverage
 
 	// 1. Process Inspection: processes readable N of M
@@ -255,9 +262,10 @@ func (a *Assessor) Assess(ctx context.Context) Report {
 	for _, it := range items {
 		if w, ok := weights[it.Category]; ok {
 			weightTotal += w
-			if it.Status == "full" {
+			switch it.Status {
+			case "full":
 				sumScore += w * 1.0
-			} else if it.Status == "partial" {
+			case "partial":
 				sumScore += w * 0.5
 			}
 		}

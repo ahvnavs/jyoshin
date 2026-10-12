@@ -108,7 +108,7 @@
   // Left Rail View Switching & Hash Routing
   const views = [
     'overview', 'briefing', 'devops', 'cloud', 'cloud-platform',
-    'infrastructure', 'devsecops', 'platform', 'network', 'activity', 'styleguide'
+    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'activity', 'styleguide'
   ];
 
   function switchView(target) {
@@ -124,7 +124,9 @@
       }
     });
 
-    if (target === 'activity') {
+    if (target === 'desired') {
+      refreshDesiredView();
+    } else if (target === 'activity') {
       refreshActivityLog();
     } else if (['devops', 'cloud', 'cloud-platform', 'infrastructure', 'devsecops', 'platform', 'network'].includes(target)) {
       renderRoleChecks(target);
@@ -200,6 +202,7 @@
     { name: 'DevSecOps Checks', desc: 'Jump to Sudoers, SSH & auth checks', action: () => { window.location.hash = '#devsecops'; } },
     { name: 'Platform Checks', desc: 'Jump to Tooling, config & permission checks', action: () => { window.location.hash = '#platform'; } },
     { name: 'Network Checks', desc: 'Jump to Sockets, DNS & probe checks', action: () => { window.location.hash = '#network'; } },
+    { name: 'Desired vs Actual', desc: 'Jump to Desired vs Actual drift audit & plan', action: () => { window.location.hash = '#desired'; } },
     { name: 'Activity Log', desc: 'Jump to local audit execution log', action: () => { window.location.hash = '#activity'; } },
     { name: 'Styleguide', desc: 'Jump to UI component gallery', action: () => { window.location.hash = '#styleguide'; } },
     { name: ':pet off', desc: 'Turn off TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(false); } },
@@ -846,6 +849,244 @@
     };
   }
 
+  // Refresh Desired vs Actual (Drift & Plans)
+  async function refreshDesiredView() {
+    const driftContainer = document.getElementById('drift-items-container');
+    const planContainer = document.getElementById('plan-steps-container');
+    const driftBadge = document.getElementById('drift-summary-badge');
+    const planBadge = document.getElementById('plan-policy-badge');
+
+    if (!driftContainer || !planContainer) return;
+
+    try {
+      // 1. Fetch Drift
+      const dRes = await fetch('/api/v1/drift', { headers: getHeaders() });
+      if (dRes.ok) {
+        const dData = await dRes.json();
+        driftContainer.innerHTML = '';
+
+        if (dData.status === 'no_desired_state') {
+          if (driftBadge) {
+            driftBadge.className = 'badge badge-lavender';
+            driftBadge.textContent = '[?] NO MANIFEST';
+          }
+          driftContainer.innerHTML = `
+            <div style="color: var(--dim); font-size: 13px; line-height: 1.5;">
+              <div>${dData.message || 'No desired state manifest configured.'}</div>
+              <div style="margin-top: 6px; font-size: 12px; color: var(--cyan);">
+                Configure desired state via <code>--desired &lt;path&gt;</code> or <code>kazeshini.desired.yaml</code> to enable automated drift audit.
+              </div>
+            </div>
+          `;
+        } else if (!dData.items || dData.items.length === 0) {
+          if (driftBadge) {
+            driftBadge.className = 'badge badge-mint';
+            driftBadge.textContent = '[✓] ZERO DRIFT';
+          }
+          driftContainer.innerHTML = `
+            <div style="color: var(--mint); font-size: 13px;">
+              [✓] Observed host state is completely compliant with desired specifications. No drift detected.
+            </div>
+          `;
+        } else {
+          const count = dData.items.length;
+          const unknownCount = dData.summary ? (dData.summary.unknown || 0) : 0;
+          if (driftBadge) {
+            if (unknownCount > 0) {
+              driftBadge.className = 'badge badge-peach';
+              driftBadge.textContent = `[!] ${count} DRIFT (${unknownCount} UNKNOWN)`;
+            } else {
+              driftBadge.className = 'badge badge-rose';
+              driftBadge.textContent = `[▲] ${count} DRIFT DETECTED`;
+            }
+          }
+
+          dData.items.forEach(item => {
+            const card = document.createElement('div');
+            card.style.backgroundColor = '#0E1017';
+            card.style.border = '1px solid var(--panel-border)';
+            card.style.padding = '10px 14px';
+            card.style.display = 'flex';
+            card.style.flexDirection = 'column';
+            card.style.gap = '6px';
+
+            let badgeClass = 'badge-rose';
+            let glyph = '[▲]';
+            if (item.kind === 'unknown') {
+              badgeClass = 'badge-lavender';
+              glyph = '[?]';
+            } else if (item.kind === 'unexpected-port' || item.kind === 'extra') {
+              badgeClass = 'badge-peach';
+              glyph = '[!]';
+            }
+
+            const headerRow = document.createElement('div');
+            headerRow.style.display = 'flex';
+            headerRow.style.justifyContent = 'space-between';
+            headerRow.style.alignItems = 'center';
+            headerRow.innerHTML = `
+              <div style="font-weight: bold; color: var(--text);">
+                <span>[${item.resource_type.toUpperCase()}]</span> <span>${item.resource_id}</span>
+              </div>
+              <span class="badge ${badgeClass}">${glyph} ${item.kind.toUpperCase()}</span>
+            `;
+
+            const descRow = document.createElement('div');
+            descRow.style.fontSize = '12px';
+            descRow.style.color = 'var(--dim)';
+            descRow.textContent = item.description;
+
+            const evidenceRow = document.createElement('div');
+            evidenceRow.style.fontSize = '11px';
+            evidenceRow.style.display = 'flex';
+            evidenceRow.style.gap = '16px';
+            evidenceRow.style.color = 'var(--cyan)';
+            evidenceRow.innerHTML = `
+              <div><strong>DESIRED:</strong> ${item.desired_value || 'none'}</div>
+              <div><strong>ACTUAL:</strong> ${item.actual_value || 'none'}</div>
+              <div><strong>CERTAINTY:</strong> ${item.certainty || 'OBSERVED'}</div>
+            `;
+
+            card.appendChild(headerRow);
+            card.appendChild(descRow);
+            card.appendChild(evidenceRow);
+            driftContainer.appendChild(card);
+          });
+        }
+      }
+
+      // 2. Fetch Plans
+      const pRes = await fetch('/api/v1/plans', { headers: getHeaders() });
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        planContainer.innerHTML = '';
+
+        if (pData.status === 'no_desired_state' || !pData.plan || !pData.plan.steps || pData.plan.steps.length === 0) {
+          if (planBadge) {
+            planBadge.className = 'badge badge-mint';
+            planBadge.textContent = '[✓] NO PLAN NEEDED';
+          }
+          planContainer.innerHTML = `
+            <div style="color: var(--mint); font-size: 13px;">
+              [✓] No changes needed. All resources align with desired manifest.
+            </div>
+          `;
+        } else {
+          const plan = pData.plan;
+          const decision = pData.decision;
+
+          if (planBadge) {
+            if (decision && !decision.allowed) {
+              planBadge.className = 'badge badge-rose';
+              planBadge.textContent = `[▲] BLOCKED BY POLICY`;
+            } else if (decision && decision.requires_approval) {
+              planBadge.className = 'badge badge-peach';
+              planBadge.textContent = `[!] APPROVAL REQUIRED`;
+            } else {
+              planBadge.className = 'badge badge-cyan';
+              planBadge.textContent = `[≈] ${plan.steps.length} STEPS (READ-ONLY)`;
+            }
+          }
+
+          if (decision && decision.reasons && decision.reasons.length > 0) {
+            const polWarning = document.createElement('div');
+            polWarning.style.padding = '8px 12px';
+            polWarning.style.border = '1px dashed var(--rose)';
+            polWarning.style.color = 'var(--rose)';
+            polWarning.style.fontSize = '12px';
+            polWarning.innerHTML = `<strong>POLICY GATE:</strong> ${decision.reasons.join('; ')}`;
+            planContainer.appendChild(polWarning);
+          }
+
+          plan.steps.forEach((s, idx) => {
+            const stepEl = document.createElement('div');
+            stepEl.style.backgroundColor = '#0E1017';
+            stepEl.style.border = '1px solid var(--panel-border)';
+            stepEl.style.padding = '12px';
+            stepEl.style.display = 'flex';
+            stepEl.style.flexDirection = 'column';
+            stepEl.style.gap = '8px';
+
+            let riskClass = 'badge-mint';
+            if (s.risk === 'high' || s.risk === 'critical') riskClass = 'badge-rose';
+            else if (s.risk === 'medium') riskClass = 'badge-peach';
+
+            const topRow = document.createElement('div');
+            topRow.style.display = 'flex';
+            topRow.style.justifyContent = 'space-between';
+            topRow.style.alignItems = 'center';
+            topRow.innerHTML = `
+              <div style="font-weight: bold; color: var(--text);">
+                <span style="color: var(--cyan);">Step ${idx + 1}.</span> [${s.action.toUpperCase()}] ${s.resource_id}
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <span class="badge ${riskClass}">RISK: ${s.risk.toUpperCase()}</span>
+                ${s.requires_reboot ? '<span class="badge badge-peach">REBOOT REQ</span>' : ''}
+              </div>
+            `;
+
+            const descRow = document.createElement('div');
+            descRow.style.fontSize = '12px';
+            descRow.style.color = 'var(--dim)';
+            descRow.textContent = s.description;
+
+            // Equivalent commands with Copy button
+            const cmdBox = document.createElement('div');
+            cmdBox.style.backgroundColor = '#07080B';
+            cmdBox.style.border = '1px solid var(--panel-border)';
+            cmdBox.style.padding = '8px 10px';
+            cmdBox.style.position = 'relative';
+
+            const cmdHeader = document.createElement('div');
+            cmdHeader.style.display = 'flex';
+            cmdHeader.style.justifyContent = 'space-between';
+            cmdHeader.style.alignItems = 'center';
+            cmdHeader.style.marginBottom = '6px';
+
+            const cmdLabel = document.createElement('span');
+            cmdLabel.style.fontSize = '11px';
+            cmdLabel.style.color = 'var(--dim)';
+            cmdLabel.textContent = 'EQUIVALENT HOST COMMANDS (NOT RUN AUTOMATICALLY):';
+
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn';
+            copyBtn.style.padding = '2px 8px';
+            copyBtn.style.fontSize = '11px';
+            copyBtn.textContent = 'COPY';
+
+            const cmdText = (s.equivalent_commands || []).join('\n');
+            copyBtn.addEventListener('click', () => {
+              navigator.clipboard.writeText(cmdText).then(() => {
+                copyBtn.textContent = 'COPIED!';
+                setTimeout(() => { copyBtn.textContent = 'COPY'; }, 2000);
+              });
+            });
+
+            cmdHeader.appendChild(cmdLabel);
+            cmdHeader.appendChild(copyBtn);
+
+            const pre = document.createElement('pre');
+            pre.style.margin = '0';
+            pre.style.color = 'var(--mint)';
+            pre.style.fontSize = '12px';
+            pre.style.fontFamily = 'monospace';
+            pre.textContent = cmdText;
+
+            cmdBox.appendChild(cmdHeader);
+            cmdBox.appendChild(pre);
+
+            stepEl.appendChild(topRow);
+            stepEl.appendChild(descRow);
+            stepEl.appendChild(cmdBox);
+            planContainer.appendChild(stepEl);
+          });
+        }
+      }
+    } catch (err) {
+      console.error('failed fetching desired vs actual state:', err);
+    }
+  }
+
   function refreshAll() {
     refreshVerdict();
     refreshBriefing();
@@ -854,6 +1095,7 @@
     refreshDependencies();
     refreshBlastRadiusNodes();
     refreshActivityLog();
+    refreshDesiredView();
     loadChecks();
   }
 

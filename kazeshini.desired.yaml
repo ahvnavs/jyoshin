@@ -1,0 +1,28 @@
+apiVersion: kazeshini.io/v1
+kind: DesiredState
+metadata:
+  name: host-baseline
+  description: "Declarative baseline expectations for standard Linux workstation/server"
+rules:
+  - selector:
+      matchLabels:
+        role: server
+    state:
+      requiredPackages:
+        - name: bash
+        - name: coreutils
+        - name: systemd
+      forbiddenPackages:
+        - telnetd
+        - dirty_miner
+      requiredServices:
+        - name: cron
+          state: active
+      allowedPorts:
+        - port: 22
+          protocol: tcp
+      filesMetadata:
+        - path: /etc/passwd
+          mode: "0644"
+          owner: root
+

@@ -22,17 +22,28 @@ const (
 // ActivityLog manages an append-only local activity log.
 // Security note: Local audit file; not tamper-proof against root or compromised host.
 type ActivityLog struct {
-	mu       sync.Mutex
-	filePath string
+	mu         sync.Mutex
+	filePath   string
+	inMemory   bool
+	activities []ActivityEntry
 }
 
 // NewActivityLog initializes an activity logger storing entries in logDir/activity.log with 0600 permissions.
 func NewActivityLog(logDir string) *ActivityLog {
 	if logDir == "" {
-		logDir = os.TempDir()
+		return &ActivityLog{
+			inMemory: true,
+		}
 	}
 	return &ActivityLog{
 		filePath: filepath.Join(logDir, DefaultActivityLogFile),
+	}
+}
+
+// NewMemoryActivityLog initializes a purely in-memory activity logger with zero disk touches.
+func NewMemoryActivityLog() *ActivityLog {
+	return &ActivityLog{
+		inMemory: true,
 	}
 }
 
@@ -43,6 +54,14 @@ func (a *ActivityLog) Log(entry ActivityEntry) error {
 
 	if entry.Timestamp.IsZero() {
 		entry.Timestamp = time.Now().UTC()
+	}
+
+	if a.inMemory || a.filePath == "" {
+		a.activities = append(a.activities, entry)
+		if len(a.activities) > MaxActivityEntries {
+			a.activities = a.activities[1:]
+		}
+		return nil
 	}
 
 	data, err := json.Marshal(entry)
@@ -61,7 +80,9 @@ func (a *ActivityLog) Log(entry ActivityEntry) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	_, err = f.Write(data)
 	return err
@@ -74,6 +95,15 @@ func (a *ActivityLog) Entries(limit int) ([]ActivityEntry, error) {
 
 	if limit <= 0 || limit > MaxActivityEntries {
 		limit = MaxActivityEntries
+	}
+
+	if a.inMemory || a.filePath == "" {
+		n := len(a.activities)
+		res := make([]ActivityEntry, 0, limit)
+		for i := n - 1; i >= 0 && len(res) < limit; i-- {
+			res = append(res, a.activities[i])
+		}
+		return res, nil
 	}
 
 	data, err := os.ReadFile(a.filePath)

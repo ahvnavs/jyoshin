@@ -9,6 +9,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/OWNER/kazeshini/internal/contract"
 	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/rules"
 )
@@ -190,9 +191,48 @@ func ComputeVerdict(nodes []graph.Node, findings []rules.Finding, orphanCount in
 // ComputeVerdictWithCoverage calculates verdict enforcing coverage honesty.
 // If coverage is inadequate, CALM is suspended and state becomes PARTIAL or UNKNOWN.
 func ComputeVerdictWithCoverage(nodes []graph.Node, findings []rules.Finding, orphanCount int, coverageAdequate bool, coverageExplanation string) Summary {
+	return ComputeVerdictWithChecks(nodes, findings, orphanCount, coverageAdequate, coverageExplanation, nil)
+}
+
+// ComputeVerdictWithChecks calculates verdict incorporating active CheckResults.
+// A critical check result forces CRITICAL or PARTIAL + CRITICAL FINDING even if sensor coverage is partial.
+func ComputeVerdictWithChecks(nodes []graph.Node, findings []rules.Finding, orphanCount int, coverageAdequate bool, coverageExplanation string, checkResults []contract.CheckResult) Summary {
 	summary := ComputeVerdict(nodes, findings, orphanCount)
 	summary.CoverageHonest = coverageAdequate
 	summary.CoverageNote = coverageExplanation
+
+	// Inspect check results
+	critChecks := 0
+	warnChecks := 0
+	for _, cr := range checkResults {
+		switch cr.Status {
+		case contract.StatusCrit:
+			critChecks++
+			summary.ChaosContributors = append(summary.ChaosContributors, ChaosContributor{
+				Label:  fmt.Sprintf("+critical check finding: %s", cr.ID),
+				Points: 20,
+			})
+		case contract.StatusWarn:
+			warnChecks++
+			summary.ChaosContributors = append(summary.ChaosContributors, ChaosContributor{
+				Label:  fmt.Sprintf("+warning check finding: %s", cr.ID),
+				Points: 10,
+			})
+		}
+	}
+
+	if critChecks > 0 {
+		summary.ChaosIndex = int(math.Min(100.0, float64(summary.ChaosIndex+critChecks*20+warnChecks*10)))
+		summary.CriticalFindings += critChecks
+		if !coverageAdequate {
+			summary.StateLabel = "PARTIAL + CRITICAL FINDING"
+			summary.OneLineVerdict = fmt.Sprintf("Critical issue detected (%d critical checks failed) with limited sensor visibility: %s", critChecks, coverageExplanation)
+		} else {
+			summary.StateLabel = "CRITICAL"
+			summary.OneLineVerdict = fmt.Sprintf("Critical exposure detected: %d critical check findings require immediate action.", critChecks)
+		}
+		return summary
+	}
 
 	if len(nodes) == 0 && len(findings) == 0 && !coverageAdequate {
 		summary.StateLabel = "UNKNOWN"
@@ -206,3 +246,4 @@ func ComputeVerdictWithCoverage(nodes []graph.Node, findings []rules.Finding, or
 	}
 	return summary
 }
+

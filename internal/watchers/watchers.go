@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/OWNER/kazeshini/internal/diff"
+	"github.com/OWNER/kazeshini/internal/events"
 	"github.com/OWNER/kazeshini/internal/forecast"
 	"github.com/OWNER/kazeshini/internal/rules"
 )
@@ -34,6 +35,7 @@ type Manager struct {
 	cooldown     time.Duration
 	alerts       []EventAlert
 	maxHistory   int
+	bus          *events.Bus
 }
 
 // NewManager creates a new watchers manager with deduplication cooldown.
@@ -46,6 +48,13 @@ func NewManager(cooldown time.Duration) *Manager {
 		cooldown:     cooldown,
 		maxHistory:   50,
 	}
+}
+
+// SetBus assigns the event bus for alert broadcasting.
+func (m *Manager) SetBus(b *events.Bus) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.bus = b
 }
 
 // ProcessChangeSet evaluates diff changes against proactive watcher rules:
@@ -123,6 +132,14 @@ func (m *Manager) ProcessChangeSet(ctx context.Context, cs diff.ChangeSet) []Eve
 		}
 		newAlerts = append(newAlerts, alert)
 		m.alerts = append(m.alerts, alert)
+		if m.bus != nil {
+			_ = m.bus.Publish(ctx, events.Event{
+				ID:        alert.ID,
+				Type:      events.TypeAlert,
+				Timestamp: alert.Timestamp,
+				Payload:   alert,
+			})
+		}
 	}
 
 	if len(m.alerts) > m.maxHistory {
@@ -178,6 +195,15 @@ func (m *Manager) ProcessForecast(res forecast.Result) *EventAlert {
 	m.alerts = append(m.alerts, alert)
 	if len(m.alerts) > m.maxHistory {
 		m.alerts = m.alerts[len(m.alerts)-m.maxHistory:]
+	}
+
+	if m.bus != nil {
+		_ = m.bus.Publish(context.Background(), events.Event{
+			ID:        alert.ID,
+			Type:      events.TypeForecast,
+			Timestamp: alert.Timestamp,
+			Payload:   alert,
+		})
 	}
 
 	return &alert

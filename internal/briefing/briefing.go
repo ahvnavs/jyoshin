@@ -212,9 +212,9 @@ func (b *Builder) Build(
 		hasWorker   bool
 	)
 
-	// Parse host system node and ports, ignoring kazeshini PID
 	for _, n := range nodes {
-		if n.Type == graph.NodeSystem {
+		switch n.Type {
+		case graph.NodeSystem:
 			if d, ok := n.Properties["distro"].(string); ok && d != "" {
 				ident.OS = d
 			}
@@ -239,17 +239,18 @@ func (b *Builder) Build(
 			if cp, ok := n.Properties["cloud_provider"].(string); ok && cp != "" {
 				ident.CloudProvider = cp
 			}
-		} else if n.Type == graph.NodePort {
+		case graph.NodePort:
 			if p, ok := n.Properties["port"].(int); ok {
-				if p == 5432 || p == 3306 || p == 6379 || p == 27017 {
+				switch p {
+				case 5432, 3306, 6379, 27017:
 					hasDBPort = true
 					dbCount++
-				} else if p == 80 || p == 443 || p == 8080 || p == 8443 {
+				case 80, 443, 8080, 8443:
 					hasHTTPPort = true
 					httpCount++
 				}
 			}
-		} else if n.Type == graph.NodeProcess {
+		case graph.NodeProcess:
 			pid, _ := n.Properties["pid"].(int)
 			if pid != myPID {
 				hasWorker = true
@@ -492,9 +493,6 @@ func (b *Builder) Build(
 		ETA:            "Available after 1 hour of runtime telemetry",
 	})
 
-	// Compute verdict with coverage honesty
-	vSum := verdict.ComputeVerdictWithCoverage(nodes, findings, len(handInstalled), cov.IsAdequate, cov.SummaryNote)
-
 	// 8. One Result Contract: populate standardized CheckResults from findings
 	procSeen := 0
 	procTotal := 0
@@ -509,9 +507,10 @@ func (b *Builder) Build(
 	var checkResults []contract.CheckResult
 	for _, f := range attention {
 		st := contract.StatusWarn
-		if f.Severity == rules.SeverityCritical {
+		switch f.Severity {
+		case rules.SeverityCritical:
 			st = contract.StatusCrit
-		} else if f.Severity == rules.SeverityInfo || f.Severity == rules.SeverityLow {
+		case rules.SeverityInfo, rules.SeverityLow:
 			st = contract.StatusOK
 		}
 
@@ -541,6 +540,9 @@ func (b *Builder) Build(
 		checkResults = append(checkResults, cr)
 	}
 
+	// Compute verdict with coverage honesty and check results
+	vSum := verdict.ComputeVerdictWithChecks(nodes, findings, len(handInstalled), cov.IsAdequate, cov.SummaryNote, checkResults)
+
 	return Briefing{
 		Verdict:               vSum,
 		Coverage:              cov,
@@ -564,30 +566,30 @@ func (b *Briefing) RenderTerminal() string {
 
 	sb.WriteString("======================================================================\n")
 	sb.WriteString("風死 · KAZESHINI — SERVER TRUTH BRIEFING\n")
-	sb.WriteString(fmt.Sprintf("STATUS: [%s]   CHAOS INDEX: %d/100   COVERAGE: %.0f%%\n",
-		b.Verdict.StateLabel, b.Verdict.ChaosIndex, b.Coverage.OverallCoverage))
+	fmt.Fprintf(&sb, "STATUS: [%s]   CHAOS INDEX: %d/100   COVERAGE: %.0f%%\n",
+		b.Verdict.StateLabel, b.Verdict.ChaosIndex, b.Coverage.OverallCoverage)
 	if len(b.Verdict.ChaosContributors) > 0 {
 		sb.WriteString("CHAOS CONTRIBUTORS:\n")
 		for _, c := range b.Verdict.ChaosContributors {
-			sb.WriteString(fmt.Sprintf("  • %-42s (+%d pts)\n", c.Label, c.Points))
+			fmt.Fprintf(&sb, "  • %-42s (+%d pts)\n", c.Label, c.Points)
 		}
 	}
 	sb.WriteString("======================================================================\n\n")
 
 	sb.WriteString("VERDICT:\n")
-	sb.WriteString(fmt.Sprintf("  %s\n\n", b.Verdict.OneLineVerdict))
+	fmt.Fprintf(&sb, "  %s\n\n", b.Verdict.OneLineVerdict)
 
 	// 1. What this machine is
 	sb.WriteString("1. WHAT THIS MACHINE IS:\n")
-	sb.WriteString(fmt.Sprintf("  OS:             %s\n", b.Identity.OS))
-	sb.WriteString(fmt.Sprintf("  Kernel:         %s\n", b.Identity.Kernel))
-	sb.WriteString(fmt.Sprintf("  Architecture:   %s (%d CPU cores)\n", b.Identity.Arch, b.Identity.CPUs))
-	sb.WriteString(fmt.Sprintf("  Memory:         %s total\n", b.Identity.TotalRAM))
-	sb.WriteString(fmt.Sprintf("  Uptime:         %s\n", b.Identity.Uptime))
-	sb.WriteString(fmt.Sprintf("  Platform:       %s (cloud: %s)\n", b.Identity.Virtualization, b.Identity.CloudProvider))
+	fmt.Fprintf(&sb, "  OS:             %s\n", b.Identity.OS)
+	fmt.Fprintf(&sb, "  Kernel:         %s\n", b.Identity.Kernel)
+	fmt.Fprintf(&sb, "  Architecture:   %s (%d CPU cores)\n", b.Identity.Arch, b.Identity.CPUs)
+	fmt.Fprintf(&sb, "  Memory:         %s total\n", b.Identity.TotalRAM)
+	fmt.Fprintf(&sb, "  Uptime:         %s\n", b.Identity.Uptime)
+	fmt.Fprintf(&sb, "  Platform:       %s (cloud: %s)\n", b.Identity.Virtualization, b.Identity.CloudProvider)
 	sb.WriteString("  This tool:      kazeshini (read-only observer, nice 19, ionice idle, zero host changes)\n")
-	sb.WriteString(fmt.Sprintf("  Inferred Role:  %s [INFERRED]\n", b.Identity.InferredRole))
-	sb.WriteString(fmt.Sprintf("                  Evidence: %s\n\n", b.Identity.RoleEvidence))
+	fmt.Fprintf(&sb, "  Inferred Role:  %s [INFERRED]\n", b.Identity.InferredRole)
+	fmt.Fprintf(&sb, "                  Evidence: %s\n\n", b.Identity.RoleEvidence)
 
 	// 2. What it runs
 	sb.WriteString("2. WHAT IT RUNS:\n")
@@ -595,8 +597,8 @@ func (b *Briefing) RenderTerminal() string {
 		sb.WriteString("  No managed program groups detected.\n")
 	} else {
 		for _, p := range b.Programs {
-			sb.WriteString(fmt.Sprintf("  - %s (%d processes, %s memory, installed by %s, ports: %s)\n",
-				p.Name, p.ProcessCount, p.TotalRSS, p.InstalledBy, p.Ports))
+			fmt.Fprintf(&sb, "  - %s (%d processes, %s memory, installed by %s, ports: %s)\n",
+				p.Name, p.ProcessCount, p.TotalRSS, p.InstalledBy, p.Ports)
 		}
 	}
 	sb.WriteString("\n")
@@ -606,11 +608,11 @@ func (b *Briefing) RenderTerminal() string {
 	if len(b.ExposedPorts) == 0 {
 		sb.WriteString("  No listening ports detected.\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("  %-8s | %-8s | %-16s | %-14s | %s\n", "PORT", "PROTO", "PROGRAM", "EXPOSURE", "INTERFACE"))
+		fmt.Fprintf(&sb, "  %-8s | %-8s | %-16s | %-14s | %s\n", "PORT", "PROTO", "PROGRAM", "EXPOSURE", "INTERFACE")
 		sb.WriteString("  " + strings.Repeat("-", 64) + "\n")
 		for _, ep := range b.ExposedPorts {
-			sb.WriteString(fmt.Sprintf("  %-8d | %-8s | %-16s | %-14s | %s\n",
-				ep.Port, ep.Protocol, ep.Program, ep.Exposure, ep.BindAddress))
+			fmt.Fprintf(&sb, "  %-8d | %-8s | %-16s | %-14s | %s\n",
+				ep.Port, ep.Protocol, ep.Program, ep.Exposure, ep.BindAddress)
 		}
 	}
 	sb.WriteString("\n")
@@ -621,19 +623,19 @@ func (b *Briefing) RenderTerminal() string {
 		sb.WriteString("  Zero unmanaged manual binaries detected.\n")
 	} else {
 		for _, h := range b.HandInstalled {
-			sb.WriteString(fmt.Sprintf("  - %s (%s)\n    %s\n", h.Name, h.Path, h.Warning))
+			fmt.Fprintf(&sb, "  - %s (%s)\n    %s\n", h.Name, h.Path, h.Warning)
 		}
 	}
-	sb.WriteString(fmt.Sprintf("  Orphan scan coverage: %.0f%% (%d files inspected)\n\n",
-		b.OrphanCoveragePercent, b.OrphanFilesInspected))
+	fmt.Fprintf(&sb, "  Orphan scan coverage: %.0f%% (%d files inspected)\n\n",
+		b.OrphanCoveragePercent, b.OrphanFilesInspected)
 
 	// 5. What is wasting space or money
 	sb.WriteString("5. WHAT IS WASTING SPACE OR MONEY:\n")
 	for _, w := range b.Waste {
-		sb.WriteString(fmt.Sprintf("  - %s: %s\n    %s\n", w.Description, w.Reclaimable, w.Caveat))
+		fmt.Fprintf(&sb, "  - %s: %s\n    %s\n", w.Description, w.Reclaimable, w.Caveat)
 	}
-	sb.WriteString(fmt.Sprintf("  Estimated monthly waste: $%.2f/mo (estimate, table dated 2026-10-01)\n\n",
-		b.Verdict.EstimatedWasteUSD))
+	fmt.Fprintf(&sb, "  Estimated monthly waste: $%.2f/mo (estimate, table dated 2026-10-01)\n\n",
+		b.Verdict.EstimatedWasteUSD)
 
 	// 6. What needs attention
 	sb.WriteString("6. WHAT NEEDS ATTENTION:\n")
@@ -641,19 +643,19 @@ func (b *Briefing) RenderTerminal() string {
 		sb.WriteString("  No findings require immediate attention.\n")
 	} else {
 		for i, f := range b.AttentionFindings {
-			sb.WriteString(fmt.Sprintf("  [%d] [%s] %s\n", i+1, strings.ToUpper(string(f.Severity)), f.What))
-			sb.WriteString(fmt.Sprintf("      So what:  %s\n", f.SoWhat))
-			sb.WriteString(fmt.Sprintf("      Now what: %s (risk: %s, reversible: %v)\n",
-				f.NowWhat.Action, f.NowWhat.RiskLevel, f.NowWhat.Reversible))
+			fmt.Fprintf(&sb, "  [%d] [%s] %s\n", i+1, strings.ToUpper(string(f.Severity)), f.What)
+			fmt.Fprintf(&sb, "      So what:  %s\n", f.SoWhat)
+			fmt.Fprintf(&sb, "      Now what: %s (risk: %s, reversible: %v)\n",
+				f.NowWhat.Action, f.NowWhat.RiskLevel, f.NowWhat.Reversible)
 			cert := strings.ToUpper(string(f.Proof.Certainty))
 			evSummary := f.RuleID
 			if len(f.Proof.Evidence) > 0 {
 				evSummary = f.Proof.Evidence[0].Source
 			}
-			sb.WriteString(fmt.Sprintf("      Proof:    [%s] %s (confidence: %.2f)\n", cert, evSummary, f.Proof.Confidence))
+			fmt.Fprintf(&sb, "      Proof:    [%s] %s (confidence: %.2f)\n", cert, evSummary, f.Proof.Confidence)
 		}
 		if b.CollapsedFindings > 0 {
-			sb.WriteString(fmt.Sprintf("  ... and %d more findings collapsed (run with full details or inspect web dashboard)\n", b.CollapsedFindings))
+			fmt.Fprintf(&sb, "  ... and %d more findings collapsed (run with full details or inspect web dashboard)\n", b.CollapsedFindings)
 		}
 	}
 	sb.WriteString("\n")
@@ -661,7 +663,7 @@ func (b *Briefing) RenderTerminal() string {
 	// 7. What I can't tell you yet
 	sb.WriteString("7. WHAT I CANNOT TELL YOU YET:\n")
 	for _, p := range b.PendingItems {
-		sb.WriteString(fmt.Sprintf("  - %s: requires %s (ETA: %s)\n", p.Metric, p.Requirement, p.ETA))
+		fmt.Fprintf(&sb, "  - %s: requires %s (ETA: %s)\n", p.Metric, p.Requirement, p.ETA)
 	}
 	sb.WriteString("\n======================================================================\n")
 

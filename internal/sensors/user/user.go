@@ -74,7 +74,9 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 		obs.Duration = time.Since(start)
 		return obs, nil
 	}
-	defer passwdFile.Close()
+	defer func() {
+		_ = passwdFile.Close()
+	}()
 
 	// Parse /etc/group
 	userGroups := make(map[string][]string)
@@ -156,7 +158,9 @@ func (s *Sensor) parseGroups(userGroups map[string][]string) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -210,7 +214,7 @@ func (s *Sensor) scanSudoersFile(path string, sudoUsers map[string]bool) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -249,7 +253,7 @@ func (s *Sensor) scanAuthorizedKeys(homeDir string) []SSHKeyMeta {
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var metas []SSHKeyMeta
 	scanner := bufio.NewScanner(f)
