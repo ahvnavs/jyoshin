@@ -30,7 +30,7 @@ ProtectKernelLogs=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged @resources
+SystemCallFilter=~@privileged @resources @debug
 CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +39,29 @@ type Config struct {
 	OTel         OTelConfig    `json:"otel"`
 }
 
+// ResolveDefaultDataDir returns /var/lib/kazeshini if root, or XDG_STATE_HOME/~/.local/state/kazeshini if unprivileged.
+func ResolveDefaultDataDir() string {
+	if os.Geteuid() == 0 {
+		return "/var/lib/kazeshini"
+	}
+	// Check if /var/lib/kazeshini is writable
+	if err := os.MkdirAll("/var/lib/kazeshini", 0755); err == nil {
+		testFile := "/var/lib/kazeshini/.write_test"
+		if wErr := os.WriteFile(testFile, []byte("ok"), 0600); wErr == nil {
+			_ = os.Remove(testFile)
+			return "/var/lib/kazeshini"
+		}
+	}
+	if xdg := os.Getenv("XDG_STATE_HOME"); xdg != "" {
+		return filepath.Join(xdg, "kazeshini")
+	}
+	home := os.Getenv("HOME")
+	if home == "" {
+		home = "/tmp"
+	}
+	return filepath.Join(home, ".local", "state", "kazeshini")
+}
+
 // Default returns the default configuration.
 // Principle 5: NO NETWORK EGRESS by default. Default host is strictly 127.0.0.1.
 func Default() Config {
@@ -45,7 +69,7 @@ func Default() Config {
 		Host:         "127.0.0.1",
 		Port:         7777,
 		AllowRemote:  false,
-		DataDir:      "/var/lib/kazeshini",
+		DataDir:      ResolveDefaultDataDir(),
 		RulesDir:     "rules",
 		LogLevel:     "info",
 		LogFormat:    "text",

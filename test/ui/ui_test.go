@@ -121,6 +121,31 @@ func TestUI_DOMContract(t *testing.T) {
 			t.Errorf("missing design system CSS token or rule: %q", token)
 		}
 	}
+
+	// Font stack test: monospace first, never sans-serif before monospace
+	fontLine := ""
+	for _, line := range strings.Split(css, "\n") {
+		if strings.Contains(line, "--font:") {
+			fontLine = line
+			break
+		}
+	}
+	if fontLine == "" {
+		t.Fatalf("missing --font in style.css")
+	}
+	if !strings.Contains(fontLine, "ui-monospace, 'JetBrains Mono'") {
+		t.Errorf("expected ui-monospace and 'JetBrains Mono' first in font stack, got: %s", fontLine)
+	}
+	sansIdx := strings.Index(fontLine, "sans-serif")
+	monoIdx := strings.Index(fontLine, "monospace")
+	if sansIdx != -1 && (monoIdx == -1 || sansIdx < monoIdx) {
+		t.Errorf("sans-serif placed before monospace in --font: %s", fontLine)
+	}
+
+	// Check if web/fonts/JetBrainsMono-Regular.woff2 is present
+	if _, err := web.Assets.ReadFile("fonts/JetBrainsMono-Regular.woff2"); err != nil {
+		t.Logf("web/fonts/JetBrainsMono-Regular.woff2 is absent (%v); font stack gracefully uses system monospaces", err)
+	}
 }
 
 // TestUI_Scenarios validates deterministic verdict and chaos index outcomes across 3 canonical host scenarios.

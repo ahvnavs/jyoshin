@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/OWNER/kazeshini/internal/fs"
@@ -44,6 +45,8 @@ type Origin struct {
 type Resolver struct {
 	fs        fs.FS
 	inventory *inventory.Manager
+	mu        sync.RWMutex
+	cache     map[string]Origin
 }
 
 // NewResolver initializes a new Origin Resolver.
@@ -51,6 +54,7 @@ func NewResolver(fs fs.FS, inv *inventory.Manager) *Resolver {
 	return &Resolver{
 		fs:        fs,
 		inventory: inv,
+		cache:     make(map[string]Origin),
 	}
 }
 
@@ -58,6 +62,18 @@ func NewResolver(fs fs.FS, inv *inventory.Manager) *Resolver {
 func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 	cleanPath := filepath.Clean(path)
 	now := time.Now().UTC()
+
+	// Check stat for cache key (path + mtime + size)
+	var cacheKey string
+	if fi, err := r.fs.Stat(cleanPath); err == nil {
+		cacheKey = fmt.Sprintf("%s:%d:%d", cleanPath, fi.ModTime().UnixNano(), fi.Size())
+		r.mu.RLock()
+		if cached, ok := r.cache[cacheKey]; ok {
+			r.mu.RUnlock()
+			return cached
+		}
+		r.mu.RUnlock()
+	}
 
 	// Resolve symlinks and merged-/usr (/bin->/usr/bin, /lib->/usr/lib) before lookup
 	candidates := []string{cleanPath}
@@ -101,23 +117,34 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 		}
 	}
 
+	ret := func(res Origin) Origin {
+		if cacheKey != "" {
+			r.mu.Lock()
+			if len(r.cache) < 50000 {
+				r.cache[cacheKey] = res
+			}
+			r.mu.Unlock()
+		}
+		return res
+	}
+
 	// 1. Check if owned by system package manager across candidates
 	for _, cand := range expanded {
 		if pkg, ev, ok := r.inventory.FindPackageOwner(cand); ok {
-			return Origin{
+			return ret(Origin{
 				Path:       cleanPath,
 				Kind:       KindPackage,
 				Source:     pkg,
 				Confidence: 1.0,
 				Evidence:   []graph.Evidence{ev},
 				Certainty:  graph.CertaintyObserved,
-			}
+			})
 		}
 	}
 
 	// 2. Check ecosystem patterns
 	if strings.Contains(cleanPath, "/.cargo/bin/") {
-		return Origin{
+		return ret(Origin{
 			Path:       cleanPath,
 			Kind:       KindEcosystem,
 			Source:     "cargo",
@@ -132,11 +159,11 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 				},
 			},
 			Certainty: graph.CertaintyObserved,
-		}
+		})
 	}
 
 	if strings.Contains(cleanPath, "/node_modules/") {
-		return Origin{
+		return ret(Origin{
 			Path:       cleanPath,
 			Kind:       KindEcosystem,
 			Source:     "npm",
@@ -151,11 +178,11 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 				},
 			},
 			Certainty: graph.CertaintyObserved,
-		}
+		})
 	}
 
 	if strings.Contains(cleanPath, "/.nvm/versions/node/") {
-		return Origin{
+		return ret(Origin{
 			Path:       cleanPath,
 			Kind:       KindEcosystem,
 			Source:     "nvm",
@@ -170,11 +197,11 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 				},
 			},
 			Certainty: graph.CertaintyObserved,
-		}
+		})
 	}
 
 	if strings.Contains(cleanPath, "/snap/") {
-		return Origin{
+		return ret(Origin{
 			Path:       cleanPath,
 			Kind:       KindEcosystem,
 			Source:     "snap",
@@ -189,14 +216,14 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 				},
 			},
 			Certainty: graph.CertaintyObserved,
-		}
+		})
 	}
 
 	// 3. Stat the file to evaluate manual drop heuristics
 	fi, err := r.fs.Stat(cleanPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Origin{
+			return ret(Origin{
 				Path:       cleanPath,
 				Kind:       KindUnknown,
 				Source:     "file_not_found",
@@ -211,16 +238,16 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 					},
 				},
 				Certainty: graph.CertaintyObserved,
-			}
+			})
 		}
-		return Origin{
+		return ret(Origin{
 			Path:       cleanPath,
 			Kind:       KindUnknown,
 			Source:     fmt.Sprintf("stat_error: %v", err),
 			Confidence: 0.0,
 			Evidence:   nil,
 			Certainty:  graph.CertaintyObserved,
-		}
+		})
 	}
 
 	// Manual drop heuristic classification: /usr/local, /opt, /home, /tmp
@@ -242,7 +269,7 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 		confidence = 0.85
 	}
 
-	return Origin{
+	return ret(Origin{
 		Path:       cleanPath,
 		Kind:       KindManual,
 		Source:     source,
@@ -258,5 +285,5 @@ func (r *Resolver) Resolve(ctx context.Context, path string) Origin {
 			},
 		},
 		Certainty: graph.CertaintyInferred,
-	}
+	})
 }

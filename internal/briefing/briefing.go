@@ -11,11 +11,15 @@ package briefing
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
+	"github.com/OWNER/kazeshini/data"
 	"github.com/OWNER/kazeshini/internal/coverage"
 	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/orphan"
@@ -182,9 +186,31 @@ func (b *Builder) Build(
 		RoleEvidence:   "default configuration with no specialized database, cache, or gateway listener detected",
 	}
 
-	var hasDBPort, hasHTTPPort, hasWorker bool
+	type daemonDef struct {
+		PlainName string `yaml:"plain_name"`
+		Purpose   string `yaml:"purpose"`
+	}
+	daemonMap := make(map[string]daemonDef)
+	if raw, err := data.EOLData.ReadFile("programs.yaml"); err == nil {
+		var doc struct {
+			Programs map[string]daemonDef `yaml:"programs"`
+		}
+		if err := yaml.Unmarshal(raw, &doc); err == nil {
+			daemonMap = doc.Programs
+		}
+	}
 
-	// Parse host system node
+	myPID := os.Getpid()
+	var (
+		dbCount     int
+		httpCount   int
+		workerCount int
+		hasDBPort   bool
+		hasHTTPPort bool
+		hasWorker   bool
+	)
+
+	// Parse host system node and ports, ignoring kazeshini PID
 	for _, n := range nodes {
 		if n.Type == graph.NodeSystem {
 			if d, ok := n.Properties["distro"].(string); ok && d != "" {
@@ -215,56 +241,93 @@ func (b *Builder) Build(
 			if p, ok := n.Properties["port"].(int); ok {
 				if p == 5432 || p == 3306 || p == 6379 || p == 27017 {
 					hasDBPort = true
+					dbCount++
 				} else if p == 80 || p == 443 || p == 8080 || p == 8443 {
 					hasHTTPPort = true
+					httpCount++
 				}
 			}
 		} else if n.Type == graph.NodeProcess {
-			hasWorker = true
+			pid, _ := n.Properties["pid"].(int)
+			if pid != myPID {
+				hasWorker = true
+				workerCount++
+			}
 		}
 	}
 
-	// Role inference with strict INFERRED evidence
-	if hasDBPort {
+	// Role inference with strict INFERRED evidence and confidence threshold
+	if hasDBPort && dbCount >= 1 {
 		ident.InferredRole = "database server"
 		ident.RoleEvidence = "active database listening port (PostgreSQL/MySQL/Redis) bound on host"
-	} else if hasHTTPPort {
+	} else if hasHTTPPort && httpCount >= 1 {
 		ident.InferredRole = "web / application server"
 		ident.RoleEvidence = "HTTP/HTTPS edge listening port active"
-	} else if hasWorker {
+	} else if hasWorker && workerCount >= 5 {
 		ident.InferredRole = "background worker node"
-		ident.RoleEvidence = "headless application processes without public listening ports"
+		ident.RoleEvidence = fmt.Sprintf("fleet of %d headless application processes without public listening ports", workerCount)
+	} else {
+		ident.InferredRole = "not enough signal to determine host role"
+		ident.RoleEvidence = "low process and network listener count; no specialized database, cache, or web gateway detected"
 	}
 
-	// 2. What it runs: Group programs
+	// 2. What it runs: Group programs (excluding kazeshini self)
 	procGroups := make(map[string]*ProgramGroup)
 	for _, n := range nodes {
 		if n.Type == graph.NodeProcess {
+			pid, _ := n.Properties["pid"].(int)
+			if pid == myPID {
+				continue // Exclude kazeshini daemon itself from what it runs
+			}
+
 			name, _ := n.Properties["name"].(string)
-			if name == "" {
-				name = n.Label
-				if idx := strings.Index(name, " (pid "); idx != -1 {
-					name = name[:idx]
+			cmdline, _ := n.Properties["cmdline"].(string)
+			pkgName, _ := n.Properties["origin_package"].(string)
+
+			// Clean program display name (never bare "exe" or binary path)
+			displayName := name
+			if displayName == "exe" || displayName == "" {
+				if cmdline != "" {
+					parts := strings.Fields(cmdline)
+					if len(parts) > 0 {
+						displayName = filepath.Base(parts[0])
+					}
+				} else if pkgName != "" {
+					displayName = pkgName
+				} else {
+					displayName = n.Label
+					if idx := strings.Index(displayName, " (pid "); idx != -1 {
+						displayName = displayName[:idx]
+					}
 				}
 			}
-			if name == "" {
-				name = "unknown"
+			if displayName == "exe" || displayName == "" {
+				displayName = "unknown"
 			}
-			pg, exists := procGroups[name]
+
+			pg, exists := procGroups[displayName]
 			if !exists {
+				installedBy := "system package manager"
+				if pkgName != "" {
+					installedBy = pkgName
+				} else if origKind, ok := n.Properties["origin_kind"].(string); ok && origKind == "manual" {
+					installedBy = "manual drop"
+				}
+
+				// Check daemon dictionary for plain name and purpose
+				pgName := displayName
+				if dDef, ok := daemonMap[displayName]; ok {
+					pgName = fmt.Sprintf("%s (%s)", dDef.PlainName, displayName)
+				}
+
 				pg = &ProgramGroup{
-					Name:         name,
+					Name:         pgName,
 					ProcessCount: 0,
-					InstalledBy:  "system package manager",
+					InstalledBy:  installedBy,
 					RunningSince: "recently",
 					Ports:        "none",
 				}
-				if orig, ok := n.Properties["origin_package"].(string); ok && orig != "" {
-					pg.InstalledBy = orig
-				} else if origKind, ok := n.Properties["origin_kind"].(string); ok && origKind == "manual" {
-					pg.InstalledBy = "manual drop"
-				}
-				procGroups[name] = pg
+				procGroups[displayName] = pg
 			}
 			pg.ProcessCount++
 			if rss, ok := n.Properties["rss"].(int64); ok && rss > 0 {
@@ -328,16 +391,18 @@ func (b *Builder) Build(
 	filesInspected := 0
 
 	for _, n := range nodes {
-		if origKind, ok := n.Properties["origin_kind"].(string); ok && origKind == "manual" {
-			path, _ := n.Properties["path"].(string)
-			if path == "" {
-				path = n.Label
+		if n.Type == graph.NodeFile {
+			if origKind, ok := n.Properties["origin_kind"].(string); ok && origKind == "manual" {
+				path, _ := n.Properties["path"].(string)
+				if path == "" {
+					path = n.Label
+				}
+				handInstalled = append(handInstalled, HandInstalledBinary{
+					Name:    filepath.Base(path),
+					Path:    path,
+					Warning: "Not updated by your package manager. Must be updated manually.",
+				})
 			}
-			handInstalled = append(handInstalled, HandInstalledBinary{
-				Name:    filepath.Base(path),
-				Path:    path,
-				Warning: "Not updated by your package manager. Must be updated manually.",
-			})
 		}
 	}
 
@@ -405,9 +470,9 @@ func (b *Builder) Build(
 	})
 	pending = append(pending, PendingItem{
 		Metric:         "Resource exhaustion forecasting",
-		Requirement:    "At least 5 historical metric samples per mount/resource",
+		Requirement:    "6 samples spanning >= 1 hour per mount and resource",
 		RemainingHours: "Collecting",
-		ETA:            "Available within 25 seconds of startup",
+		ETA:            "Available after 1 hour of runtime telemetry",
 	})
 
 	// Compute verdict with coverage honesty
@@ -437,6 +502,12 @@ func (b *Briefing) RenderTerminal() string {
 	sb.WriteString("風死 · KAZESHINI — SERVER TRUTH BRIEFING\n")
 	sb.WriteString(fmt.Sprintf("STATUS: [%s]   CHAOS INDEX: %d/100   COVERAGE: %.0f%%\n",
 		b.Verdict.StateLabel, b.Verdict.ChaosIndex, b.Coverage.OverallCoverage))
+	if len(b.Verdict.ChaosContributors) > 0 {
+		sb.WriteString("CHAOS CONTRIBUTORS:\n")
+		for _, c := range b.Verdict.ChaosContributors {
+			sb.WriteString(fmt.Sprintf("  • %-42s (+%d pts)\n", c.Label, c.Points))
+		}
+	}
 	sb.WriteString("======================================================================\n\n")
 
 	sb.WriteString("VERDICT:\n")

@@ -77,14 +77,14 @@ func TestForecaster_LeakVsSpikeDiscrimination(t *testing.T) {
 	now := time.Now().UTC()
 
 	t.Run("Monotonic leak growth", func(t *testing.T) {
-		t0 := now.Add(-50 * time.Minute)
+		t0 := now.Add(-100 * time.Minute)
 		samples := []forecast.Sample{
 			{Timestamp: t0, Value: 100.0},
-			{Timestamp: t0.Add(10 * time.Minute), Value: 110.0},
-			{Timestamp: t0.Add(20 * time.Minute), Value: 120.0},
-			{Timestamp: t0.Add(30 * time.Minute), Value: 130.0},
-			{Timestamp: t0.Add(40 * time.Minute), Value: 140.0},
-			{Timestamp: t0.Add(50 * time.Minute), Value: 150.0},
+			{Timestamp: t0.Add(20 * time.Minute), Value: 110.0},
+			{Timestamp: t0.Add(40 * time.Minute), Value: 120.0},
+			{Timestamp: t0.Add(60 * time.Minute), Value: 130.0},
+			{Timestamp: t0.Add(80 * time.Minute), Value: 140.0},
+			{Timestamp: t0.Add(100 * time.Minute), Value: 150.0},
 		}
 
 		res := fc.Forecast(forecast.ResourceMemory, "proc:app", 0, samples)
@@ -94,14 +94,14 @@ func TestForecaster_LeakVsSpikeDiscrimination(t *testing.T) {
 	})
 
 	t.Run("Transient spike (not a leak)", func(t *testing.T) {
-		t0 := now.Add(-50 * time.Minute)
+		t0 := now.Add(-100 * time.Minute)
 		samples := []forecast.Sample{
 			{Timestamp: t0, Value: 100.0},
-			{Timestamp: t0.Add(10 * time.Minute), Value: 102.0},
-			{Timestamp: t0.Add(20 * time.Minute), Value: 500.0}, // Isolated spike
-			{Timestamp: t0.Add(30 * time.Minute), Value: 101.0}, // Recovered
-			{Timestamp: t0.Add(40 * time.Minute), Value: 103.0},
-			{Timestamp: t0.Add(50 * time.Minute), Value: 102.0},
+			{Timestamp: t0.Add(20 * time.Minute), Value: 102.0},
+			{Timestamp: t0.Add(40 * time.Minute), Value: 500.0}, // Isolated spike
+			{Timestamp: t0.Add(60 * time.Minute), Value: 101.0}, // Recovered
+			{Timestamp: t0.Add(80 * time.Minute), Value: 103.0},
+			{Timestamp: t0.Add(100 * time.Minute), Value: 102.0},
 		}
 
 		res := fc.Forecast(forecast.ResourceMemory, "proc:app", 0, samples)
@@ -145,13 +145,13 @@ func TestForecaster_ClockJumpAndRebootReconciliation(t *testing.T) {
 	fc := forecast.NewForecaster(4)
 	now := time.Now().UTC()
 
-	// Samples containing duplicate and backward timestamps (clock adjustment/NTP sync)
+	// Samples containing duplicate and backward timestamps (clock adjustment/NTP sync) spanning >= 1h
 	samples := []forecast.Sample{
-		{Timestamp: now.Add(10 * time.Minute), Value: 20.0},
-		{Timestamp: now.Add(5 * time.Minute), Value: 15.0},
-		{Timestamp: now.Add(5 * time.Minute), Value: 15.0}, // Duplicate
-		{Timestamp: now.Add(20 * time.Minute), Value: 25.0},
-		{Timestamp: now.Add(30 * time.Minute), Value: 30.0},
+		{Timestamp: now.Add(20 * time.Minute), Value: 20.0},
+		{Timestamp: now.Add(10 * time.Minute), Value: 15.0},
+		{Timestamp: now.Add(10 * time.Minute), Value: 15.0}, // Duplicate
+		{Timestamp: now.Add(40 * time.Minute), Value: 25.0},
+		{Timestamp: now.Add(75 * time.Minute), Value: 30.0},
 	}
 
 	res := fc.Forecast(forecast.ResourceDisk, "/var", 100.0, samples)
@@ -167,12 +167,12 @@ func TestForecaster_ZeroVarianceNaR2(t *testing.T) {
 	fc := forecast.NewForecaster(5)
 	now := time.Now().UTC()
 
-	// 5 samples all identical 50.0%
+	// 5 samples all identical 50.0% spanning >= 1h
 	samples := []forecast.Sample{
-		{Timestamp: now.Add(-4 * time.Minute), Value: 50.0},
-		{Timestamp: now.Add(-3 * time.Minute), Value: 50.0},
-		{Timestamp: now.Add(-2 * time.Minute), Value: 50.0},
-		{Timestamp: now.Add(-1 * time.Minute), Value: 50.0},
+		{Timestamp: now.Add(-80 * time.Minute), Value: 50.0},
+		{Timestamp: now.Add(-60 * time.Minute), Value: 50.0},
+		{Timestamp: now.Add(-40 * time.Minute), Value: 50.0},
+		{Timestamp: now.Add(-20 * time.Minute), Value: 50.0},
 		{Timestamp: now, Value: 50.0},
 	}
 

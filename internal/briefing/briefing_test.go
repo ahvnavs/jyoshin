@@ -125,4 +125,3 @@ func TestBriefing_RenderQualityAndNoPlaceholders(t *testing.T) {
 		}
 	}
 }
-

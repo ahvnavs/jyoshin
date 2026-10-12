@@ -516,6 +516,9 @@ func runServe(args []string) error {
 		return fmt.Errorf("failed to initialize api server: %w", err)
 	}
 
+	fmt.Printf("Kazeshini dashboard: http://%s:%d\n", cfg.Host, cfg.Port)
+	fmt.Println("Access token: run 'kazeshini token' or check data directory auth.token")
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

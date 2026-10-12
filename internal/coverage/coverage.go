@@ -13,6 +13,7 @@ import (
 	"github.com/OWNER/kazeshini/internal/inventory"
 	"github.com/OWNER/kazeshini/internal/orphan"
 	"github.com/OWNER/kazeshini/internal/sensors"
+	"github.com/OWNER/kazeshini/internal/sensors/network"
 	"github.com/OWNER/kazeshini/internal/supervisor"
 )
 
@@ -103,10 +104,13 @@ func (a *Assessor) Assess(ctx context.Context) Report {
 			totalListeners := 0
 			mappedListeners := 0
 			for _, it := range obs.Items {
-				if it.Type == "listener" || it.Type == "socket" {
+				if it.Type == "listening_port" || it.Type == "listener" || it.Type == "socket" {
 					totalListeners++
-					// Check if PID is mapped
-					if m, ok := it.Data.(map[string]any); ok {
+					if sInfo, ok := it.Data.(network.SocketInfo); ok {
+						if sInfo.PID > 0 {
+							mappedListeners++
+						}
+					} else if m, ok := it.Data.(map[string]any); ok {
 						if pid, ok := m["pid"].(int); ok && pid > 0 {
 							mappedListeners++
 						}
@@ -283,4 +287,3 @@ func (a *Assessor) Assess(ctx context.Context) Report {
 		Items:           items,
 	}
 }
-

@@ -126,10 +126,10 @@ func TestAPI_ForecastsAndBaselinesEndpoints(t *testing.T) {
 		t.Errorf("expected StateNotEnoughData initially, got %s", fcResults[0].State)
 	}
 
-	// 2. Feed samples with distinct timestamps to create a valid trend
-	t0 := time.Now().UTC().Add(-1 * time.Hour)
+	// 2. Feed samples with distinct timestamps to create a valid trend spanning >= 1h
+	t0 := time.Now().UTC().Add(-75 * time.Minute)
 	for i := 0; i < 6; i++ {
-		srv.RecordSampleAt("system_ram", float64(50+i*5), t0.Add(time.Duration(i*10)*time.Minute))
+		srv.RecordSampleAt("system_ram", float64(50+i*5), t0.Add(time.Duration(i*15)*time.Minute))
 	}
 
 	reqFC2 := httptest.NewRequest("GET", "/api/v1/forecasts", nil)

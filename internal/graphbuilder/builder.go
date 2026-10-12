@@ -381,27 +381,18 @@ func (g *ProvenanceGraph) ingestProcess(obs sensors.Observation, now time.Time) 
 		}
 
 		procNodeID := GenerateNodeID(graph.NodeProcess, fmt.Sprintf("%d:%s", p.PID, p.Name))
-		_ = g.UpsertNode(graph.Node{
-			ID:    procNodeID,
-			Type:  graph.NodeProcess,
-			Label: fmt.Sprintf("%s (pid %d)", p.Name, p.PID),
-			Properties: map[string]any{
-				"name":     p.Name,
-				"pid":      p.PID,
-				"ppid":     p.PPID,
-				"cmdline":  p.Cmdline,
-				"exe":      p.Exe,
-				"uid":      p.UID,
-				"threads":  p.Threads,
-				"vsize":    p.VSizeBytes,
-				"open_fds": p.OpenFDCount,
-				"cgroup":   p.Cgroup,
-			},
-			Evidence:  it.Evidence,
-			Certainty: graph.CertaintyObserved,
-			FirstSeen: now,
-			LastSeen:  now,
-		})
+		procProps := map[string]any{
+			"name":     p.Name,
+			"pid":      p.PID,
+			"ppid":     p.PPID,
+			"cmdline":  p.Cmdline,
+			"exe":      p.Exe,
+			"uid":      p.UID,
+			"threads":  p.Threads,
+			"vsize":    p.VSizeBytes,
+			"open_fds": p.OpenFDCount,
+			"cgroup":   p.Cgroup,
+		}
 
 		// Wire cgroup node if present
 		if p.Cgroup != "" {
@@ -478,8 +469,25 @@ func (g *ProvenanceGraph) ingestProcess(obs sensors.Observation, now time.Time) 
 			})
 
 			// Origin resolution: wire file -> origin
-			g.resolveAndWireOrigin(p.Exe, fileNodeID, now)
+			orig := g.resolveAndWireOrigin(p.Exe, fileNodeID, now)
+			if orig != nil {
+				if orig.Kind == origin.KindPackage {
+					procProps["origin_package"] = orig.Source
+				}
+				procProps["origin_kind"] = string(orig.Kind)
+			}
 		}
+
+		_ = g.UpsertNode(graph.Node{
+			ID:         procNodeID,
+			Type:       graph.NodeProcess,
+			Label:      fmt.Sprintf("%s (pid %d)", p.Name, p.PID),
+			Properties: procProps,
+			Evidence:   it.Evidence,
+			Certainty:  graph.CertaintyObserved,
+			FirstSeen:  now,
+			LastSeen:   now,
+		})
 
 		// User node
 		userNodeID := GenerateNodeID(graph.NodeUser, fmt.Sprintf("uid:%d", p.UID))
@@ -504,13 +512,13 @@ func (g *ProvenanceGraph) ingestProcess(obs sensors.Observation, now time.Time) 
 	}
 }
 
-func (g *ProvenanceGraph) resolveAndWireOrigin(filePath string, fileNodeID string, now time.Time) {
+func (g *ProvenanceGraph) resolveAndWireOrigin(filePath string, fileNodeID string, now time.Time) *origin.Origin {
 	g.mu.RLock()
 	resolver := g.originResolver
 	g.mu.RUnlock()
 
 	if resolver == nil {
-		return
+		return nil
 	}
 
 	orig := resolver.Resolve(context.TODO(), filePath)
@@ -545,6 +553,8 @@ func (g *ProvenanceGraph) resolveAndWireOrigin(filePath string, fileNodeID strin
 		Certainty:  orig.Certainty,
 		Confidence: orig.Confidence,
 	})
+
+	return &orig
 }
 
 func (g *ProvenanceGraph) ingestService(obs sensors.Observation, now time.Time) {

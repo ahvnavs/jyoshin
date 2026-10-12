@@ -1,0 +1,75 @@
+# Copyright 2026 Kazeshini Authors
+# SPDX-License-Identifier: Apache-2.0
+# Mapping of common daemons and programs to plain-English name and one-line purpose.
+
+programs:
+  sshd:
+    plain_name: "OpenSSH Daemon"
+    purpose: "Secure Shell server for remote encrypted console and admin logins"
+  systemd:
+    plain_name: "systemd"
+    purpose: "Core Linux init system and service supervisor"
+  systemd-journald:
+    plain_name: "systemd Journal"
+    purpose: "Structured system logging collector"
+  systemd-udevd:
+    plain_name: "systemd Device Manager"
+    purpose: "Kernel device event manager and dynamic /dev populator"
+  systemd-resolved:
+    plain_name: "systemd DNS Resolver"
+    purpose: "Local DNS resolver and network name resolution cache"
+  systemd-logind:
+    plain_name: "systemd Login Manager"
+    purpose: "User session tracking and login seat coordinator"
+  systemd-timesyncd:
+    plain_name: "systemd Time Sync"
+    purpose: "Network time protocol (NTP) clock synchronization client"
+  cron:
+    plain_name: "Cron Daemon"
+    purpose: "Scheduled periodic background command execution service"
+  crond:
+    plain_name: "Cron Daemon"
+    purpose: "Scheduled periodic background command execution service"
+  nginx:
+    plain_name: "NGINX HTTP & Reverse Proxy"
+    purpose: "Web server, reverse proxy, and TLS termination gateway"
+  apache2:
+    plain_name: "Apache HTTP Server"
+    purpose: "Modular web application and HTTP file server"
+  httpd:
+    plain_name: "Apache HTTP Server"
+    purpose: "Modular web application and HTTP file server"
+  postgres:
+    plain_name: "PostgreSQL Database Server"
+    purpose: "Relational database server storing transactional data"
+  mysqld:
+    plain_name: "MySQL Database Server"
+    purpose: "Relational database server for web and app persistence"
+  mariadbd:
+    plain_name: "MariaDB Database Server"
+    purpose: "Relational database server for web and app persistence"
+  redis-server:
+    plain_name: "Redis In-Memory Store"
+    purpose: "In-memory key-value data structure store, cache, and message broker"
+  memcached:
+    plain_name: "Memcached Memory Cache"
+    purpose: "High-performance distributed memory object caching system"
+  docker:
+    plain_name: "Docker Container Daemon"
+    purpose: "Container runtime engine managing application images and containers"
+  dockerd:
+    plain_name: "Docker Container Daemon"
+    purpose: "Container runtime engine managing application images and containers"
+  containerd:
+    plain_name: "containerd Runtime"
+    purpose: "Core container runtime executor managing container lifecycle"
+  podman:
+    plain_name: "Podman Engine"
+    purpose: "Daemonless container engine for OCI containers and pods"
+  rsyslogd:
+    plain_name: "Rsyslog Daemon"
+    purpose: "Enhanced multi-threaded system logging facility"
+  dbus-daemon:
+    plain_name: "D-Bus Message Broker"
+    purpose: "Inter-process communication bus connecting system services"
+

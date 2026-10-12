@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/OWNER/kazeshini/internal/config"
 )
 
 // Manager handles API access token generation, persistence, and verification.
@@ -25,7 +27,7 @@ type Manager struct {
 // NewManager creates an auth manager storing the local token in dataDir/auth.token.
 func NewManager(dataDir string) (*Manager, error) {
 	if dataDir == "" {
-		dataDir = "/var/lib/kazeshini"
+		dataDir = config.ResolveDefaultDataDir()
 	}
 	m := &Manager{
 		tokenPath: filepath.Join(dataDir, "auth.token"),

@@ -79,7 +79,7 @@ type Forecaster struct {
 // NewForecaster creates a new forecaster.
 func NewForecaster(minSamples int) *Forecaster {
 	if minSamples <= 0 {
-		minSamples = 5
+		minSamples = 6
 	}
 	return &Forecaster{minSamples: minSamples}
 }
@@ -140,7 +140,20 @@ func (f *Forecaster) Forecast(resource ResourceKind, target string, capacity flo
 
 	if len(clean) < f.minSamples {
 		res.State = StateNotEnoughData
-		res.Message = "Insufficient valid time-ordered samples after clock-jump reconciliation."
+		res.Message = fmt.Sprintf("Not enough historical data (%d/%d samples) to calculate forecast.", len(clean), f.minSamples)
+		if len(clean) > 0 {
+			res.CurrentValue = clean[len(clean)-1].Value
+		}
+		return res
+	}
+
+	// Verify time span spans at least 1 hour
+	span := clean[len(clean)-1].Timestamp.Sub(clean[0].Timestamp)
+	if span < time.Hour {
+		res.State = StateNotEnoughData
+		res.CurrentValue = clean[len(clean)-1].Value
+		res.Message = fmt.Sprintf("Collecting historical metrics (%d samples gathered, span %s; requires >= 6 samples spanning >= 1 hour).",
+			len(clean), span.Round(time.Minute))
 		return res
 	}
 

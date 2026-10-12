@@ -13,7 +13,8 @@
   --peach: #FFB89A;
   --rose: #FF9EC7;
 
-  --font: 'JetBrains Mono', 'DejaVu Sans Mono', 'Ubuntu Mono', 'Noto Sans Mono CJK JP', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', sans-serif, monospace;
+  --font: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  --font-cjk: 'Noto Sans Mono CJK JP', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', monospace;
   --font-12: 12px;
   --font-14: 14px;
   --font-16: 16px;
@@ -100,6 +101,10 @@ header {
   font-weight: bold;
   color: var(--mint);
   white-space: pre;
+}
+
+.kanji {
+  font-family: var(--font-cjk);
 }
 
 .header-controls {

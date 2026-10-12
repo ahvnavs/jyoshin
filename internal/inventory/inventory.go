@@ -67,10 +67,13 @@ type Inventory struct {
 
 // Manager collects and indexes installed packages and ecosystems.
 type Manager struct {
-	fs        fs.FS
-	mu        sync.RWMutex
-	fileOwner map[string]string // bounded cache: file path -> package name
-	maxCache  int
+	fs           fs.FS
+	mu           sync.RWMutex
+	fileOwner    map[string]string // bounded cache: file path -> package name
+	maxCache     int
+	dpkgMtime    int64
+	dpkgSize     int64
+	dpkgPackages []Package
 }
 
 // NewManager creates a new inventory manager.
@@ -137,6 +140,20 @@ func (m *Manager) collectSystemPackages(ctx context.Context) []Package {
 }
 
 func (m *Manager) readDpkgStatus() ([]Package, error) {
+	fi, err := m.fs.Stat("/var/lib/dpkg/status")
+	if err != nil {
+		return nil, err
+	}
+
+	m.mu.RLock()
+	if m.dpkgMtime == fi.ModTime().UnixNano() && m.dpkgSize == fi.Size() && len(m.dpkgPackages) > 0 {
+		cached := make([]Package, len(m.dpkgPackages))
+		copy(cached, m.dpkgPackages)
+		m.mu.RUnlock()
+		return cached, nil
+	}
+	m.mu.RUnlock()
+
 	statusBytes, err := m.fs.ReadFile("/var/lib/dpkg/status")
 	if err != nil {
 		return nil, err
@@ -179,6 +196,13 @@ func (m *Manager) readDpkgStatus() ([]Package, error) {
 		currentPkg.Manager = "dpkg"
 		pkgs = append(pkgs, currentPkg)
 	}
+
+	m.mu.Lock()
+	m.dpkgMtime = fi.ModTime().UnixNano()
+	m.dpkgSize = fi.Size()
+	m.dpkgPackages = make([]Package, len(pkgs))
+	copy(m.dpkgPackages, pkgs)
+	m.mu.Unlock()
 
 	return pkgs, nil
 }

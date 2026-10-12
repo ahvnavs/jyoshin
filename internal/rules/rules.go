@@ -562,6 +562,32 @@ func (e *Engine) Evaluate(ctx context.Context, nodes []graph.Node, edges []graph
 		}
 	}
 
+	// Deduplicate overlapping findings on the same process node
+	// (e.g. SEC-DELETED-BINARY-EXEC and SEC-PROC-TMP-EXEC)
+	var dedupedFindings []Finding
+	procTmpIndex := make(map[string]int) // nodeID -> index in dedupedFindings
+
+	for _, f := range currentFindings {
+		nodeID := ""
+		if len(f.AffectedNodeIDs) > 0 {
+			nodeID = f.AffectedNodeIDs[0]
+		}
+
+		if (f.RuleID == "SEC-DELETED-BINARY-EXEC" || f.RuleID == "SEC-PROC-TMP-EXEC") && nodeID != "" {
+			if existingIdx, exists := procTmpIndex[nodeID]; exists {
+				// Merge into existing finding
+				existing := &dedupedFindings[existingIdx]
+				existing.What = fmt.Sprintf("Process executing deleted binary from temporary path on %s", nodeID)
+				existing.SoWhat = fmt.Sprintf("%s Additionally, %s", existing.SoWhat, f.SoWhat)
+				existing.Proof.Evidence = append(existing.Proof.Evidence, f.Proof.Evidence...)
+				continue
+			}
+			procTmpIndex[nodeID] = len(dedupedFindings)
+		}
+
+		dedupedFindings = append(dedupedFindings, f)
+	}
+
 	// Lifecycle: identify resolved findings
 	for id, prev := range e.history {
 		if !matchedKeys[id] && prev.Lifecycle != LifecycleResolved {
@@ -570,8 +596,8 @@ func (e *Engine) Evaluate(ctx context.Context, nodes []graph.Node, edges []graph
 		}
 	}
 
-	SortFindings(currentFindings)
-	return currentFindings, nil
+	SortFindings(dedupedFindings)
+	return dedupedFindings, nil
 }
 
 func matchesDuration(node graph.Node, dur *MatchDuration, now time.Time) bool {
