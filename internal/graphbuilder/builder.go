@@ -6,6 +6,7 @@
 package graphbuilder
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -512,7 +513,7 @@ func (g *ProvenanceGraph) resolveAndWireOrigin(filePath string, fileNodeID strin
 		return
 	}
 
-	orig := resolver.Resolve(nil, filePath)
+	orig := resolver.Resolve(context.TODO(), filePath)
 	originLabel := fmt.Sprintf("%s:%s", orig.Kind, orig.Source)
 	if orig.Kind == origin.KindManual {
 		originLabel = "manual"

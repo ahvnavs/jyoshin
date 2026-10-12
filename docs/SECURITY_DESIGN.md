@@ -7,13 +7,13 @@
 
 ## Per-Sensor Privilege Model & Minimum Capabilities
 
-Kazeshini enforces the principle of least privilege. The daemon operates as the unprivileged `kazeshini` user with a minimal capability set (`CapabilityBoundingSet=CAP_DAC_READ_SEARCH` and `AmbientCapabilities=CAP_DAC_READ_SEARCH`).
+Kazeshini enforces the principle of least privilege. The daemon operates as the unprivileged `kazeshini` user with a minimal capability set (`CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE` and `AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE`). `CAP_SYS_PTRACE` is granted alongside `CAP_DAC_READ_SEARCH` to allow inspecting `/proc/<pid>/exe`, `/proc/<pid>/cmdline`, and `/proc/<pid>/fd/*` across unprivileged user namespaces and Yama ptrace scopes.
 
 | Sensor | Minimum Capabilities / Privileges | Purpose | Behavior When Denied / Missing |
 | :--- | :--- | :--- | :--- |
 | **host** | None (unprivileged read on `/etc/os-release`, `/proc/version`, `/proc/uptime`, `/proc/meminfo`) | Host identity & basic uptime | Returns standard observation |
-| **process** | `CAP_DAC_READ_SEARCH` (or `CAP_SYS_PTRACE`) | Read `/proc/<pid>/exe`, `/proc/<pid>/cmdline`, and `/proc/<pid>/stat` across users | Degrades gracefully: falls back to `/proc/<pid>/comm` and unprivileged stat, reports status `unknown, permission` on restricted targets with reduced visibility. |
-| **network** | `CAP_DAC_READ_SEARCH` | Inspect `/proc/<pid>/fd/*` socket inodes to map listening ports to owning PIDs | Socket table parsing (`/proc/net/{tcp,tcp6,udp,udp6}`) succeeds; unreadable process fd directories degrade to status `unknown`, with reason `unknown, permission: unreadable /proc/<pid>/fd...` and reduced visibility. |
+| **process** | `CAP_SYS_PTRACE` (or `CAP_DAC_READ_SEARCH`) | Read `/proc/<pid>/exe`, `/proc/<pid>/cmdline`, and `/proc/<pid>/stat` across users | Degrades gracefully: falls back to `/proc/<pid>/comm` and unprivileged stat, reports status `unknown, permission` on restricted targets with reduced visibility. |
+| **network** | `CAP_DAC_READ_SEARCH` (or `CAP_SYS_PTRACE`) | Inspect `/proc/<pid>/fd/*` socket inodes to map listening ports to owning PIDs | Socket table parsing (`/proc/net/{tcp,tcp6,udp,udp6}`) succeeds; unreadable process fd directories degrade to status `unknown`, with reason `unknown, permission: unreadable /proc/<pid>/fd...` and reduced visibility. |
 | **service** | None (connect to `/run/systemd/system/private` or D-Bus system bus via unprivileged socket; reads `/etc/systemd/system`) | Discover systemd service states, active status, restart counts | In non-systemd or restricted environments, gracefully marks observation `unknown (non-systemd)` without failure. |
 | **storage** | None (unprivileged `statfs` syscalls and `/proc/mounts`) | Filesystem mount points, disk usage, inode counts | Returns mounted filesystem capacities; unmounted private namespaces return `status: unknown`. |
 | **resources** | None (unprivileged `/proc/stat`, `/proc/loadavg`, `/proc/pressure/*`) | System-wide CPU, load, and PSI metrics | Returns telemetry samples; missing PSI returns zeroed pressure metrics without crashing. |

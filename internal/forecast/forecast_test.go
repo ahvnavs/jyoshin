@@ -162,3 +162,28 @@ func TestForecaster_ClockJumpAndRebootReconciliation(t *testing.T) {
 		t.Errorf("expected positive slope, got %f", res.SlopePerHour)
 	}
 }
+
+func TestForecaster_ZeroVarianceNaR2(t *testing.T) {
+	fc := forecast.NewForecaster(5)
+	now := time.Now().UTC()
+
+	// 5 samples all identical 50.0%
+	samples := []forecast.Sample{
+		{Timestamp: now.Add(-4 * time.Minute), Value: 50.0},
+		{Timestamp: now.Add(-3 * time.Minute), Value: 50.0},
+		{Timestamp: now.Add(-2 * time.Minute), Value: 50.0},
+		{Timestamp: now.Add(-1 * time.Minute), Value: 50.0},
+		{Timestamp: now, Value: 50.0},
+	}
+
+	res := fc.Forecast(forecast.ResourceDisk, "/", 100.0, samples)
+	if res.State != forecast.StateStable {
+		t.Fatalf("expected state stable for zero variance, got %s", res.State)
+	}
+	if res.R2Text != "n/a" {
+		t.Fatalf("expected R2Text 'n/a' for zero variance, got %s", res.R2Text)
+	}
+	if res.Unit != "percent" {
+		t.Fatalf("expected unit 'percent', got %s", res.Unit)
+	}
+}

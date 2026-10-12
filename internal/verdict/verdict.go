@@ -13,21 +13,30 @@ import (
 	"github.com/OWNER/kazeshini/internal/rules"
 )
 
-// Summary captures the server-computed verdict for the UI.
+// ChaosContributor explains a specific factor increasing the Chaos Index.
+type ChaosContributor struct {
+	Label  string `json:"label"`  // e.g. "+12 hand-installed programs"
+	Points int    `json:"points"` // Points added to Chaos Index
+}
+
+// Summary captures the server-computed verdict for the UI and CLI.
 type Summary struct {
-	Timestamp          time.Time       `json:"timestamp"`
-	OneLineVerdict     string          `json:"one_line_verdict"`
-	StateLabel         string          `json:"state_label"` // CALM, MODERATE, MESSY, CRITICAL
-	ChaosIndex         int             `json:"chaos_index"` // 0 - 100
-	IdentityLine       string          `json:"identity_line"`
-	TotalFindings      int             `json:"total_findings"`
-	CriticalFindings   int             `json:"critical_findings"`
-	HighFindings       int             `json:"high_findings"`
-	EstimatedWasteUSD  float64         `json:"estimated_waste_usd_monthly"`
-	ListeningPortCount int             `json:"listening_port_count"`
-	PublicPortCount    int             `json:"public_port_count"`
-	OrphanCount        int             `json:"orphan_count"`
-	TopFindings        []rules.Finding `json:"top_findings"`
+	Timestamp          time.Time          `json:"timestamp"`
+	OneLineVerdict     string             `json:"one_line_verdict"`
+	StateLabel         string             `json:"state_label"` // CALM, MESSY, CRITICAL, PARTIAL, UNKNOWN
+	ChaosIndex         int                `json:"chaos_index"` // 0 - 100
+	IdentityLine       string             `json:"identity_line"`
+	TotalFindings      int                `json:"total_findings"`
+	CriticalFindings   int                `json:"critical_findings"`
+	HighFindings       int                `json:"high_findings"`
+	EstimatedWasteUSD  float64            `json:"estimated_waste_usd_monthly"`
+	ListeningPortCount int                `json:"listening_port_count"`
+	PublicPortCount    int                `json:"public_port_count"`
+	OrphanCount        int                `json:"orphan_count"`
+	CoverageHonest     bool               `json:"coverage_honest"`
+	CoverageNote       string             `json:"coverage_note,omitempty"`
+	ChaosContributors  []ChaosContributor `json:"chaos_contributors,omitempty"`
+	TopFindings        []rules.Finding    `json:"top_findings"`
 }
 
 // ComputeVerdict calculates the overall server verdict and Chaos Index from graph and findings.
@@ -92,10 +101,44 @@ func ComputeVerdict(nodes []graph.Node, findings []rules.Finding, orphanCount in
 		}
 	}
 
-	// System entropy penalties
+	// System entropy penalties and contributors tracking
+	var contributors []ChaosContributor
 	orphanPenalty := math.Min(15.0, float64(orphanCount)*2.0)
+	if orphanPenalty > 0 {
+		contributors = append(contributors, ChaosContributor{
+			Label:  fmt.Sprintf("+%d hand-installed programs", orphanCount),
+			Points: int(math.Round(orphanPenalty)),
+		})
+	}
+
 	exposurePenalty := math.Min(20.0, float64(pubPorts)*5.0)
+	if exposurePenalty > 0 {
+		contributors = append(contributors, ChaosContributor{
+			Label:  fmt.Sprintf("+%d public listening ports exposed", pubPorts),
+			Points: int(math.Round(exposurePenalty)),
+		})
+	}
+
 	failedPenalty := float64(failedUnits) * 8.0
+	if failedPenalty > 0 {
+		contributors = append(contributors, ChaosContributor{
+			Label:  fmt.Sprintf("+%d failed system services", failedUnits),
+			Points: int(math.Round(failedPenalty)),
+		})
+	}
+
+	if critCount > 0 {
+		contributors = append(contributors, ChaosContributor{
+			Label:  fmt.Sprintf("+%d critical security or reliability findings", critCount),
+			Points: int(math.Round(float64(critCount) * 20.0)),
+		})
+	}
+	if highCount > 0 {
+		contributors = append(contributors, ChaosContributor{
+			Label:  fmt.Sprintf("+%d high severity findings", highCount),
+			Points: int(math.Round(float64(highCount) * 10.0)),
+		})
+	}
 
 	rawChaos := scoreSum + orphanPenalty + exposurePenalty + failedPenalty
 	chaosIndex := int(math.Min(100.0, math.Round(rawChaos)))
@@ -111,8 +154,8 @@ func ComputeVerdict(nodes []graph.Node, findings []rules.Finding, orphanCount in
 		stateLabel = "MESSY"
 		verdict = fmt.Sprintf("Server configuration exhibits disorder: %d issues and unmanaged entropy present.", len(findings))
 	case chaosIndex >= 16:
-		stateLabel = "MODERATE"
-		verdict = fmt.Sprintf("Server operating moderately: %d minor findings, low immediate risk.", len(findings))
+		stateLabel = "MESSY"
+		verdict = fmt.Sprintf("Server configuration exhibits moderate disorder: %d findings present.", len(findings))
 	}
 
 	// Estimated monthly waste based on findings
@@ -138,6 +181,28 @@ func ComputeVerdict(nodes []graph.Node, findings []rules.Finding, orphanCount in
 		ListeningPortCount: totalPorts,
 		PublicPortCount:    pubPorts,
 		OrphanCount:        orphanCount,
+		CoverageHonest:     true,
+		ChaosContributors:  contributors,
 		TopFindings:        findings[:topCount],
 	}
+}
+
+// ComputeVerdictWithCoverage calculates verdict enforcing coverage honesty.
+// If coverage is inadequate, CALM is suspended and state becomes PARTIAL or UNKNOWN.
+func ComputeVerdictWithCoverage(nodes []graph.Node, findings []rules.Finding, orphanCount int, coverageAdequate bool, coverageExplanation string) Summary {
+	summary := ComputeVerdict(nodes, findings, orphanCount)
+	summary.CoverageHonest = coverageAdequate
+	summary.CoverageNote = coverageExplanation
+
+	if len(nodes) == 0 && len(findings) == 0 && !coverageAdequate {
+		summary.StateLabel = "UNKNOWN"
+		summary.OneLineVerdict = "Host truth unknown: sensors have not yet collected system observations."
+		return summary
+	}
+
+	if !coverageAdequate && summary.StateLabel == "CALM" {
+		summary.StateLabel = "PARTIAL"
+		summary.OneLineVerdict = fmt.Sprintf("Limited visibility: %s. Cannot certify calm state.", coverageExplanation)
+	}
+	return summary
 }

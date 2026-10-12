@@ -69,3 +69,19 @@ jobs:
           file dist/kazeshini-linux-amd64
           file dist/kazeshini-linux-arm64
 
+  smoke:
+    name: End-to-End Smoke Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      - name: Run Smoke Suite
+        run: bash scripts/smoke.sh
+

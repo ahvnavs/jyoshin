@@ -284,9 +284,7 @@ func parseProcNet(data []byte, proto string, inodeMap map[uint64]procMeta) []Soc
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 
 	// Skip header line
-	if scanner.Scan() {
-		// header
-	}
+	_ = scanner.Scan()
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())

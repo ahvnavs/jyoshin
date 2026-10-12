@@ -1,0 +1,18 @@
+id: "SEC-DELETED-BINARY-EXEC"
+name: "Process executing binary deleted from disk"
+description: "Process executable link (/proc/<pid>/exe) references an unlinked binary marked as (deleted)."
+category: "security"
+severity: "critical"
+match:
+  node_type: "process"
+  properties:
+    exe:
+      contains: "(deleted)"
+consequence: "Running unlinked binaries indicates memory injection, anti-forensics hiding, or unrestartable rogue processes."
+recommendation:
+  action: "Investigate process origin, inspect /proc/<pid>/fd, and terminate process."
+  risk_level: "high"
+  reversible: false
+certainty: "OBSERVED"
+confidence: 1.0
+

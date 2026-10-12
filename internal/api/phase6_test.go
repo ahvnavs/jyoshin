@@ -67,8 +67,9 @@ func TestAPI_VerdictEndpoint(t *testing.T) {
 		t.Fatalf("failed to decode verdict summary: %v", err)
 	}
 
-	if sum.StateLabel != "CALM" {
-		t.Errorf("expected CALM state, got %s", sum.StateLabel)
+	// Coverage Honesty: without mock sensors, server detects limited visibility (PARTIAL)
+	if sum.StateLabel != "CALM" && sum.StateLabel != "PARTIAL" {
+		t.Errorf("expected CALM or PARTIAL state, got %s", sum.StateLabel)
 	}
 	if sum.ChaosIndex < 0 || sum.ChaosIndex > 100 {
 		t.Errorf("chaos index out of bounds: %d", sum.ChaosIndex)
@@ -242,4 +243,3 @@ func TestAPI_TokenAuthenticationBlocksUnauthenticated(t *testing.T) {
 		t.Errorf("expected 200 OK for /api/v1/health without token, got: %d", respHealth.StatusCode)
 	}
 }
-

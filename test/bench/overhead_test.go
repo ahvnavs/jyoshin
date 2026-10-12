@@ -25,7 +25,7 @@ func BenchmarkHighLoadOverhead(b *testing.B) {
 	g := graphbuilder.NewProvenanceGraph()
 	// Pre-populate with 10,000 simulated nodes
 	for i := 0; i < 10000; i++ {
-		g.UpsertNode(graph.Node{
+		if err := g.UpsertNode(graph.Node{
 			ID:        fmt.Sprintf("node:%d", i),
 			Type:      graph.NodeProcess,
 			Label:     fmt.Sprintf("worker-%d", i),
@@ -36,7 +36,9 @@ func BenchmarkHighLoadOverhead(b *testing.B) {
 				"pid": i,
 				"rss": 1024 * 1024,
 			},
-		})
+		}); err != nil {
+			b.Fatalf("failed to upsert node: %v", err)
+		}
 	}
 
 	b.ResetTimer()

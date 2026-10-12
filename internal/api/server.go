@@ -12,16 +12,21 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/OWNER/kazeshini/internal/auth"
 	"github.com/OWNER/kazeshini/internal/blastradius"
+	"github.com/OWNER/kazeshini/internal/briefing"
 	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/coverage"
 	"github.com/OWNER/kazeshini/internal/decisions"
 	"github.com/OWNER/kazeshini/internal/diff"
 	"github.com/OWNER/kazeshini/internal/forecast"
+	internalfs "github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/graphbuilder"
 	"github.com/OWNER/kazeshini/internal/inventory"
 	"github.com/OWNER/kazeshini/internal/origin"
@@ -179,6 +184,17 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/migration", s.handleMigration)
 	mux.HandleFunc("GET /api/v1/report", s.handleReport)
 
+	// Phase 18: Coverage Honesty & Plain Briefing
+	mux.HandleFunc("GET /api/v1/coverage", s.handleCoverage)
+	mux.HandleFunc("GET /api/v1/briefing", s.handleBriefing)
+
+	// Profiling endpoints (for external overhead inspection)
+	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+
 	// Embedded web UI
 	subFS, err := fs.Sub(web.Assets, ".")
 	if err != nil {
@@ -206,9 +222,9 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"error":   "unauthorized: valid bearer token required in Authorization header",
-					"status":  401,
-					"hint":    "run 'kazeshini token' to retrieve authentication token",
+					"error":  "unauthorized: valid bearer token required in Authorization header",
+					"status": 401,
+					"hint":   "run 'kazeshini token' to retrieve authentication token",
 				})
 				return
 			}
@@ -476,9 +492,15 @@ func (s *Server) handleFindings(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(findings)
 }
 
+func (s *Server) computeCurrentCoverage(ctx context.Context) coverage.Report {
+	assessor := coverage.NewAssessor(s.supervisor, s.inventory, s.orphanScan, internalfs.Default())
+	return assessor.Assess(ctx)
+}
+
 func (s *Server) computeCurrentVerdict(ctx context.Context) verdict.Summary {
+	cov := s.computeCurrentCoverage(ctx)
 	if s.pGraph == nil {
-		return verdict.ComputeVerdict(nil, nil, 0)
+		return verdict.ComputeVerdictWithCoverage(nil, nil, 0, cov.IsAdequate, cov.SummaryNote)
 	}
 	nodes, edges := s.pGraph.Snapshot()
 	var findings []rules.Finding
@@ -492,7 +514,51 @@ func (s *Server) computeCurrentVerdict(ctx context.Context) verdict.Summary {
 	if s.orphanScan != nil {
 		orphanCount = s.orphanScan.Count()
 	}
-	return verdict.ComputeVerdict(nodes, findings, orphanCount)
+	return verdict.ComputeVerdictWithCoverage(nodes, findings, orphanCount, cov.IsAdequate, cov.SummaryNote)
+}
+
+func (s *Server) handleCoverage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	rep := s.computeCurrentCoverage(r.Context())
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(rep)
+}
+
+func (s *Server) handleBriefing(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	cov := s.computeCurrentCoverage(r.Context())
+	var nodes []graph.Node
+	var edges []graph.Edge
+	if s.pGraph != nil {
+		nodes, edges = s.pGraph.Snapshot()
+	}
+	var findings []rules.Finding
+	if s.ruleEngine != nil {
+		f, err := s.ruleEngine.Evaluate(r.Context(), nodes, edges)
+		if err == nil {
+			findings = f
+		}
+	}
+	var orphans []orphan.ScanResult
+	if s.orphanScan != nil {
+		if last := s.orphanScan.LastResult(); last != nil {
+			orphans = append(orphans, *last)
+		}
+	}
+
+	builder := briefing.NewBuilder()
+	br := builder.Build(r.Context(), nodes, findings, orphans, cov, time.Now().UTC())
+
+	format := r.URL.Query().Get("format")
+	if strings.ToLower(format) == "text" || strings.ToLower(format) == "terminal" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(br.RenderTerminal()))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(br)
 }
 
 func (s *Server) handleVerdict(w http.ResponseWriter, r *http.Request) {
@@ -670,23 +736,42 @@ func (s *Server) handleForecasts(w http.ResponseWriter, r *http.Request) {
 
 	var results []forecast.Result
 
-	// Resource kind mappings
-	targets := []struct {
+	// Tracked static and dynamic targets
+	defaultTargets := map[string]struct {
 		kind     forecast.ResourceKind
-		target   string
 		capacity float64
 	}{
-		{forecast.ResourceDisk, "/", 100.0},
-		{forecast.ResourceMemory, "system_ram", 100.0},
-		{forecast.ResourceInodes, "/_inodes", 1000000.0},
-		{forecast.ResourceFDs, "system_fds", 65536.0},
-		{forecast.ResourceSwap, "swap", 100.0},
-		{forecast.ResourceLoad, "load1", 16.0},
+		"system_ram": {forecast.ResourceMemory, 100.0},
+		"system_fds": {forecast.ResourceFDs, 65536.0},
+		"swap":       {forecast.ResourceSwap, 100.0},
+		"load1":      {forecast.ResourceLoad, 16.0},
 	}
 
-	for _, t := range targets {
-		samples := s.samples[t.target]
-		res := s.forecaster.Forecast(t.kind, t.target, t.capacity, samples)
+	seen := make(map[string]bool)
+
+	// Check any disk mount targets present in recorded samples
+	for target, smps := range s.samples {
+		if _, isDefault := defaultTargets[target]; isDefault {
+			continue
+		}
+		seen[target] = true
+		kind := forecast.ResourceDisk
+		capacity := 100.0
+		if strings.HasSuffix(target, "_inodes") {
+			kind = forecast.ResourceInodes
+			capacity = 1000000.0
+		}
+		res := s.forecaster.Forecast(kind, target, capacity, smps)
+		if s.watchers != nil {
+			_ = s.watchers.ProcessForecast(res)
+		}
+		results = append(results, res)
+	}
+
+	// Always ensure standard targets are evaluated
+	for target, def := range defaultTargets {
+		smps := s.samples[target]
+		res := s.forecaster.Forecast(def.kind, target, def.capacity, smps)
 		if s.watchers != nil {
 			_ = s.watchers.ProcessForecast(res)
 		}

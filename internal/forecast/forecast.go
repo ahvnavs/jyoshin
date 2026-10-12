@@ -48,8 +48,10 @@ type Result struct {
 	Message          string        `json:"message"`
 	CurrentValue     float64       `json:"current_value"`
 	Capacity         float64       `json:"capacity,omitempty"`
-	SlopePerHour     float64       `json:"slope_per_hour"` // Rate of change per hour
-	R2Score          float64       `json:"r2_score"`       // Coefficient of determination
+	SlopePerHour     float64       `json:"slope_per_hour"`    // Rate of change per hour
+	R2Score          float64       `json:"r2_score"`          // Coefficient of determination
+	R2Text           string        `json:"r2_text,omitempty"` // Formatted R² or "n/a" for zero-variance
+	Unit             string        `json:"unit,omitempty"`    // "bytes", "percent", etc.
 	TimeToExhaustion time.Duration `json:"time_to_exhaustion,omitempty"`
 	ConfidenceLower  time.Duration `json:"confidence_lower,omitempty"`
 	ConfidenceUpper  time.Duration `json:"confidence_upper,omitempty"`
@@ -86,11 +88,29 @@ func NewForecaster(minSamples int) *Forecaster {
 // Enforces honest "not enough data" state when samples are insufficient.
 // Handles clock-jumps and reboots gracefully.
 func (f *Forecaster) Forecast(resource ResourceKind, target string, capacity float64, samples []Sample) Result {
+	unit := "percent"
+	switch resource {
+	case ResourceDisk, ResourceMemory, ResourceSwap:
+		if capacity > 100.0 {
+			unit = "bytes"
+		} else {
+			unit = "percent"
+		}
+	case ResourceInodes:
+		unit = "inodes"
+	case ResourceFDs:
+		unit = "fds"
+	case ResourceLoad:
+		unit = "load"
+	}
+
 	res := Result{
 		Resource:    resource,
 		Target:      target,
 		Capacity:    capacity,
 		SampleCount: len(samples),
+		Unit:        unit,
+		R2Text:      "n/a",
 	}
 
 	if len(samples) < f.minSamples {
@@ -150,6 +170,8 @@ func (f *Forecaster) Forecast(resource ResourceKind, target string, capacity flo
 	if math.Abs(denom) < 1e-9 {
 		res.CurrentValue = clean[len(clean)-1].Value
 		res.State = StateStable
+		res.R2Score = 0.0
+		res.R2Text = "n/a"
 		res.Message = "Resource usage is stable with zero variance over time."
 		return res
 	}
@@ -171,8 +193,14 @@ func (f *Forecaster) Forecast(resource ResourceKind, target string, capacity flo
 
 	if ssTot > 1e-9 {
 		res.R2Score = math.Max(0.0, 1.0-(ssRes/ssTot))
+		res.R2Text = fmt.Sprintf("%.2f", res.R2Score)
 	} else {
-		res.R2Score = 1.0 // Identical points
+		// Zero-variance series: R² is undefined / n/a, state is stable
+		res.R2Score = 0.0
+		res.R2Text = "n/a"
+		res.State = StateStable
+		res.Message = "Resource usage is stable with zero variance over time."
+		return res
 	}
 
 	// Leak Detection: strictly monotonic non-decreasing with consistent positive growth

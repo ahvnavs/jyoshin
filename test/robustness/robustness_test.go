@@ -89,14 +89,16 @@ func TestRobustness_SoakAndLeakCheck(t *testing.T) {
 			pg.IngestObservation(obs)
 		}
 		// Ingest simulated fluctuating node
-		pg.UpsertNode(graph.Node{
+		if err := pg.UpsertNode(graph.Node{
 			ID:        fmt.Sprintf("proc:%d", i%100),
 			Type:      graph.NodeProcess,
 			Label:     "soak-worker",
 			Certainty: graph.CertaintyObserved,
 			FirstSeen: time.Now(),
 			LastSeen:  time.Now(),
-		})
+		}); err != nil {
+			t.Fatalf("failed to upsert node: %v", err)
+		}
 	}
 
 	runtime.GC()

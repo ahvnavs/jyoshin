@@ -8,4 +8,3 @@ import "embed"
 
 //go:embed *.yaml
 var EmbeddedRules embed.FS
-

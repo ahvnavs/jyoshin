@@ -28,9 +28,15 @@ func TestKernelSensor(t *testing.T) {
 	if err := os.MkdirAll(bootDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(bootDir, "vmlinuz-6.8.0-38-generic"), []byte("data"), 0644)
-	os.WriteFile(filepath.Join(bootDir, "vmlinuz-6.8.0-40-generic"), []byte("data"), 0644)
-	os.WriteFile(filepath.Join(bootDir, "vmlinuz-6.8.0-45-generic"), []byte("data"), 0644)
+	if err := os.WriteFile(filepath.Join(bootDir, "vmlinuz-6.8.0-38-generic"), []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bootDir, "vmlinuz-6.8.0-40-generic"), []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bootDir, "vmlinuz-6.8.0-45-generic"), []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	sensor := NewSensor(tmpDir)
 	obs, err := sensor.Collect(context.Background())

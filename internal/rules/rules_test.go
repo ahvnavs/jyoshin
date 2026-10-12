@@ -394,6 +394,42 @@ recommendation:
 	if len(findingsNeg) != 0 {
 		t.Fatalf("expected 0 EOL findings for Ubuntu 24.04, got %d", len(findingsNeg))
 	}
+
+	// Positive test for EOL runtime: Python 3.7 (EOL in 2023)
+	eolPyNode := graph.Node{
+		ID:         "orig:python-3.7",
+		Type:       graph.NodeOrigin,
+		Label:      "Python 3.7",
+		Properties: map[string]any{"source": "python", "version": "3.7.12"},
+		Certainty:  graph.CertaintyObserved,
+		FirstSeen:  now,
+		LastSeen:   now,
+	}
+	findingsPyPos, err := engine.Evaluate(context.Background(), []graph.Node{eolPyNode}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findingsPyPos) != 1 {
+		t.Fatalf("expected 1 EOL finding for Python 3.7 runtime, got %d", len(findingsPyPos))
+	}
+
+	// Negative test for supported runtime: Python 3.12 (supported until 2028)
+	suppPyNode := graph.Node{
+		ID:         "orig:python-3.12",
+		Type:       graph.NodeOrigin,
+		Label:      "Python 3.12",
+		Properties: map[string]any{"source": "python", "version": "3.12.2"},
+		Certainty:  graph.CertaintyObserved,
+		FirstSeen:  now,
+		LastSeen:   now,
+	}
+	findingsPyNeg, err := engine.Evaluate(context.Background(), []graph.Node{suppPyNode}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findingsPyNeg) != 0 {
+		t.Fatalf("expected 0 EOL findings for Python 3.12 runtime, got %d", len(findingsPyNeg))
+	}
 }
 
 func TestRules_CalmHostZeroNoise(t *testing.T) {
@@ -762,7 +798,8 @@ func TestRules_PositiveAndNegative_ForecasterAndNewRules(t *testing.T) {
 	})
 
 	t.Run("TestRule_EFF_IDLE_SERVICE_NO_TRAFFIC_Negative", func(t *testing.T) {
-		negativeNode := graph.Node{
+		// Negative case 1: Active service with active connections (established_connections > 0)
+		negativeNode1 := graph.Node{
 			ID:    "service:active-web.service",
 			Type:  graph.NodeService,
 			Label: "active-web.service",
@@ -775,13 +812,29 @@ func TestRules_PositiveAndNegative_ForecasterAndNewRules(t *testing.T) {
 			FirstSeen: now,
 			LastSeen:  now,
 		}
-		findings, err := engine.Evaluate(context.Background(), []graph.Node{negativeNode}, nil)
+
+		// Negative case 2: 0 connections, but duration_hours < 72 (e.g. 24h history) -> MUST produce NO finding
+		negativeNode2 := graph.Node{
+			ID:    "service:young-dormant.service",
+			Type:  graph.NodeService,
+			Label: "young-dormant.service",
+			Properties: map[string]any{
+				"active_state":            "active",
+				"established_connections": 0,
+				"duration_hours":          24.0, // < 72h threshold
+			},
+			Certainty: graph.CertaintyObserved,
+			FirstSeen: now,
+			LastSeen:  now,
+		}
+
+		findings, err := engine.Evaluate(context.Background(), []graph.Node{negativeNode1, negativeNode2}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, f := range findings {
 			if f.RuleID == "EFF-IDLE-SERVICE-NO-TRAFFIC" {
-				t.Errorf("EFF-IDLE-SERVICE-NO-TRAFFIC unexpectedly triggered on negative fixture")
+				t.Errorf("EFF-IDLE-SERVICE-NO-TRAFFIC unexpectedly triggered on negative fixture (%s): %s", f.ID, f.What)
 			}
 		}
 	})
@@ -843,4 +896,3 @@ func TestRules_PositiveAndNegative_ForecasterAndNewRules(t *testing.T) {
 		}
 	})
 }
-

@@ -1,6 +1,6 @@
 id: "OPS-EOL-SOFTWARE"
-name: "Operating system distribution past end-of-life date"
-description: "Distribution version is flagged as EOL in data/eol.yaml dataset."
+name: "Operating system distribution or runtime past end-of-life date"
+description: "Distribution or runtime version is flagged as EOL in data/eol.yaml dataset."
 category: "operations"
 severity: "high"
 match:

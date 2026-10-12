@@ -49,6 +49,8 @@ One static Go binary. One command installs it. It runs as an unprivileged system
 8. **SELF-CONTAINED**: Embedded store (`bbolt`, zero CGO) and embedded web UI (`go:embed`, zero external CDN).
 9. **STDLIB-FIRST**: Minimal dependencies justified in [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 10. **GRACEFUL DEGRADATION**: Missing permissions report "unknown, here's why", never crash.
+11. **COVERAGE HONESTY**: Never say healthy/calm unless the sensors that matter could actually see. "Found nothing" and "couldn't look" must look different.
+12. **HUMAN-FIRST**: Plain sentences, human units (GB, days, "3 hours ago"), no raw keys or jargon without a one-line gloss.
 
 ---
 

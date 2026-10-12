@@ -26,7 +26,7 @@ type SelfOverhead struct {
 	RSSBytes     uint64  `json:"rss_bytes"`
 	VSizeBytes   uint64  `json:"vsize_bytes"`
 	CPUPercent   float64 `json:"cpu_percent"`
-	CgroupLimit  string  `json:"cgroup_limit,omitempty"`
+	CgroupPath   string  `json:"cgroup_path,omitempty"`
 	Nice         int     `json:"nice"`
 }
 
@@ -67,9 +67,8 @@ func New(registry *sensors.Registry, logger *slog.Logger) *Supervisor {
 	return s
 }
 
-// LowerPriority lowers the process priority to minimize host disturbance.
-// Principle 3: NEVER HARM THE HOST. Low priority (nice 19 within 0..19, ionice idle where available).
-func (s *Supervisor) LowerPriority() {
+// LowerProcessPriority lowers process priority and I/O scheduling to lowest priority (nice 19).
+func LowerProcessPriority() {
 	// Set nice to 19 (highest unprivileged niceness / lowest scheduling priority within 0..19)
 	targetNice := 19
 	_ = syscall.Setpriority(syscall.PRIO_PROCESS, 0, targetNice)
@@ -82,6 +81,12 @@ func (s *Supervisor) LowerPriority() {
 	)
 	idlePrio := (ioprioClassIdle << ioprioClassShift)
 	_, _, _ = syscall.Syscall(syscall.SYS_IOPRIO_SET, uintptr(ioprioWhoProcess), 0, uintptr(idlePrio))
+}
+
+// LowerPriority lowers the process priority to minimize host disturbance.
+// Principle 3: NEVER HARM THE HOST. Low priority (nice 19 within 0..19, ionice idle where available).
+func (s *Supervisor) LowerPriority() {
+	LowerProcessPriority()
 }
 
 // Start begins independent collection loops for each sensor.
@@ -236,6 +241,11 @@ func (s *Supervisor) RunSensorSafe(ctx context.Context, sensor sensors.Sensor, t
 	if obs.Duration == 0 {
 		obs.Duration = time.Since(start)
 	}
+
+	s.mu.Lock()
+	s.lastObs[sensor.Name()] = obs
+	s.mu.Unlock()
+
 	return obs, err
 }
 
@@ -281,7 +291,7 @@ func (s *Supervisor) GetSelfOverhead() SelfOverhead {
 	// Read /proc/self/statm for memory
 	if statmData, err := os.ReadFile("/proc/self/statm"); err == nil {
 		fields := strings.Fields(string(statmData))
-		pageSize := uint64(os.Getpagesize())
+		pageSize := uint64(uint(os.Getpagesize()))
 		if len(fields) >= 2 {
 			vsizePages, _ := strconv.ParseUint(fields[0], 10, 64)
 			rssPages, _ := strconv.ParseUint(fields[1], 10, 64)
@@ -290,9 +300,9 @@ func (s *Supervisor) GetSelfOverhead() SelfOverhead {
 		}
 	}
 
-	// Read cgroup limit if present
+	// Read cgroup path if present
 	if cgData, err := os.ReadFile("/proc/self/cgroup"); err == nil {
-		overhead.CgroupLimit = strings.TrimSpace(string(cgData))
+		overhead.CgroupPath = strings.TrimSpace(string(cgData))
 	}
 
 	// Compute CPU % based on /proc/self/stat
@@ -303,7 +313,7 @@ func (s *Supervisor) GetSelfOverhead() SelfOverhead {
 			stime, _ := strconv.ParseUint(fields[14], 10, 64)
 			totalTicks := utime + stime
 			// Standard Linux clock ticks is 100 per sec
-			cpuDuration := time.Duration(totalTicks*10) * time.Millisecond
+			cpuDuration := time.Duration(int64(totalTicks*10)) * time.Millisecond
 
 			s.mu.Lock()
 			now := time.Now()

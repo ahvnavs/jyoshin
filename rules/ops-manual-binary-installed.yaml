@@ -1,0 +1,18 @@
+id: "OPS-MANUAL-BINARY-INSTALLED"
+name: "Manually installed or unpacked executable detected on host"
+description: "Binary executing outside package manager control (/usr/local or /opt) without active network listeners."
+category: "operations"
+severity: "info"
+match:
+  node_type: "process"
+  properties:
+    origin_kind:
+      equals: "manual"
+consequence: "Hand-installed binaries require manual maintenance, security patching, and lifecycle tracking."
+recommendation:
+  action: "Review necessity of manual binary and replace with distribution packages where practical."
+  risk_level: "none"
+  reversible: true
+certainty: "DERIVED"
+confidence: 0.90
+

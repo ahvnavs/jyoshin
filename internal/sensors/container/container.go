@@ -138,7 +138,7 @@ func (s *Sensor) fetchContainersHTTP(ctx context.Context, socketPath, runtime st
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
@@ -206,11 +206,4 @@ func (s *Sensor) fetchContainersHTTP(ctx context.Context, socketPath, runtime st
 	}
 
 	return result, nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

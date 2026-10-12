@@ -158,4 +158,64 @@ func TestComputeVerdict_Scenarios(t *testing.T) {
 			t.Errorf("expected 2 critical findings, got %d", summary.CriticalFindings)
 		}
 	})
+
+	t.Run("Coverage Honesty - Partial Scenario", func(t *testing.T) {
+		nodes := []graph.Node{
+			{
+				ID:        "host:debian",
+				Type:      graph.NodeSystem,
+				Label:     "partial-node-01",
+				FirstSeen: time.Now(),
+				LastSeen:  time.Now(),
+				Properties: map[string]any{
+					"distro":    "Debian GNU/Linux 12",
+					"cpu_count": 4,
+				},
+			},
+		}
+		var findings []rules.Finding // zero findings, but coverage inadequate
+		orphanCount := 0
+
+		summary := ComputeVerdictWithCoverage(nodes, findings, orphanCount, false, "unreadable /proc/<pid>/fd for 12 processes")
+		if summary.StateLabel != "PARTIAL" {
+			t.Errorf("expected PARTIAL state when coverage is inadequate, got %s", summary.StateLabel)
+		}
+		if summary.CoverageHonest {
+			t.Errorf("expected CoverageHonest to be false")
+		}
+	})
+
+	t.Run("Coverage Honesty - Unknown Scenario", func(t *testing.T) {
+		summary := ComputeVerdictWithCoverage(nil, nil, 0, false, "sensors not yet initialized")
+		if summary.StateLabel != "UNKNOWN" {
+			t.Errorf("expected UNKNOWN state, got %s", summary.StateLabel)
+		}
+	})
+
+	t.Run("Chaos Contributors", func(t *testing.T) {
+		nodes := []graph.Node{
+			{
+				ID:        "port:all:5432",
+				Type:      graph.NodePort,
+				Label:     "0.0.0.0:5432",
+				FirstSeen: time.Now(),
+				LastSeen:  time.Now(),
+				Properties: map[string]any{
+					"port":           5432,
+					"exposure_class": "all_interfaces",
+				},
+			},
+		}
+		findings := []rules.Finding{
+			{
+				ID:       "crit-1",
+				Severity: rules.SeverityCritical,
+				Proof:    rules.Proof{Confidence: 1.0},
+			},
+		}
+		summary := ComputeVerdict(nodes, findings, 5)
+		if len(summary.ChaosContributors) == 0 {
+			t.Errorf("expected non-empty ChaosContributors")
+		}
+	})
 }

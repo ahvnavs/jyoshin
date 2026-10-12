@@ -109,6 +109,92 @@ func TestChaosFixtureHost(t *testing.T) {
 	}
 	t.Logf("Loaded %d declarative rules for chaos evaluation", ruleCount)
 
+	// 1. Manual binary with a listener:
+	// Process node with origin_kind: manual
+	manualProcNode := graph.Node{
+		ID:        "process:manual-api",
+		Type:      graph.NodeProcess,
+		Label:     "manual-api",
+		Certainty: graph.CertaintyObserved,
+		FirstSeen: time.Now(),
+		LastSeen:  time.Now(),
+		Properties: map[string]any{
+			"exe":         "/usr/local/bin/manual-api",
+			"origin_kind": "manual",
+		},
+	}
+	manualPortNode := graph.Node{
+		ID:        "port:all:8088",
+		Type:      graph.NodePort,
+		Label:     "0.0.0.0:8088",
+		Certainty: graph.CertaintyObserved,
+		FirstSeen: time.Now(),
+		LastSeen:  time.Now(),
+		Properties: map[string]any{
+			"local_port":     8088,
+			"exposure_class": "all_interfaces",
+		},
+	}
+	// Edge connecting port -> process with relation "listens_on"
+	edges := []graph.Edge{
+		{
+			ID:        "edge:port-to-proc",
+			SourceID:  "process:manual-api",
+			TargetID:  "port:all:8088",
+			Relation:  "listens_on",
+			Certainty: graph.CertaintyObserved,
+		},
+	}
+
+	// 2. Process running from a deleted binary
+	deletedProcNode := graph.Node{
+		ID:        "process:deleted-daemon",
+		Type:      graph.NodeProcess,
+		Label:     "rogue-daemon",
+		Certainty: graph.CertaintyObserved,
+		FirstSeen: time.Now(),
+		LastSeen:  time.Now(),
+		Properties: map[string]any{
+			"exe": "/tmp/dropped-miner (deleted)",
+		},
+	}
+
+	// 3. Leaking process (monotonic memory growth detected by forecaster)
+	leakingResourceNode := graph.Node{
+		ID:        "resource:leaking-ram",
+		Type:      graph.NodeResource,
+		Label:     "system_ram",
+		Certainty: graph.CertaintyObserved,
+		FirstSeen: time.Now(),
+		LastSeen:  time.Now(),
+		Properties: map[string]any{
+			"is_leak": true,
+		},
+	}
+
+	// 4. EOL Runtime (Python 2.7, EOL since 2020)
+	eolRuntimeNode := graph.Node{
+		ID:        "origin:runtime:python-2.7",
+		Type:      graph.NodeOrigin,
+		Label:     "runtime:python 2.7",
+		Certainty: graph.CertaintyObserved,
+		FirstSeen: time.Now(),
+		LastSeen:  time.Now(),
+		Properties: map[string]any{
+			"kind":    "runtime",
+			"source":  "python",
+			"version": "2.7.18",
+		},
+	}
+
+	nodes = append(nodes,
+		manualProcNode,
+		manualPortNode,
+		deletedProcNode,
+		leakingResourceNode,
+		eolRuntimeNode,
+	)
+
 	// Add origin nodes for duplicate runtime detection
 	nodes = append(nodes,
 		graph.Node{
@@ -152,7 +238,7 @@ func TestChaosFixtureHost(t *testing.T) {
 	)
 
 	// Run rule engine against chaos host nodes
-	findings, err := ruleEngine.Evaluate(t.Context(), nodes, nil)
+	findings, err := ruleEngine.Evaluate(t.Context(), nodes, edges)
 	if err != nil {
 		t.Fatalf("failed evaluating rules against chaos host: %v", err)
 	}
@@ -180,6 +266,10 @@ func TestChaosFixtureHost(t *testing.T) {
 		"SEC-DB-EXPOSED",
 		"EFF-SERVICE-RESTART-LOOP",
 		"COST-DUPLICATE-RUNTIME",
+		"SEC-MANUAL-BINARY-LISTENER",
+		"SEC-DELETED-BINARY-EXEC",
+		"EFF-MEMORY-LEAK-FORECAST",
+		"OPS-EOL-SOFTWARE",
 	}
 	for _, expectedID := range expectedRules {
 		if !firedRuleIDs[expectedID] {

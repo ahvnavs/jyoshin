@@ -465,7 +465,11 @@ func (e *Engine) Evaluate(ctx context.Context, nodes []graph.Node, edges []graph
 
 		// Handle Standard, Join, Duration, and EOL Node Rules
 		for _, node := range nodes {
-			if node.Type != rule.Match.NodeType {
+			if rule.Match.CheckEOL {
+				if node.Type != rule.Match.NodeType && node.Type != graph.NodeOrigin {
+					continue
+				}
+			} else if node.Type != rule.Match.NodeType {
 				continue
 			}
 
@@ -752,8 +756,14 @@ func (e *Engine) checkNodeEOL(node graph.Node) (bool, string) {
 		}
 	}
 
-	// Check runtime / package
-	if name, ok := node.Properties["name"].(string); ok {
+	// Check runtime / package / origin
+	name := ""
+	if n, ok := node.Properties["name"].(string); ok {
+		name = n
+	} else if src, ok := node.Properties["source"].(string); ok {
+		name = src
+	}
+	if name != "" {
 		if ver, ok := node.Properties["version"].(string); ok {
 			if eolDate, found := e.eolLookup(name, ver); found {
 				return true, eolDate

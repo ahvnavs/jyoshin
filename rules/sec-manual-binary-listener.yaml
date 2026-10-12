@@ -1,0 +1,22 @@
+id: "SEC-MANUAL-BINARY-LISTENER"
+name: "Manually installed binary with active listening port"
+description: "Listening network port backed by a process executing from /usr/local or /opt without package manager provenance."
+category: "security"
+severity: "high"
+match:
+  node_type: "port"
+  join:
+    relation: "listens_on"
+    direction: "in"
+    node_type: "process"
+    properties:
+      origin_kind:
+        equals: "manual"
+consequence: "Unmanaged network listeners lack automated security updates, supply chain verification, and package auditing."
+recommendation:
+  action: "Migrate manually compiled/installed binary to official distribution package or containerized workload."
+  risk_level: "medium"
+  reversible: true
+certainty: "DERIVED"
+confidence: 0.95
+

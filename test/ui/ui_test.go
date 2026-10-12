@@ -106,7 +106,7 @@ func TestUI_DOMContract(t *testing.T) {
 		"--panel: #11131A",
 		"--panel-border: #1E2230",
 		"--text: #D8DEE9",
-		"--dim: #767D8E",
+		"--dim: #7D8597",
 		"--mint: #8FFFC8",
 		"--cyan: #8FE9FF",
 		"--lavender: #B9A7FF",

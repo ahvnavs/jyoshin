@@ -21,19 +21,20 @@ import (
 
 // MountInfo captures storage metrics for a mounted filesystem.
 type MountInfo struct {
-	Device      string  `json:"device"`
-	MountPoint  string  `json:"mount_point"`
-	FSType      string  `json:"fs_type"`
-	Options     string  `json:"options"`
-	TotalBytes  uint64  `json:"total_bytes"`
-	UsedBytes   uint64  `json:"used_bytes"`
-	FreeBytes   uint64  `json:"free_bytes"`
-	UsageRatio  float64 `json:"usage_ratio"`
-	TotalInodes uint64  `json:"total_inodes"`
-	UsedInodes  uint64  `json:"used_inodes"`
-	FreeInodes  uint64  `json:"free_inodes"`
-	InodeRatio  float64 `json:"inode_ratio"`
-	ReadOnly    bool    `json:"read_only"`
+	Device        string  `json:"device"`
+	MountPoint    string  `json:"mount_point"`
+	FSType        string  `json:"fs_type"`
+	Options       string  `json:"options"`
+	TotalBytes    uint64  `json:"total_bytes"`
+	UsedBytes     uint64  `json:"used_bytes"`
+	FreeBytes     uint64  `json:"free_bytes"`
+	UsageRatio    float64 `json:"usage_ratio"`
+	TotalInodes   uint64  `json:"total_inodes"`
+	UsedInodes    uint64  `json:"used_inodes"`
+	FreeInodes    uint64  `json:"free_inodes"`
+	InodeRatio    float64 `json:"inode_ratio"`
+	ReadOnly      bool    `json:"read_only"`
+	IsBlockDevice bool    `json:"is_block_device"`
 }
 
 // Sensor collects mount points and disk statistics.
@@ -93,22 +94,24 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 		}
 
 		fields := strings.Fields(line)
-		if len(fields) < 4 {
+		if len(fields) < 3 {
 			continue
 		}
 
 		var device, mountPoint, fsType, opts string
-		if fields[0] == "/" || (strings.HasPrefix(line, " ") && len(fields) >= 5) {
-			// Container / sandbox mount with empty device name
+		if strings.HasPrefix(fields[0], "/") && (len(fields) < 4 || !strings.HasPrefix(fields[1], "/")) {
+			// First field is already the mount point (e.g. " / tmpfs ro,...")
 			device = "none"
 			mountPoint = fields[0]
 			fsType = fields[1]
 			opts = fields[2]
-		} else {
+		} else if len(fields) >= 4 {
 			device = fields[0]
 			mountPoint = fields[1]
 			fsType = fields[2]
 			opts = fields[3]
+		} else {
+			continue
 		}
 
 		// Filter virtual pseudo-mounts (cgroup, sysfs, proc, devpts, tracefs, etc.)
@@ -121,12 +124,14 @@ func (s *Sensor) Collect(ctx context.Context) (sensors.Observation, error) {
 		}
 		seenMounts[mountPoint] = true
 
+		isBlock := strings.HasPrefix(device, "/dev/") && fsType != "tmpfs" && fsType != "devtmpfs"
 		info := MountInfo{
-			Device:     device,
-			MountPoint: mountPoint,
-			FSType:     fsType,
-			Options:    opts,
-			ReadOnly:   strings.HasPrefix(opts, "ro,") || strings.Contains(opts, ",ro,") || strings.HasSuffix(opts, ",ro") || opts == "ro",
+			Device:        device,
+			MountPoint:    mountPoint,
+			FSType:        fsType,
+			Options:       opts,
+			ReadOnly:      strings.HasPrefix(opts, "ro,") || strings.Contains(opts, ",ro,") || strings.HasSuffix(opts, ",ro") || opts == "ro",
+			IsBlockDevice: isBlock,
 		}
 
 		// Statfs for space and inode utilization

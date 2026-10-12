@@ -18,7 +18,9 @@ import (
 
 	"github.com/OWNER/kazeshini/internal/api"
 	"github.com/OWNER/kazeshini/internal/auth"
+	"github.com/OWNER/kazeshini/internal/briefing"
 	"github.com/OWNER/kazeshini/internal/config"
+	"github.com/OWNER/kazeshini/internal/coverage"
 	"github.com/OWNER/kazeshini/internal/diff"
 	"github.com/OWNER/kazeshini/internal/fs"
 	"github.com/OWNER/kazeshini/internal/graphbuilder"
@@ -85,6 +87,9 @@ func run(args []string) error {
 	case "doctor":
 		return runDoctor()
 
+	case "briefing":
+		return runBriefing(subargs)
+
 	case "snapshot":
 		return runSnapshot()
 
@@ -117,12 +122,13 @@ Usage:
   kazeshini <command> [options]
 
 Commands:
+  briefing   Print plain-English server truth briefing in terminal (works over SSH)
+  doctor     Inspect host sensor visibility and coverage honesty table
   serve      Start the local API and web dashboard
   report     Generate a standalone State of this Server report (html, json, md)
   token      Print the local API authentication token (0600)
   rules      Lint or evaluate declarative rules (e.g. kazeshini rules lint <file>)
   snapshot   Capture a point-in-time provenance snapshot (stub)
-  doctor     Verify host requirements, permissions, and kernel support (stub)
   version    Print binary version information
 
 Run 'kazeshini serve --help' for serve flags.`)
@@ -275,11 +281,108 @@ func runRules(args []string) error {
 }
 
 func runDoctor() error {
-	fmt.Println("Kazeshini Doctor: Checking system requirements...")
-	fmt.Println("  [OK] Operating System:", runtime.GOOS)
-	fmt.Println("  [OK] Architecture:", runtime.GOARCH)
-	fmt.Println("  [OK] Read-only /proc access verified")
-	fmt.Println("  [OK] Doctor checks completed. System ready.")
+	fmt.Println("======================================================================")
+	fmt.Println("風死 · KAZESHINI DOCTOR — SENSOR INSPECTION & COVERAGE HONESTY")
+	fmt.Println("======================================================================")
+
+	rfs := fs.Default()
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	orphanScanner := orphan.NewScanner(rfs, originResolver)
+
+	// Run initial sensor collection to measure real visibility
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
+
+	sup := supervisor.New(registry, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, s := range registry.All() {
+		_, _ = sup.RunSensorSafe(ctx, s, 3*time.Second)
+	}
+
+	assessor := coverage.NewAssessor(sup, invManager, orphanScanner, rfs)
+	cov := assessor.Assess(ctx)
+
+	fmt.Printf("%-26s | %-12s | %-10s | %s\n", "SUBSYSTEM / SENSOR", "READABLE", "STATUS", "EXPLANATION")
+	fmt.Println(strings.Repeat("-", 70))
+	for _, it := range cov.Items {
+		readableStr := fmt.Sprintf("%d / %d", it.Readable, it.Total)
+		if it.Total == 0 && it.Readable == 0 {
+			readableStr = "n/a"
+		}
+		statusTag := "[" + strings.ToUpper(it.Status) + "]"
+		fmt.Printf("%-26s | %-12s | %-10s | %s\n", it.Name, readableStr, statusTag, it.Explanation)
+	}
+	fmt.Println(strings.Repeat("-", 70))
+	fmt.Printf("OVERALL INSPECTION COVERAGE: %.1f%%\n", cov.OverallCoverage)
+	fmt.Printf("VERDICT ADEQUACY:            %s\n", cov.SummaryNote)
+	if cov.IsAdequate {
+		fmt.Println("RESULT: [OK] Sensor coverage adequate for truth analysis.")
+	} else {
+		fmt.Println("RESULT: [PARTIAL] Some sensors have limited visibility (CALM verdict suspended).")
+	}
+	fmt.Println("======================================================================")
+	return nil
+}
+
+func runBriefing(args []string) error {
+	rfs := fs.Default()
+	pGraph := graphbuilder.NewProvenanceGraph()
+
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	orphanScanner := orphan.NewScanner(rfs, originResolver)
+	pGraph.SetOriginResolver(originResolver)
+
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
+
+	sup := supervisor.New(registry, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, s := range registry.All() {
+		if obs, err := sup.RunSensorSafe(ctx, s, 3*time.Second); err == nil {
+			pGraph.IngestObservation(obs)
+		}
+	}
+
+	// Trigger bounded orphan scan for hand-installed programs (up to 500 files, 1s)
+	scanRes := orphanScanner.RunScan(ctx, 1*time.Second, 500)
+
+	assessor := coverage.NewAssessor(sup, invManager, orphanScanner, rfs)
+	cov := assessor.Assess(ctx)
+
+	nodes, edges := pGraph.Snapshot()
+	cfg, _ := config.Load("")
+	ruleEngine := rules.NewEngine(3 * time.Second)
+	_, _ = ruleEngine.LoadDirectory(cfg.RulesDir)
+	findings, _ := ruleEngine.Evaluate(ctx, nodes, edges)
+
+	builder := briefing.NewBuilder()
+	br := builder.Build(ctx, nodes, findings, []orphan.ScanResult{scanRes}, cov, time.Now().UTC())
+
+	fmt.Print(br.RenderTerminal())
 	return nil
 }
 
@@ -355,6 +458,9 @@ func runServe(args []string) error {
 		Format: cfg.LogFormat,
 	})
 
+	// Lower process priority immediately before initializing sensors, inventory, or store
+	supervisor.LowerProcessPriority()
+
 	// Initialize RootedFS and Sensor Registry
 	rfs := fs.Default()
 	registry := sensors.NewRegistry()
@@ -427,18 +533,24 @@ func runServe(args []string) error {
 
 	// Background loop ingesting sensor observations into pGraph, storing snapshots, diffing, and recording metric samples
 	go func() {
-		ticker := time.NewTicker(2 * time.Second)
+		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		var lastSnap *store.Snapshot
+		lastObsTimes := make(map[string]time.Time)
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				var hasNewData bool
 				for _, sName := range allSensors {
 					if obs, ok := sup.GetObservation(sName); ok {
-						pGraph.IngestObservation(obs)
+						if prevTime, seen := lastObsTimes[sName]; !seen || obs.Timestamp.After(prevTime) {
+							lastObsTimes[sName] = obs.Timestamp
+							hasNewData = true
+							pGraph.IngestObservation(obs)
+						}
 						// Record metrics for resource forecaster
 						if sName == "host" {
 							for _, it := range obs.Items {
@@ -454,10 +566,11 @@ func runServe(args []string) error {
 						} else if sName == "storage" {
 							for _, it := range obs.Items {
 								if m, ok := it.Data.(storage.MountInfo); ok {
-									if m.MountPoint == "/" {
-										server.RecordSample("/", m.UsageRatio*100)
+									// Forecast only real block-device mounts, skip tmpfs/ro pseudo mounts
+									if (m.IsBlockDevice || m.MountPoint == "/") && !m.ReadOnly && m.FSType != "tmpfs" {
+										server.RecordSample(m.MountPoint, m.UsageRatio*100)
 										if m.UsedInodes > 0 {
-											server.RecordSample("/_inodes", float64(m.UsedInodes))
+											server.RecordSample(m.MountPoint+"_inodes", float64(m.UsedInodes))
 										}
 									}
 								}
@@ -478,22 +591,24 @@ func runServe(args []string) error {
 					}
 				}
 
-				nodes, edges := pGraph.Snapshot()
-				if len(nodes) > 0 && bStore != nil {
-					newSnap := store.Snapshot{
-						ID:        fmt.Sprintf("snap-%d", time.Now().Unix()),
-						Timestamp: time.Now().UTC(),
-						Nodes:     nodes,
-						Edges:     edges,
-					}
-					_ = bStore.SaveSnapshot(ctx, newSnap)
+				if hasNewData {
+					nodes, edges := pGraph.Snapshot()
+					if len(nodes) > 0 && bStore != nil {
+						newSnap := store.Snapshot{
+							ID:        fmt.Sprintf("snap-%d", time.Now().Unix()),
+							Timestamp: time.Now().UTC(),
+							Nodes:     nodes,
+							Edges:     edges,
+						}
+						_ = bStore.SaveSnapshot(ctx, newSnap)
 
-					// Diff against previous snapshot and process watchers
-					if lastSnap != nil {
-						cs := server.DiffEngine().DiffSnapshots(*lastSnap, newSnap)
-						server.Watchers().ProcessChangeSet(ctx, cs)
+						// Diff against previous snapshot and process watchers
+						if lastSnap != nil {
+							cs := server.DiffEngine().DiffSnapshots(*lastSnap, newSnap)
+							server.Watchers().ProcessChangeSet(ctx, cs)
+						}
+						lastSnap = &newSnap
 					}
-					lastSnap = &newSnap
 				}
 			}
 		}

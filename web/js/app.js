@@ -138,7 +138,13 @@
 
     let badgeClass = 'badge-mint';
     let glyph = '[✓]';
-    if (v.chaos_index >= 75 || v.state_label === 'CRITICAL') {
+    if (v.state_label === 'PARTIAL') {
+      badgeClass = 'badge-lavender';
+      glyph = '[~]';
+    } else if (v.state_label === 'UNKNOWN') {
+      badgeClass = 'badge-peach';
+      glyph = '[?]';
+    } else if (v.chaos_index >= 75 || v.state_label === 'CRITICAL') {
       badgeClass = 'badge-rose';
       glyph = '[▲]';
     } else if (v.chaos_index >= 45 || v.state_label === 'MESSY') {
@@ -418,6 +424,51 @@
     }
   }
 
+  // Fetch and Render Plain-English Server Truth Briefing
+  async function refreshBriefing() {
+    try {
+      const res = await fetch('/api/v1/briefing', { headers: getHeaders() });
+      if (!res.ok) return;
+      const b = await res.json();
+      const container = document.getElementById('briefing-content');
+      const badge = document.getElementById('coverage-badge');
+      if (!container) return;
+
+      if (badge && b.coverage) {
+        badge.textContent = `COVERAGE ${Math.round(b.coverage.overall_coverage)}%`;
+        badge.className = b.coverage.is_adequate ? 'badge badge-mint' : 'badge badge-peach';
+      }
+
+      let html = `<div style="display: flex; flex-direction: column; gap: 12px;">`;
+      html += `<div><strong>What this machine is:</strong> ${b.identity.os} (${b.identity.arch}, ${b.identity.cpus} cores), ${b.identity.total_ram} RAM, uptime ${b.identity.uptime}. Platform: ${b.identity.virtualization}. Inferred role: <span class="badge badge-peach">[INFERRED] ${b.identity.inferred_role}</span> (evidence: ${b.identity.role_evidence}).</div>`;
+
+      if (b.programs && b.programs.length > 0) {
+        html += `<div><strong>What it runs:</strong> ${b.programs.map(p => `${p.name} (${p.process_count} procs, ${p.total_rss}, installed by ${p.installed_by})`).join(' · ')}</div>`;
+      }
+
+      if (b.exposed_ports && b.exposed_ports.length > 0) {
+        html += `<div><strong>Reachable from outside:</strong> ${b.exposed_ports.map(p => `${p.protocol.toUpperCase()}/${p.port} (${p.program}, ${p.exposure})`).join(', ')}</div>`;
+      } else {
+        html += `<div><strong>Reachable from outside:</strong> No listening ports detected.</div>`;
+      }
+
+      if (b.hand_installed && b.hand_installed.length > 0) {
+        html += `<div><strong>Installed by hand:</strong> ${b.hand_installed.map(h => `${h.name} (<code>${h.path}</code>)`).join(', ')} — <span style="color: var(--peach);">not updated by package manager</span> (scan coverage: ${Math.round(b.orphan_coverage_percent)}%).</div>`;
+      } else {
+        html += `<div><strong>Installed by hand:</strong> Zero unmanaged binaries detected (scan coverage: ${Math.round(b.orphan_coverage_percent)}%).</div>`;
+      }
+
+      if (b.pending_items && b.pending_items.length > 0) {
+        html += `<div style="color: var(--dim); font-size: 12px;"><strong>What I cannot tell you yet:</strong> ${b.pending_items.map(p => `${p.metric} (${p.requirement}, ETA: ${p.eta})`).join(' · ')}</div>`;
+      }
+
+      html += `</div>`;
+      container.innerHTML = html;
+    } catch (err) {
+      console.error('failed fetching briefing:', err);
+    }
+  }
+
   // SSE Real-Time Stream via fetch streaming with Authorization header
   let streamAbortController = null;
 
@@ -582,6 +633,7 @@
 
   function refreshAll() {
     refreshVerdict();
+    refreshBriefing();
     refreshFindings();
     refreshPulse();
     refreshChanges();
@@ -597,6 +649,7 @@
 
   // Periodic poll fallback every 5s for findings, pulse, changes & forecasts
   setInterval(() => {
+    refreshBriefing();
     refreshFindings();
     refreshPulse();
     refreshChanges();

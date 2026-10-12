@@ -122,4 +122,3 @@ func TestInstallScript_CosignSignatureBehavioral(t *testing.T) {
 		t.Fatalf("expected --insecure-skip-verify to succeed without cosign, got: %v; output: %s", errSkip, string(outSkip))
 	}
 }
-
