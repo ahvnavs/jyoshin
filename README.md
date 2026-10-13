@@ -1,3 +1,5 @@
+> Kazeshini tells you, on any Linux server with no setup, what is installed, what is running, what is exposed, what is out of date, and what changed, and how sure it is. Read-only, one binary.
+
 # Kazeshini (風死)
 
 [![CI](https://github.com/OWNER/kazeshini/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/kazeshini/actions/workflows/ci.yml)

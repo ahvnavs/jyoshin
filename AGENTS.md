@@ -1,3 +1,5 @@
+> Kazeshini tells you, on any Linux server with no setup, what is installed, what is running, what is exposed, what is out of date, and what changed, and how sure it is. Read-only, one binary.
+
 # Kazeshini Agent Directives & Architecture Principles
 
 ## Non-Negotiable Principles
