@@ -1,0 +1,31 @@
+[Unit]
+Description=Kazeshini Host Mutation Actuator (Opt-in, Read-Only Core Companion)
+Documentation=https://github.com/OWNER/kazeshini/blob/main/docs/ACTUATOR_THREAT_MODEL.md
+After=network.target local-fs.target
+ConditionPathExists=!/etc/kazeshini/actuator.disabled
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/bin/kazeshini-actuator daemon --socket /run/kazeshini/actuator.sock --pubkey /etc/kazeshini/approver.pub --audit-log /var/log/kazeshini/actuator-audit.log
+Restart=on-failure
+RestartSec=5s
+
+# Security Sandbox Constraints
+RuntimeDirectory=kazeshini
+RuntimeDirectoryMode=0755
+LogsDirectory=kazeshini
+LogsDirectoryMode=0700
+StateDirectory=kazeshini
+StateDirectoryMode=0700
+
+# Zero Network Egress
+# The actuator modifies local host state only; no network access permitted
+ProtectSystem=full
+ProtectHome=read-only
+NoNewPrivileges=false
+
+[Install]
+# Opt-in: Disabled by default; not installed or enabled unless explicitly requested
+# WantedBy=multi-user.target

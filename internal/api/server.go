@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -231,6 +232,9 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/software", s.handleSoftwareList)
 	mux.HandleFunc("GET /api/v1/software/{pkg}", s.handleSoftwareDetail)
 	mux.HandleFunc("POST /api/v1/software/plan", s.handleSoftwarePlan)
+
+	// Phase 27: Actuator Status Check (Socket presence & ping)
+	mux.HandleFunc("GET /api/v1/actuator/status", s.handleActuatorStatus)
 
 	// Profiling endpoints (served only when --debug is set, behind auth)
 	if s.cfg.Debug {
@@ -1404,6 +1408,30 @@ func (s *Server) handleSoftwarePlan(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(plan)
 }
+
+func (s *Server) handleActuatorStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	socketPath := "/run/kazeshini/actuator.sock"
+	// Check if socket exists and can be dialed
+	fi, err := os.Stat(socketPath)
+	if err != nil || fi.Mode()&os.ModeSocket == 0 {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"available": false,
+			"reason":    "Actuator socket not found (/run/kazeshini/actuator.sock)",
+			"socket":    socketPath,
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"available": true,
+		"socket":    socketPath,
+	})
+}
+
 
 
 // Start begins listening and serving traffic on the configured address.
