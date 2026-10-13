@@ -95,3 +95,4 @@ func (ns *NonceStore) save() error {
 	}
 	return os.WriteFile(ns.path, data, 0600)
 }
+

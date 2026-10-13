@@ -37,3 +37,15 @@ Principle 9: **STDLIB-FIRST**.
 - **Alternatives Considered**:
   - *Custom ad-hoc line parser*: Fragile, error-prone for nested structures and block scalars.
   - *Strict JSON rules*: Rules are designed to be human-authored data files with comments and multiline descriptions; YAML is the standard operator syntax.
+
+### 3. `github.com/coreos/go-oidc/v3/oidc` (v3.21.0)
+- **License**: Apache-2.0
+- **Purpose**: OpenID Connect (OIDC) generic provider discovery, authorization code + PKCE flow, ID token cryptographic verification (JWKS key rotation), and claim-to-role mappings for enterprise SSO (Okta, Microsoft Entra ID, Keycloak, Google Workspace).
+- **Justification**:
+  - Standard, battle-tested, security-vetted OIDC library originally by CoreOS / Red Hat.
+  - Pure-Go with zero CGO dependencies, preserving static single binary compilation (`CGO_ENABLED=0`).
+  - Implements the complete OIDC Core 1.0 & Discovery 1.0 specifications securely without rolling custom cryptographic signature verification or custom JWKS caching logic.
+- **Alternatives Considered**:
+  - *Hand-rolled JWT/OIDC parser*: Extremely high risk of cryptographic flaws (algorithm confusion, timing attacks, improper key rotation, malformed claim validation).
+  - *OAuth2-only libraries without OIDC discovery*: Lack automatic endpoint discovery, dynamic JWKS key rotation, and standards-compliant nonce/PKCE validation.
+

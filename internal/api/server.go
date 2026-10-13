@@ -14,10 +14,12 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/OWNER/kazeshini/internal/audit"
 	"github.com/OWNER/kazeshini/internal/auth"
 	"github.com/OWNER/kazeshini/internal/blastradius"
 	"github.com/OWNER/kazeshini/internal/briefing"
@@ -34,10 +36,13 @@ import (
 	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/graphbuilder"
 	"github.com/OWNER/kazeshini/internal/inventory"
+	"github.com/OWNER/kazeshini/internal/metrics"
 	"github.com/OWNER/kazeshini/internal/origin"
 	"github.com/OWNER/kazeshini/internal/orphan"
 	"github.com/OWNER/kazeshini/internal/plan"
+	"github.com/OWNER/kazeshini/internal/platform"
 	"github.com/OWNER/kazeshini/internal/policy"
+	"github.com/OWNER/kazeshini/internal/rbac"
 	"github.com/OWNER/kazeshini/internal/report"
 	"github.com/OWNER/kazeshini/internal/resource"
 	"github.com/OWNER/kazeshini/internal/rules"
@@ -78,6 +83,11 @@ type Server struct {
 	checksEngine    *checks.Engine
 	softwareReader  *software.InventoryReader
 	softwarePlanner *software.Planner
+	rbacRegistry    *rbac.RouteRoleRegistry
+	tokenStore      *auth.TokenStore
+	sessionMgr      *auth.SessionManager
+	rateLimiter     *auth.RateLimiter
+	requestAudit    *audit.RequestLogger
 	samplesMu       sync.RWMutex
 	samples         map[string][]forecast.Sample
 	lastActivityMu  sync.RWMutex
@@ -144,8 +154,18 @@ func NewServer(
 		checksEngine:    checks.NewEngine(nil, actLog, internalfs.Default()),
 		softwareReader:  software.NewInventoryReader(internalfs.Default()),
 		softwarePlanner: software.NewPlanner(software.NewInventoryReader(internalfs.Default()), blastradius.NewAnalyzer(pGraph)),
+		rbacRegistry:    rbac.NewRouteRoleRegistry(),
+		sessionMgr:      auth.NewSessionManager(30*time.Minute, 5),
+		rateLimiter:     auth.NewRateLimiter(5, 5*time.Minute, 10*time.Minute),
 		samples:         make(map[string][]forecast.Sample),
 		logger:          logger,
+	}
+
+	if tStore, err := auth.NewTokenStore(cfg.DataDir); err == nil {
+		s.tokenStore = tStore
+	}
+	if reqAud, err := audit.NewRequestLogger(filepath.Join(cfg.DataDir, "audit.log")); err == nil {
+		s.requestAudit = reqAud
 	}
 
 	// Pre-load persisted historical samples from store into memory cache
@@ -236,6 +256,12 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Phase 27: Actuator Status Check (Socket presence & ping)
 	mux.HandleFunc("GET /api/v1/actuator/status", s.handleActuatorStatus)
 
+	// Phase 29: Platform Detection & Adapter Catalog
+	mux.HandleFunc("GET /api/v1/platforms", s.handlePlatforms)
+
+	// Phase 30: Prometheus Metrics
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
+
 	// Profiling endpoints (served only when --debug is set, behind auth)
 	if s.cfg.Debug {
 		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
@@ -257,31 +283,176 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Permit health, version, auth status, and static web UI files without token
+		start := time.Now()
 		path := r.URL.Path
-		if path == "/api/v1/health" || path == "/api/v1/version" || path == "/api/v1/auth/status" || (!strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/debug/")) {
+
+		// Static assets / web UI
+		if !strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/debug/") {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Enforce token authentication on API endpoints when auth is required
-		if s.cfg.AuthRequired && s.auth != nil {
-			authHeader := r.Header.Get("Authorization")
-			token := strings.TrimPrefix(authHeader, "Bearer ")
-			if token == authHeader || !s.auth.Validate(token) {
+		// 1. Rate Limiting / Lockout check by client IP
+		clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			clientIP = r.RemoteAddr
+		}
+		if s.rateLimiter != nil {
+			if locked, remaining := s.rateLimiter.IsLocked(clientIP, start); locked {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusUnauthorized)
+				w.WriteHeader(http.StatusTooManyRequests)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"error":  "unauthorized: valid bearer token required in Authorization header",
-					"status": 401,
-					"hint":   "run 'kazeshini token' to retrieve authentication token",
+					"error":  "too many authentication failures: client temporarily locked out",
+					"retry_after_seconds": int(remaining.Seconds()),
 				})
 				return
 			}
 		}
 
-		next.ServeHTTP(w, r)
+		// 2. Deny-by-default route role declaration lookup
+		requiredRole := rbac.RoleViewer
+		if s.rbacRegistry != nil {
+			req, err := s.rbacRegistry.RequiredRole(r.Method, path)
+			if err != nil {
+				// Undeclared route: DENY BY DEFAULT
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": fmt.Sprintf("access denied: undeclared route pattern %q %q (Principle 13 / deny by default)", r.Method, path),
+				})
+				return
+			}
+			requiredRole = req
+		}
+
+		// Public endpoints that require no credentials
+		if path == "/api/v1/health" || path == "/api/v1/version" || path == "/api/v1/auth/status" {
+			sub := rbac.Subject{ID: "anonymous", Role: rbac.RoleViewer, Method: "public"}
+			ctx := rbac.WithSubject(r.Context(), sub)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		// 3. Resolve Subject from available auth mechanisms
+		var subject *rbac.Subject
+
+		// a) Bearer Token (Authorization: Bearer <token>)
+		if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			// Check rotatable TokenStore first
+			if s.tokenStore != nil {
+				if sub, ok := s.tokenStore.VerifyToken(token, start); ok {
+					subject = sub
+				}
+			}
+			// Fallback to legacy single token manager if still valid (defaults to admin role)
+			if subject == nil && s.auth != nil && s.auth.Validate(token) {
+				subject = &rbac.Subject{
+					ID:     "token:admin",
+					Role:   rbac.RoleAdmin,
+					Method: "token",
+				}
+			}
+		}
+
+		// b) Browser Cookie Session (kazeshini_session)
+		if subject == nil && s.sessionMgr != nil {
+			if cookie, err := r.Cookie("kazeshini_session"); err == nil && cookie.Value != "" {
+				if sess, ok := s.sessionMgr.GetSession(cookie.Value, start); ok {
+					// Enforce CSRF protection on state-changing requests (POST, PUT, DELETE, PATCH)
+					if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete || r.Method == http.MethodPatch {
+						csrfHeader := r.Header.Get("X-CSRF-Token")
+						if !s.sessionMgr.ValidateCSRF(sess, csrfHeader) {
+							w.Header().Set("Content-Type", "application/json; charset=utf-8")
+							w.WriteHeader(http.StatusForbidden)
+							_ = json.NewEncoder(w).Encode(map[string]any{
+								"error": "csrf validation failed: missing or invalid X-CSRF-Token header",
+							})
+							return
+						}
+					}
+					sub := sess.Subject
+					subject = &sub
+				}
+			}
+		}
+
+		// c) Optional mTLS Peer Certificate
+		if subject == nil && r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			cert := r.TLS.PeerCertificates[0]
+			subject = &rbac.Subject{
+				ID:     fmt.Sprintf("mtls:%s", cert.Subject.CommonName),
+				Role:   rbac.RoleOperator, // default client cert tier
+				Method: "mtls",
+			}
+		}
+
+		// Fail if unauthenticated and auth is required
+		if subject == nil {
+			if !s.cfg.AuthRequired {
+				// Auth disabled for this server instance: grant default viewer/operator access
+				subject = &rbac.Subject{
+					ID:     "unauthenticated:local",
+					Role:   rbac.RoleAdmin, // full access when auth is disabled
+					Method: "disabled",
+				}
+			} else {
+				if s.rateLimiter != nil {
+					s.rateLimiter.RecordFailure(clientIP, start)
+				}
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusUnauthorized)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error":  "unauthorized: valid credentials required",
+					"status": 401,
+					"hint":   "provide Bearer token in Authorization header or authenticate via session",
+				})
+				return
+			}
+		}
+
+		// Clear failure count on valid authentication
+		if s.rateLimiter != nil {
+			s.rateLimiter.RecordSuccess(clientIP)
+		}
+
+		// 4. RBAC Authorization: verify subject role satisfies required role
+		if !subject.Role.Satisfies(requiredRole) {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error":         "forbidden: insufficient role permissions",
+				"required_role": string(requiredRole),
+				"your_role":     string(subject.Role),
+			})
+			return
+		}
+
+		// 5. Hash-chained API request audit logging
+		ctx := rbac.WithSubject(r.Context(), *subject)
+		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(recorder, r.WithContext(ctx))
+
+		if s.requestAudit != nil {
+			_ = s.requestAudit.LogRequest(*subject, r, recorder.status, time.Since(start), "", "")
+		}
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Flush() {
+	if flusher, ok := r.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
@@ -1430,6 +1601,100 @@ func (s *Server) handleActuatorStatus(w http.ResponseWriter, r *http.Request) {
 		"available": true,
 		"socket":    socketPath,
 	})
+}
+
+func (s *Server) handlePlatforms(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	cat, err := platform.LoadEmbeddedCatalog()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"failed to load platform catalog: %v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	snap := platform.HostSnapshot{}
+	// Populate snapshot from graph if available
+	if s.pGraph != nil {
+		nodes, _ := s.pGraph.Snapshot()
+		for _, n := range nodes {
+			if n.Type == graph.NodeProcess {
+				snap.RunningProcesses = append(snap.RunningProcesses, n.Label)
+			}
+			if n.Type == graph.NodePort {
+				var portNum int
+				if _, err := fmt.Sscanf(n.Label, "port tcp/%d", &portNum); err == nil {
+					snap.ListeningPorts = append(snap.ListeningPorts, portNum)
+				}
+			}
+		}
+	}
+
+	detector := platform.NewDetector(cat)
+	results := detector.Detect(r.Context(), internalfs.Default(), snap)
+
+	// Enrich adapter-supported items if present
+	k8sAdapter := platform.NewK8sNodeAdapter(internalfs.Default())
+	k8sView := k8sAdapter.Inspect(r.Context())
+	if k8sView.Present {
+		for i := range results {
+			if results[i].ID == "kubernetes" {
+				results[i].AdapterData = k8sView
+				results[i].Present = true
+			}
+		}
+	}
+
+	cfgAdapter := platform.NewConfigMgmtAdapter(internalfs.Default())
+	pRun := cfgAdapter.InspectPuppet(r.Context())
+	if pRun.Result == "success" || pRun.Result == "failed" {
+		for i := range results {
+			if results[i].ID == "puppet" {
+				results[i].AdapterData = pRun
+				results[i].Present = true
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+
+	snap := metrics.Snapshot{
+		HostID:    "localhost",
+		Timestamp: time.Now().UTC(),
+		Verdict:   s.computeCurrentVerdict(r.Context()),
+		Coverage:  s.computeCurrentCoverage(r.Context()),
+	}
+
+	if s.pGraph != nil {
+		nodes, edges := s.pGraph.Snapshot()
+		for _, n := range nodes {
+			if n.Type == graph.NodeSystem && n.Label != "" {
+				snap.HostID = n.Label
+			}
+		}
+		if s.ruleEngine != nil {
+			f, err := s.ruleEngine.Evaluate(r.Context(), nodes, edges)
+			if err == nil {
+				snap.Findings = f
+			}
+		}
+	}
+
+	if s.checksEngine != nil {
+		for _, c := range s.checksEngine.Registry().All() {
+			if res, err := c.Run(r.Context(), internalfs.Default(), nil); err == nil {
+				snap.CheckResults = append(snap.CheckResults, res)
+			}
+		}
+	}
+
+	exporter := metrics.NewPrometheusExporter()
+	out := exporter.Format(snap)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(out))
 }
 
 

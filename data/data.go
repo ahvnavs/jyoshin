@@ -6,5 +6,5 @@ package data
 
 import "embed"
 
-//go:embed eol.yaml prices.yaml programs.yaml
+//go:embed eol.yaml prices.yaml programs.yaml platforms.yaml
 var EOLData embed.FS

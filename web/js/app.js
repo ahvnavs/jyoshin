@@ -108,7 +108,7 @@
   // Left Rail View Switching & Hash Routing
   const views = [
     'overview', 'briefing', 'devops', 'cloud', 'cloud-platform',
-    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'software', 'activity', 'styleguide'
+    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'software', 'platforms', 'activity', 'styleguide'
   ];
 
   function switchView(target) {
@@ -128,6 +128,8 @@
       refreshDesiredView();
     } else if (target === 'software') {
       refreshSoftwareView();
+    } else if (target === 'platforms') {
+      refreshPlatformsView();
     } else if (target === 'activity') {
       refreshActivityLog();
     } else if (['devops', 'cloud', 'cloud-platform', 'infrastructure', 'devsecops', 'platform', 'network'].includes(target)) {
@@ -1328,6 +1330,101 @@
     }
   }
 
+  async function refreshPlatformsView() {
+    const container = document.getElementById('platforms-container');
+    const railCount = document.getElementById('count-platforms');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/v1/platforms', { headers: getHeaders() });
+      if (!res.ok) {
+        container.innerHTML = `<div class="panel" style="color: var(--rose);">Failed loading platforms: ${res.statusText}</div>`;
+        return;
+      }
+      const platforms = await res.json();
+
+      let detectedCount = 0;
+      const categories = {};
+
+      platforms.forEach(p => {
+        if (p.present) detectedCount++;
+        if (!categories[p.category]) categories[p.category] = [];
+        categories[p.category].push(p);
+      });
+
+      if (railCount) railCount.textContent = detectedCount;
+
+      let html = '';
+      for (const [catName, list] of Object.entries(categories)) {
+        html += `
+          <div class="panel">
+            <h2 class="panel-title" style="text-transform: uppercase;">[◈] ${catName}</h2>
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+        `;
+
+        list.forEach(p => {
+          let badgeClass = 'badge-dim';
+          let badgeText = 'NOT DETECTED';
+          if (p.present) {
+            if (p.support === 'adapter') {
+              badgeClass = 'badge-mint';
+              badgeText = '[✓] DEEP (ADAPTER)';
+            } else {
+              badgeClass = 'badge-cyan';
+              badgeText = '[≈] DETECTED';
+            }
+          } else if (p.support === 'cloud-side-not-supported' || p.support === 'unsupported (Windows)') {
+            badgeClass = 'badge-peach';
+            badgeText = `[!] NOT SUPPORTED HERE`;
+          }
+
+          let statusText = p.running ? '<span style="color: var(--mint);">RUNNING</span>' : (p.present ? '<span style="color: var(--dim);">STOPPED</span>' : '<span style="color: var(--dim);">NOT FOUND</span>');
+
+          html += `
+            <div style="border: 1px solid var(--border); padding: 10px; border-radius: 4px; background: var(--surface-1);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <div style="font-weight: bold; color: var(--text); font-size: 14px;">${p.name} <span style="font-size: 11px; color: var(--dim);">(${p.id})</span></div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span class="badge ${badgeClass}">${badgeText}</span>
+                  <span style="font-size: 11px; font-weight: bold;">${statusText}</span>
+                </div>
+              </div>
+              <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+                <div><span style="color: var(--mint); font-weight: bold;">WHAT KAZE SHINI CAN SEE:</span> <span style="color: var(--fg);">${p.what_can_see}</span></div>
+                <div><span style="color: var(--peach); font-weight: bold;">WHAT KAZE SHINI CANNOT SEE:</span> <span style="color: var(--dim);">${p.what_cannot_see}</span></div>
+              </div>
+          `;
+
+          if (p.configs && p.configs.length > 0) {
+            html += `<div style="margin-top: 4px; font-size: 11px; color: var(--cyan);">Configs: ${p.configs.join(', ')}</div>`;
+          }
+          if (p.ports && p.ports.length > 0) {
+            html += `<div style="margin-top: 2px; font-size: 11px; color: var(--cyan);">Ports: ${p.ports.join(', ')}</div>`;
+          }
+          if (p.adapter_data) {
+            html += `<div style="margin-top: 6px; padding: 6px; background: var(--bg); border: 1px dashed var(--border); font-size: 11px; color: var(--fg); border-radius: 3px;">
+              <span style="color: var(--mint); font-weight: bold;">Adapter Telemetry:</span> ${JSON.stringify(p.adapter_data)}
+            </div>`;
+          }
+
+          html += `</div>`;
+        });
+
+        html += `
+            </div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = `<div class="panel" style="color: var(--rose);">Failed fetching platforms: ${err.message}</div>`;
+    }
+  }
+
+  const refreshPlatformsBtn = document.getElementById('refresh-platforms-btn');
+  refreshPlatformsBtn?.addEventListener('click', refreshPlatformsView);
+
   function refreshAll() {
     refreshVerdict();
     refreshBriefing();
@@ -1338,6 +1435,7 @@
     refreshActivityLog();
     refreshDesiredView();
     refreshSoftwareView();
+    refreshPlatformsView();
     loadChecks();
   }
 

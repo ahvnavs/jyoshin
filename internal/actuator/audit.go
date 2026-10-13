@@ -172,3 +172,4 @@ func VerifyAuditChain(path string) (int, error) {
 
 	return count, nil
 }
+

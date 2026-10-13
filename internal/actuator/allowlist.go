@@ -180,3 +180,4 @@ func buildPackageCommand(action, pkg, mgr string) (*CommandSpec, error) {
 	}
 	return nil, fmt.Errorf("unsupported package manager %q", mgr)
 }
+

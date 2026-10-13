@@ -61,6 +61,10 @@
             <span>[📦] Software</span>
             <span class="rail-count" id="count-software">0</span>
           </a>
+          <a href="#platforms" id="nav-platforms" class="rail-item">
+            <span>[🌐] Platforms</span>
+            <span class="rail-count" id="count-platforms">0</span>
+          </a>
           <a href="#activity" id="nav-activity" class="rail-item">
             <span>[📝] Activity Log</span>
           </a>
@@ -436,6 +440,23 @@
             <div id="software-plan-content" style="margin-top: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 12px;">
               <!-- Plan details injected dynamically -->
             </div>
+          </div>
+        </section>
+
+        <!-- 4c. PLATFORMS VIEW -->
+        <section id="view-platforms" class="view-panel" style="display: none;">
+          <div class="panel">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h1 style="color: var(--mint); font-size: var(--font-20); margin-bottom: 4px;">Platform Signature Catalog & Detection</h1>
+                <p style="color: var(--dim); font-size: 13px;">Honest visibility into detected host platforms and local adapter telemetry. Kazeshini reports exactly what it can and cannot see.</p>
+              </div>
+              <button id="refresh-platforms-btn" class="btn btn-secondary">[R] REFRESH</button>
+            </div>
+          </div>
+
+          <div id="platforms-container" style="margin-top: var(--space-16); display: flex; flex-direction: column; gap: 16px;">
+            <!-- Category groups injected dynamically -->
           </div>
         </section>
 

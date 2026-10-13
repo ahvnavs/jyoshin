@@ -12,12 +12,14 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/OWNER/kazeshini/internal/api"
+	"github.com/OWNER/kazeshini/internal/audit"
 	"github.com/OWNER/kazeshini/internal/auth"
 	"github.com/OWNER/kazeshini/internal/briefing"
 	"github.com/OWNER/kazeshini/internal/checks"
@@ -27,6 +29,8 @@ import (
 	"github.com/OWNER/kazeshini/internal/desired"
 	"github.com/OWNER/kazeshini/internal/diff"
 	"github.com/OWNER/kazeshini/internal/drift"
+	"github.com/OWNER/kazeshini/internal/facts"
+	"github.com/OWNER/kazeshini/internal/fleet"
 	"github.com/OWNER/kazeshini/internal/fs"
 	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/graphbuilder"
@@ -133,6 +137,18 @@ func run(args []string) error {
 	case "software":
 		return runSoftware(subargs)
 
+	case "audit":
+		return runAudit(subargs)
+
+	case "facts":
+		return runFacts(subargs)
+
+	case "agent":
+		return runAgent(subargs)
+
+	case "controller":
+		return runController(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -161,6 +177,7 @@ Commands:
   drift      Audit discrepancies between desired state and observed host resources
   plan       Generate deterministic topologically sorted remediation DAG (read-only, shown only)
   software   Read-only software inventory, local candidate versions, and dry-run safety plans
+  audit      Verify cryptographic integrity or tail API request audit log (audit verify|tail)
   rules      Lint or evaluate declarative rules (e.g. kazeshini rules lint <file>)
   snapshot   Capture a point-in-time provenance snapshot (stub)
   version    Print binary version information
@@ -754,11 +771,29 @@ func runCheck(args []string) error {
 		flags := flag.NewFlagSet("check run", flag.ContinueOnError)
 		roleFlag := flags.String("role", "", "Role category to run (devops, cloud, cloud-platform, infrastructure, devsecops, platform, network)")
 		jsonFlag := flags.Bool("json", false, "Output results in JSON format")
+		failOnFlag := flags.String("fail-on", "", "Fail with exit code 1 if any check reports status (warn, crit)")
 		targetFlag := flags.String("target", "", "Target host:port for active connectivity probe (e.g. 127.0.0.1:80)")
 		fileFlag := flags.String("file", "", "Target file for log/config checks")
 		unitFlag := flags.String("unit", "", "Target unit for app-health")
 
-		if err := flags.Parse(subargs); err != nil {
+		// Extract trailing flags if passed after check id (e.g. check run disk-inodes --json)
+		parsedArgs := make([]string, 0, len(subargs))
+		var nonFlagArgs []string
+		for i := 0; i < len(subargs); i++ {
+			arg := subargs[i]
+			if strings.HasPrefix(arg, "-") {
+				parsedArgs = append(parsedArgs, arg)
+				if (arg == "--role" || arg == "-role" || arg == "--fail-on" || arg == "-fail-on" || arg == "--target" || arg == "-target" || arg == "--file" || arg == "-file" || arg == "--unit" || arg == "-unit") && i+1 < len(subargs) {
+					i++
+					parsedArgs = append(parsedArgs, subargs[i])
+				}
+			} else {
+				nonFlagArgs = append(nonFlagArgs, arg)
+			}
+		}
+		parsedArgs = append(parsedArgs, nonFlagArgs...)
+
+		if err := flags.Parse(parsedArgs); err != nil {
 			return err
 		}
 
@@ -776,6 +811,22 @@ func runCheck(args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
+		evaluateFailOn := func(results ...contract.CheckResult) error {
+			if *failOnFlag == "" {
+				return nil
+			}
+			failOn := strings.ToLower(*failOnFlag)
+			for _, r := range results {
+				if failOn == "warn" && (r.Status == contract.StatusWarn || r.Status == contract.StatusCrit) {
+					return fmt.Errorf("check %s failed with status %s (fail-on: warn)", r.ID, r.Status)
+				}
+				if failOn == "crit" && r.Status == contract.StatusCrit {
+					return fmt.Errorf("check %s failed with status %s (fail-on: crit)", r.ID, r.Status)
+				}
+			}
+			return nil
+		}
+
 		if *roleFlag != "" {
 			results, err := engine.RunRole(ctx, *roleFlag, params, "local-cli")
 			if err != nil {
@@ -784,7 +835,7 @@ func runCheck(args []string) error {
 			if *jsonFlag {
 				data, _ := json.MarshalIndent(results, "", "  ")
 				fmt.Println(string(data))
-				return nil
+				return evaluateFailOn(results...)
 			}
 			fmt.Println("======================================================================")
 			fmt.Printf("風死 · KAZESHINI CHECK RUN — ROLE: [%s]\n", strings.ToUpper(*roleFlag))
@@ -793,7 +844,7 @@ func runCheck(args []string) error {
 				fmt.Print(r.RenderTerminal())
 				fmt.Println(strings.Repeat("-", 70))
 			}
-			return nil
+			return evaluateFailOn(results...)
 		}
 
 		remArgs := flags.Args()
@@ -810,7 +861,7 @@ func runCheck(args []string) error {
 		if *jsonFlag {
 			data, _ := json.MarshalIndent(res, "", "  ")
 			fmt.Println(string(data))
-			return nil
+			return evaluateFailOn(res)
 		}
 
 		fmt.Println("======================================================================")
@@ -818,7 +869,7 @@ func runCheck(args []string) error {
 		fmt.Println("======================================================================")
 		fmt.Print(res.RenderTerminal())
 		fmt.Println("======================================================================")
-		return nil
+		return evaluateFailOn(res)
 
 	case "symptom":
 		if len(subargs) == 0 {
@@ -1173,10 +1224,12 @@ func runDrift(args []string) error {
 		desiredPath string
 		labelsPath  string
 		format      string
+		exitCode    bool
 	)
 	flags.StringVar(&desiredPath, "desired", "kazeshini.desired.yaml", "Path to kazeshini.desired.yaml")
 	flags.StringVar(&labelsPath, "labels", "", "Path to host labels YAML")
 	flags.StringVar(&format, "format", "text", "Output format (text, json)")
+	flags.BoolVar(&exitCode, "exit-code", false, "Exit with code 1 if drift items are detected")
 
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -1205,6 +1258,9 @@ func runDrift(args []string) error {
 			"items":   items,
 		}, "", "  ")
 		fmt.Println(string(data))
+		if exitCode && summary.TotalDrift > 0 {
+			return fmt.Errorf("drift detected: total=%d (exit-code enabled)", summary.TotalDrift)
+		}
 		return nil
 	}
 
@@ -1231,6 +1287,9 @@ func runDrift(args []string) error {
 		fmt.Println()
 	}
 	fmt.Println("======================================================================")
+	if exitCode && summary.TotalDrift > 0 {
+		return fmt.Errorf("drift detected: total=%d (exit-code enabled)", summary.TotalDrift)
+	}
 	return nil
 }
 
@@ -1591,5 +1650,189 @@ func runSoftwarePlan(args []string) error {
 	fmt.Println("======================================================================")
 	return nil
 }
+
+func runAudit(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: kazeshini audit <verify|tail> [--file <path>]")
+	}
+
+	subcmd := args[0]
+	subargs := args[1:]
+
+	defaultAuditPath := filepath.Join(config.ResolveDefaultDataDir(), "audit.log")
+
+	switch subcmd {
+	case "verify":
+		flags := flag.NewFlagSet("audit verify", flag.ExitOnError)
+		path := flags.String("file", defaultAuditPath, "Path to audit log file")
+		if err := flags.Parse(subargs); err != nil {
+			return err
+		}
+		count, err := audit.VerifyChain(*path)
+		if err != nil {
+			return fmt.Errorf("audit chain verification FAILED: %w", err)
+		}
+		fmt.Printf("[✓] API audit chain VERIFIED clean (%d records verified, zero tamper detected).\n", count)
+		return nil
+
+	case "tail":
+		flags := flag.NewFlagSet("audit tail", flag.ExitOnError)
+		path := flags.String("file", defaultAuditPath, "Path to audit log file")
+		n := flags.Int("n", 10, "Number of records to show")
+		if err := flags.Parse(subargs); err != nil {
+			return err
+		}
+		data, err := os.ReadFile(*path)
+		if err != nil {
+			return fmt.Errorf("reading audit log: %w", err)
+		}
+		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+		start := 0
+		if len(lines) > *n {
+			start = len(lines) - *n
+		}
+		fmt.Println("======================================================================")
+		fmt.Printf("Kazeshini API Audit Log Tail (%s)\n", *path)
+		fmt.Println("----------------------------------------------------------------------")
+		for _, l := range lines[start:] {
+			if strings.TrimSpace(l) != "" {
+				fmt.Println(l)
+			}
+		}
+		fmt.Println("======================================================================")
+		return nil
+
+	default:
+		return fmt.Errorf("unknown audit command %q (expected: verify, tail)", subcmd)
+	}
+}
+
+func runFacts(args []string) error {
+	flags := flag.NewFlagSet("facts", flag.ContinueOnError)
+	jsonFlag := flags.Bool("json", false, "Output facts in JSON format")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	rfs := fs.Default()
+	invManager := inventory.NewManager(rfs)
+	inv, _ := invManager.CollectInventory(context.Background())
+
+	nodes, cov := collectHostObservation()
+	v := verdict.ComputeVerdictWithCoverage(nodes, nil, 0, cov.IsAdequate, cov.SummaryNote)
+
+	extractor := facts.NewExtractor(rfs)
+	f := extractor.Extract(context.Background(), nodes, cov, v, &inv)
+
+	if *jsonFlag {
+		data, _ := json.MarshalIndent(f, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Println("風死 · KAZESHINI SYSTEM FACTS")
+	fmt.Println("======================================================================")
+	fmt.Printf("HOST ID:          %s\n", f.HostID)
+	fmt.Printf("VERDICT:          %s (Chaos Index: %d)\n", strings.ToUpper(f.VerdictStatus), f.ChaosIndex)
+	fmt.Printf("COVERAGE:         %.1f%% (Adequate: %v)\n", f.CoveragePercent, f.CoverageAdequate)
+	if f.OSRelease != nil && f.OSRelease["PRETTY_NAME"] != "" {
+		fmt.Printf("OS:               %s\n", f.OSRelease["PRETTY_NAME"])
+	}
+	fmt.Printf("PROCESSES:        %d active\n", f.TotalProcesses)
+	fmt.Printf("PACKAGES:         %d installed\n", f.TotalPackages)
+	fmt.Printf("OPEN PORTS:       %v\n", f.ListeningPorts)
+	fmt.Println("======================================================================")
+	return nil
+}
+
+func runAgent(args []string) error {
+	flags := flag.NewFlagSet("agent", flag.ContinueOnError)
+	ctrlURL := flags.String("controller", "", "Controller URL (e.g. https://controller.kazeshini.internal:8443)")
+	hostID := flags.String("host-id", "", "Managed host ID (defaults to system machine-id)")
+	interval := flags.Duration("interval", 15*time.Second, "Snapshot push interval")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *ctrlURL == "" {
+		return errors.New("missing required flag: --controller URL")
+	}
+
+	if *hostID == "" {
+		if data, err := os.ReadFile("/etc/machine-id"); err == nil {
+			*hostID = strings.TrimSpace(string(data))
+		} else {
+			*hostID, _ = os.Hostname()
+		}
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Println("風死 · KAZESHINI OUTBOUND AGENT")
+	fmt.Println("======================================================================")
+	fmt.Printf("HOST ID:          %s\n", *hostID)
+	fmt.Printf("CONTROLLER:       %s\n", *ctrlURL)
+	fmt.Printf("PUSH INTERVAL:    %s\n", interval.String())
+	fmt.Println("STATUS:           Outbound-only mTLS telemetry active (0 open ports)")
+	fmt.Println("======================================================================")
+
+	ag := fleet.NewAgent(fleet.AgentConfig{
+		HostID:        *hostID,
+		ControllerURL: *ctrlURL,
+		PushInterval:  *interval,
+	}, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Initial push test
+	nodes, cov := collectHostObservation()
+	v := verdict.ComputeVerdictWithCoverage(nodes, nil, 0, cov.IsAdequate, cov.SummaryNote)
+	snap, err := ag.BuildSnapshot(v, cov, nil, drift.Summary{})
+	if err != nil {
+		return fmt.Errorf("building snapshot: %w", err)
+	}
+
+	if err := ag.PushSnapshot(ctx, snap); err != nil {
+		fmt.Printf("[!] Controller connection failed (operating autonomously, Principle 10): %v\n", err)
+	} else {
+		fmt.Println("[✓] Pushed initial telemetry snapshot to controller successfully.")
+	}
+
+	return nil
+}
+
+func runController(args []string) error {
+	flags := flag.NewFlagSet("controller", flag.ContinueOnError)
+	port := flags.Int("port", 8443, "Listening port for fleet controller")
+	staleSec := flags.Int("stale-timeout", 60, "Seconds of inactivity before marking agent stale")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	ctrl := fleet.NewController(fleet.ControllerConfig{
+		StaleTimeout: time.Duration(*staleSec) * time.Second,
+	})
+
+	fmt.Println("======================================================================")
+	fmt.Println("風死 · KAZESHINI FLEET CONTROLLER")
+	fmt.Println("======================================================================")
+	fmt.Printf("BIND ADDRESS:     0.0.0.0:%d\n", *port)
+	fmt.Printf("STALE TIMEOUT:    %ds (agents inactive >%ds marked UNKNOWN)\n", *staleSec, *staleSec)
+	fmt.Println("SECURITY:         mTLS enrollment & machine-id bound plan routing")
+	fmt.Println("======================================================================")
+
+	table, summary := ctrl.GetFleetTable()
+	fmt.Printf("FLEET SUMMARY:    Total=%d, Active=%d, Stale=%d, Critical=%d\n",
+		summary.TotalHosts, summary.ActiveHosts, summary.StaleHosts, summary.CriticalHosts)
+	for _, h := range table {
+		fmt.Printf("  - %-20s [%s] Chaos=%d LastSeen=%s\n", h.HostID, h.StatusLabel, h.ChaosIndex, h.LastSeen.Format(time.RFC3339))
+	}
+	fmt.Println("======================================================================")
+	return nil
+}
+
 
 

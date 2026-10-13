@@ -136,3 +136,4 @@ All operations are recorded to an append-only log `/var/log/kazeshini/actuator-a
 - Format: JSON Lines.
 - Fields: `timestamp`, `plan_id`, `plan_hash`, `approver`, `step_index`, `action`, `argv`, `exit_code`, `duration_ms`, `status`, `prev_hash`, `entry_hash`.
 - CLI Verification: `kazeshini-actuator audit verify` computes and validates the entire cryptographic chain.
+

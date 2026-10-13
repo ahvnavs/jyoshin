@@ -284,11 +284,15 @@ func runCapped(cmd *exec.Cmd, maxBytes int) ([]byte, error) {
 	return out, err
 }
 
-// parseAptSimOutput parses apt-get -s output lines like:
+// ParseAptSimOutput parses apt-get -s output lines like:
 //
 //	Inst sudo [1.9.17p2-1ubuntu3] (1.9.17p2-1ubuntu3.2 Ubuntu:26.04/resolute-security [amd64])
 //	Remv old-package [1.0]
 //	Conf sudo (1.9.17p2-1ubuntu3.2 ...)
+func ParseAptSimOutput(raw string) []SimLine {
+	return parseAptSimOutput(raw)
+}
+
 func parseAptSimOutput(raw string) []SimLine {
 	var lines []SimLine
 	for _, line := range strings.Split(raw, "\n") {
