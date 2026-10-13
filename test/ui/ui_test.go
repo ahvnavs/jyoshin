@@ -79,7 +79,6 @@ func TestUI_DOMContract(t *testing.T) {
 		"danger-title",
 		"waste-title",
 		"changes-title",
-		"styleguide-view",
 		"auth-modal",
 	}
 

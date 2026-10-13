@@ -108,7 +108,7 @@
   // Left Rail View Switching & Hash Routing
   const views = [
     'overview', 'briefing', 'devops', 'cloud', 'cloud-platform',
-    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'software', 'platforms', 'activity', 'styleguide'
+    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'software', 'platforms', 'activity'
   ];
 
   function switchView(target) {
@@ -208,7 +208,6 @@
     { name: 'Network Checks', desc: 'Jump to Sockets, DNS & probe checks', action: () => { window.location.hash = '#network'; } },
     { name: 'Desired vs Actual', desc: 'Jump to Desired vs Actual drift audit & plan', action: () => { window.location.hash = '#desired'; } },
     { name: 'Activity Log', desc: 'Jump to local audit execution log', action: () => { window.location.hash = '#activity'; } },
-    { name: 'Styleguide', desc: 'Jump to UI component gallery', action: () => { window.location.hash = '#styleguide'; } },
     { name: ':pet off', desc: 'Turn off TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(false); } },
     { name: ':pet on', desc: 'Turn on TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(true); } },
     { name: 'Token', desc: 'Configure API bearer token', action: () => { el.tokenBtn.click(); } },
