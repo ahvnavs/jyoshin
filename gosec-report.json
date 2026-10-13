@@ -1,0 +1,802 @@
+{
+	"Golang errors": {},
+	"Issues": [
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion uint64 -\u003e int64",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/supervisor/supervisor.go",
+			"code": "334: \t\t\t// Standard Linux clock ticks is 100 per sec\n335: \t\t\tcpuDuration := time.Duration(int64(totalTicks*10)) * time.Millisecond\n336: \n",
+			"line": "335",
+			"column": "38",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int64 -\u003e uint64",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/storage/storage.go",
+			"code": "239: \t\t\tif fi, err := d.Info(); err == nil {\n240: \t\t\t\tres.TotalBytes += uint64(fi.Size())\n241: \t\t\t}\n",
+			"line": "240",
+			"column": "29",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int64 -\u003e uint64",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/storage/storage.go",
+			"code": "141: \t\t\tinfo.TotalBytes = stat.Blocks * uint64(stat.Bsize)\n142: \t\t\tinfo.FreeBytes = stat.Bavail * uint64(stat.Bsize)\n143: \t\t\tif info.TotalBytes \u003e= info.FreeBytes {\n",
+			"line": "142",
+			"column": "41",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int64 -\u003e uint64",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/storage/storage.go",
+			"code": "140: \t\tif err := syscall.Statfs(realPath, \u0026stat); err == nil \u0026\u0026 stat.Blocks \u003e 0 {\n141: \t\t\tinfo.TotalBytes = stat.Blocks * uint64(stat.Bsize)\n142: \t\t\tinfo.FreeBytes = stat.Bavail * uint64(stat.Bsize)\n",
+			"line": "141",
+			"column": "42",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int64 -\u003e uint64",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/actuator/engine.go",
+			"code": "262: \tif err := syscall.Statfs(\"/\", \u0026stat); err == nil {\n263: \t\tfreeBytes := stat.Bavail * uint64(stat.Bsize)\n264: \t\tif freeBytes \u003c 100*1024*1024 {\n",
+			"line": "263",
+			"column": "36",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "338",
+				"url": "https://cwe.mitre.org/data/definitions/338.html"
+			},
+			"rule_id": "G404",
+			"details": "Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/reconcile/reconcile.go",
+			"code": "188: func (l *Loop) NextInterval() time.Duration {\n189: \tjitter := time.Duration(rand.Int63n(int64(l.cfg.MaxJitter)))\n190: \treturn l.cfg.Interval + jitter\n",
+			"line": "189",
+			"column": "26",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G703",
+			"details": "Path traversal via taint analysis",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/config/config.go",
+			"code": "65: \t\tp := filepath.Join(home, \".local\", \"state\", \"kazeshini\")\n66: \t\tif err := os.MkdirAll(p, 0700); err == nil {\n67: \t\t\treturn p\n",
+			"line": "66",
+			"column": "24",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G703",
+			"details": "Path traversal via taint analysis",
+			"file": "/home/ahvnav/workspace/jyoshin/cmd/kazeshini/main.go",
+			"code": "310: \ttarget := args[1]\n311: \tfi, err := os.Stat(target)\n312: \tif err != nil {\n",
+			"line": "311",
+			"column": "20",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G118",
+			"details": "Goroutine uses context.Background/TODO while request-scoped context is available",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/actuator/server.go",
+			"code": "82: \t\t}\n83: \t\tgo s.handleConnection(conn)\n84: \t}\n",
+			"line": "83",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "614",
+				"url": "https://cwe.mitre.org/data/definitions/614.html"
+			},
+			"rule_id": "G124",
+			"details": "http.Cookie missing or has insecure Secure, HttpOnly, or SameSite attribute",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/auth/session.go",
+			"code": "149: func ClearSessionCookie(w http.ResponseWriter, secure bool) {\n150: \thttp.SetCookie(w, \u0026http.Cookie{\n151: \t\tName:     \"kazeshini_session\",\n",
+			"line": "150",
+			"column": "32",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "614",
+				"url": "https://cwe.mitre.org/data/definitions/614.html"
+			},
+			"rule_id": "G124",
+			"details": "http.Cookie missing or has insecure Secure, HttpOnly, or SameSite attribute",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/auth/session.go",
+			"code": "136: func SetSessionCookie(w http.ResponseWriter, sid string, ttl time.Duration, secure bool) {\n137: \thttp.SetCookie(w, \u0026http.Cookie{\n138: \t\tName:     \"kazeshini_session\",\n",
+			"line": "137",
+			"column": "32",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/software/dryrun.go",
+			"code": "259: \n260: \tcmd := exec.CommandContext(execCtx, \"/sbin/apk\", args...) //nolint:gosec\n261: \tcmd.Env = []string{\"LANG=C\", \"LC_ALL=C\", \"PATH=/usr/sbin:/sbin:/usr/bin:/bin\"}\n",
+			"line": "260",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/software/dryrun.go",
+			"code": "221: \n222: \tcmd := exec.CommandContext(execCtx, \"/usr/bin/pacman\", args...) //nolint:gosec\n223: \tcmd.Env = []string{\"LANG=C\", \"LC_ALL=C\", \"PATH=/usr/bin:/bin\"}\n",
+			"line": "222",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/software/dryrun.go",
+			"code": "187: \n188: \tcmd := exec.CommandContext(execCtx, \"/usr/bin/dnf\", args...) //nolint:gosec\n189: \tcmd.Env = []string{\"LANG=C\", \"LC_ALL=C\", \"PATH=/usr/bin:/bin\"}\n",
+			"line": "188",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/software/dryrun.go",
+			"code": "133: \n134: \tcmd := exec.CommandContext(execCtx, \"/usr/bin/apt-get\", args...) //nolint:gosec // absolute path, allow-listed\n135: \t// Cleared environment: Principle 13\n",
+			"line": "134",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/service/service.go",
+			"code": "307: \t\targs := append([]string{\"show\", \"--property=Id,ActiveState,SubState,NRestarts,MainPID,LoadState\", \"--\"}, chunk...)\n308: \t\tcmd := exec.CommandContext(queryCtx, systemctlPath, args...)\n309: \t\tcmd.Env = []string{\"LC_ALL=C\", \"PATH=/usr/bin:/bin\"}\n",
+			"line": "308",
+			"column": "10",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/plugin/runner.go",
+			"code": "151: \n152: \tcmd := exec.CommandContext(execCtx, command, args...)\n153: \t\n",
+			"line": "152",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with a potential tainted input or cmd arguments",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/actuator/engine.go",
+			"code": "173: \t\tstepCtx, stepCancel := context.WithTimeout(ctx, timeout)\n174: \t\tcmd := exec.CommandContext(stepCtx, cmdSpec.Binary, cmdSpec.Args...)\n175: \t\tcmd.Env = []string{\n",
+			"line": "174",
+			"column": "10",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/state/file.go",
+			"code": "48: \t// Load existing file if present\n49: \tif data, err := os.ReadFile(filePath); err == nil \u0026\u0026 len(data) \u003e 0 {\n50: \t\tvar payload filePayload\n",
+			"line": "49",
+			"column": "18",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/user/user.go",
+			"code": "251: \n252: \tf, err := os.Open(sshFile)\n253: \tif err != nil {\n",
+			"line": "252",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/user/user.go",
+			"code": "212: func (s *Sensor) scanSudoersFile(path string, sudoUsers map[string]bool) {\n213: \tf, err := os.Open(path)\n214: \tif err != nil {\n",
+			"line": "213",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/user/user.go",
+			"code": "156: \tgroupPath := filepath.Join(s.rootDir, \"etc\", \"group\")\n157: \tf, err := os.Open(groupPath)\n158: \tif err != nil {\n",
+			"line": "157",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/user/user.go",
+			"code": "69: \tpasswdPath := filepath.Join(s.rootDir, \"etc\", \"passwd\")\n70: \tpasswdFile, err := os.Open(passwdPath)\n71: \tif err != nil {\n",
+			"line": "70",
+			"column": "21",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/scheduler/scheduler.go",
+			"code": "248: func parseTimerFile(path string) (schedule string, unit string) {\n249: \tf, err := os.Open(path)\n250: \tif err != nil {\n",
+			"line": "249",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/scheduler/scheduler.go",
+			"code": "92: func (s *Sensor) parseCrontab(path string, defaultUser string, hasUserField bool, items *[]sensors.Item, now time.Time) {\n93: \tf, err := os.Open(path)\n94: \tif err != nil {\n",
+			"line": "93",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/kernel/kernel.go",
+			"code": "117: \tosRelease := filepath.Join(s.rootDir, \"proc\", \"sys\", \"kernel\", \"osrelease\")\n118: \tdata, err = os.ReadFile(osRelease)\n119: \tif err == nil {\n",
+			"line": "118",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/kernel/kernel.go",
+			"code": "107: \tprocVer := filepath.Join(s.rootDir, \"proc\", \"version\")\n108: \tdata, err := os.ReadFile(procVer)\n109: \tif err == nil {\n",
+			"line": "108",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/rules/rules.go",
+			"code": "920: func LintRule(path string) (*RuleDefinition, error) {\n921: \tdata, err := os.ReadFile(path)\n922: \tif err != nil {\n",
+			"line": "921",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/rules/rules.go",
+			"code": "391: func (e *Engine) LoadSuppressionFile(path string) error {\n392: \tdata, err := os.ReadFile(path)\n393: \tif err != nil {\n",
+			"line": "392",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/rules/rules.go",
+			"code": "378: \t\tpath := filepath.Join(dir, entry.Name())\n379: \t\tdata, err := os.ReadFile(path)\n380: \t\tif err != nil {\n",
+			"line": "379",
+			"column": "16",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/inventory/ecosystems.go",
+			"code": "289: \t// Simple string inspection or static file metadata\n290: \tdata, err := os.ReadFile(path)\n291: \tif err != nil {\n",
+			"line": "290",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/desired/desired.go",
+			"code": "201: \t}\n202: \tdata, err := os.ReadFile(path)\n203: \tif err != nil {\n",
+			"line": "202",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/desired/desired.go",
+			"code": "122: \n123: \tdata, err := os.ReadFile(targetPath)\n124: \tif err != nil {\n",
+			"line": "123",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/config/config.go",
+			"code": "130: \tif configPath != \"\" {\n131: \t\tdata, err := os.ReadFile(configPath)\n132: \t\tif err != nil {\n",
+			"line": "131",
+			"column": "16",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/audit/audit.go",
+			"code": "172: func VerifyChain(path string) (int, error) {\n173: \tf, err := os.Open(path)\n174: \tif err != nil {\n",
+			"line": "173",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/audit/audit.go",
+			"code": "73: \n74: \tf, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0600)\n75: \tif err != nil {\n",
+			"line": "74",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/actuator/envelope.go",
+			"code": "137: \tfor _, p := range []string{\"/etc/machine-id\", \"/var/lib/dbus/machine-id\"} {\n138: \t\tif data, err := os.ReadFile(p); err == nil {\n139: \t\t\tid := strings.TrimSpace(string(data))\n",
+			"line": "138",
+			"column": "19",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/actuator/engine.go",
+			"code": "272: func isFileLocked(path string) bool {\n273: \tf, err := os.OpenFile(path, os.O_RDWR, 0600)\n274: \tif err != nil {\n",
+			"line": "273",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/actuator/audit.go",
+			"code": "143: func VerifyAuditChain(path string) (int, error) {\n144: \tf, err := os.Open(path)\n145: \tif err != nil {\n",
+			"line": "144",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/actuator/audit.go",
+			"code": "74: \n75: \tf, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0600)\n76: \tif err != nil {\n",
+			"line": "75",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/config/config.go",
+			"code": "52: \t// Check if /var/lib/kazeshini is writable\n53: \tif err := os.MkdirAll(\"/var/lib/kazeshini\", 0755); err == nil {\n54: \t\ttestFile := \"/var/lib/kazeshini/.write_test\"\n",
+			"line": "53",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/actuator/server.go",
+			"code": "49: func (s *Server) Start(ctx context.Context) error {\n50: \tif err := os.MkdirAll(filepath.Dir(s.socketPath), 0755); err != nil {\n51: \t\treturn fmt.Errorf(\"creating socket dir: %w\", err)\n",
+			"line": "50",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/home/ahvnav/workspace/jyoshin/cmd/kazeshini-actuator/main.go",
+			"code": "307: \n308: \tif err := os.MkdirAll(filepath.Dir(*sentinel), 0755); err != nil {\n309: \t\treturn err\n",
+			"line": "308",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/home/ahvnav/workspace/jyoshin/cmd/kazeshini-actuator/main.go",
+			"code": "311: \tcontent := fmt.Sprintf(\"disabled at %s\\n\", time.Now().UTC().Format(time.RFC3339))\n312: \tif err := os.WriteFile(*sentinel, []byte(content), 0644); err != nil {\n313: \t\treturn err\n",
+			"line": "312",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/home/ahvnav/workspace/jyoshin/cmd/kazeshini-actuator/main.go",
+			"code": "156: \n157: \tif err := os.WriteFile(pubFile, []byte(pubB64), 0644); err != nil {\n158: \t\treturn err\n",
+			"line": "157",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "118",
+				"url": "https://cwe.mitre.org/data/definitions/118.html"
+			},
+			"rule_id": "G602",
+			"details": "slice index out of range",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/network/network.go",
+			"code": "356: \t\t\tv6[i+2] = ipBytes[i+1]\n357: \t\t\tv6[i+3] = ipBytes[i]\n358: \t\t}\n",
+			"line": "357",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "118",
+				"url": "https://cwe.mitre.org/data/definitions/118.html"
+			},
+			"rule_id": "G602",
+			"details": "slice index out of range",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/network/network.go",
+			"code": "355: \t\t\tv6[i+1] = ipBytes[i+2]\n356: \t\t\tv6[i+2] = ipBytes[i+1]\n357: \t\t\tv6[i+3] = ipBytes[i]\n",
+			"line": "356",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "118",
+				"url": "https://cwe.mitre.org/data/definitions/118.html"
+			},
+			"rule_id": "G602",
+			"details": "slice index out of range",
+			"file": "/home/ahvnav/workspace/jyoshin/internal/sensors/network/network.go",
+			"code": "354: \t\t\tv6[i] = ipBytes[i+3]\n355: \t\t\tv6[i+1] = ipBytes[i+2]\n356: \t\t\tv6[i+2] = ipBytes[i+1]\n",
+			"line": "355",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		}
+	],
+	"Stats": {
+		"files": 94,
+		"lines": 26042,
+		"nosec": 0,
+		"found": 48
+	},
+	"GosecVersion": "dev"
+}
