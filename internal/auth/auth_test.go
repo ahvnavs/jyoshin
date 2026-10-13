@@ -7,9 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"net"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -183,32 +181,4 @@ func TestMTLSAuthenticator_CertMapping(t *testing.T) {
 	if err != nil || sub == nil || sub.Role != rbac.RoleAdmin {
 		t.Fatalf("expected admin subject from mTLS cert, got %v", sub)
 	}
-}
-
-func TestOIDC_FakeProviderFlow(t *testing.T) {
-	// Spin up a local fake OIDC discovery provider
-	fakeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/.well-known/openid-configuration":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"issuer":                 "http://" + r.Host,
-				"authorization_endpoint": "http://" + r.Host + "/auth",
-				"token_endpoint":         "http://" + r.Host + "/token",
-				"jwks_uri":               "http://" + r.Host + "/keys",
-			})
-		case "/keys":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"keys": []map[string]any{},
-			})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer fakeServer.Close()
-
-	t.Logf("OIDC Fake Provider running on %s", fakeServer.URL)
-	t.Logf("Tested OIDC discovery endpoint: %s/.well-known/openid-configuration", fakeServer.URL)
-	t.Log("[✓] OIDC generic discovery metadata parsed and verified successfully.")
 }
