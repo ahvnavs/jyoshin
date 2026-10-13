@@ -261,21 +261,21 @@ a:hover, a:focus {
   border-radius: 2px;
 }
 
-/* Symptom Picker on Overview */
-.symptom-picker-panel {
+/* Guided Triage Picker on Overview */
+.triage-picker-panel {
   background-color: var(--panel);
   border: 1px solid var(--panel-border);
   padding: var(--space-16);
 }
 
-.symptom-buttons {
+.triage-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
 
-.symptom-btn {
+.triage-btn {
   background-color: #161922;
   border: 1px solid var(--panel-border);
   color: var(--text);
@@ -289,7 +289,7 @@ a:hover, a:focus {
   gap: 6px;
 }
 
-.symptom-btn:hover, .symptom-btn:focus {
+.triage-btn:hover, .triage-btn:focus {
   background-color: #1E2230;
   border-color: var(--lavender);
   color: var(--mint);
@@ -318,20 +318,20 @@ a:hover, a:focus {
   max-width: 800px;
 }
 
-.chaos-container {
+.risk-container {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   text-align: right;
 }
 
-.chaos-title {
+.risk-title {
   font-size: var(--font-12);
   color: var(--dim);
   text-transform: uppercase;
 }
 
-.chaos-score-line {
+.risk-score-line {
   font-size: var(--font-28);
   font-weight: bold;
   display: flex;
@@ -345,6 +345,22 @@ a:hover, a:focus {
   display: flex;
   align-items: center;
   gap: var(--space-8);
+}
+
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable-th:hover {
+  color: var(--mint);
+}
+.empty-state {
+  padding: 16px;
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px dashed var(--panel-border);
+  background-color: #07080b;
 }
 
 /* Panels & Grids */

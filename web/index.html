@@ -22,51 +22,44 @@
           <a href="#overview" id="nav-overview" class="rail-item active">
             <span>[#] Overview</span>
           </a>
-          <a href="#briefing" id="nav-briefing" class="rail-item">
-            <span>[✦] Briefing</span>
-          </a>
-          <a href="#devops" id="nav-devops" class="rail-item">
-            <span>[⚙] DevOps</span>
-            <span class="rail-count" id="count-devops">3</span>
-          </a>
-          <a href="#cloud" id="nav-cloud" class="rail-item">
-            <span>[☁] Cloud</span>
-            <span class="rail-count" id="count-cloud">3</span>
-          </a>
-          <a href="#cloud-platform" id="nav-cloud-platform" class="rail-item">
-            <span>[☸] Cloud Platform</span>
-            <span class="rail-count" id="count-cloud-platform">3</span>
-          </a>
-          <a href="#infrastructure" id="nav-infrastructure" class="rail-item">
-            <span>[▣] Infrastructure</span>
-            <span class="rail-count" id="count-infrastructure">3</span>
-          </a>
-          <a href="#devsecops" id="nav-devsecops" class="rail-item">
-            <span>[🔒] DevSecOps</span>
-            <span class="rail-count" id="count-devsecops">3</span>
-          </a>
-          <a href="#platform" id="nav-platform" class="rail-item">
-            <span>[🛠] Platform</span>
-            <span class="rail-count" id="count-platform">3</span>
-          </a>
-          <a href="#network" id="nav-network" class="rail-item">
-            <span>[🌐] Network</span>
-            <span class="rail-count" id="count-network">4</span>
-          </a>
-          <a href="#desired" id="nav-desired" class="rail-item">
-            <span>[⚖] Desired vs Actual</span>
-            <span class="rail-count" id="count-desired">0</span>
-          </a>
           <a href="#software" id="nav-software" class="rail-item">
             <span>[📦] Software</span>
             <span class="rail-count" id="count-software">0</span>
           </a>
+          <a href="#services" id="nav-services" class="rail-item">
+            <span>[⚙] Services</span>
+            <span class="rail-count" id="count-services">0</span>
+          </a>
+          <a href="#network" id="nav-network" class="rail-item">
+            <span>[🌐] Network</span>
+            <span class="rail-count" id="count-network">0</span>
+          </a>
+          <a href="#storage" id="nav-storage" class="rail-item">
+            <span>[💾] Storage</span>
+            <span class="rail-count" id="count-storage">0</span>
+          </a>
+          <a href="#security" id="nav-security" class="rail-item">
+            <span>[🔒] Security</span>
+            <span class="rail-count" id="count-security">0</span>
+          </a>
+          <a href="#logs" id="nav-logs" class="rail-item">
+            <span>[📄] Logs</span>
+            <span class="rail-count" id="count-logs">0</span>
+          </a>
           <a href="#platforms" id="nav-platforms" class="rail-item">
-            <span>[🌐] Platforms</span>
+            <span>[◈] Platforms</span>
             <span class="rail-count" id="count-platforms">0</span>
           </a>
-          <a href="#activity" id="nav-activity" class="rail-item">
-            <span>[📝] Activity Log</span>
+          <a href="#drift" id="nav-drift" class="rail-item">
+            <span>[⚖] Drift</span>
+            <span class="rail-count" id="count-drift">0</span>
+          </a>
+          <a href="#audit-log" id="nav-audit-log" class="rail-item">
+            <span>[📝] Audit Log</span>
+            <span class="rail-count" id="count-audit-log">0</span>
+          </a>
+          <a href="#settings" id="nav-settings" class="rail-item">
+            <span>[⚙] Settings</span>
           </a>
         </nav>
       </div>
@@ -84,7 +77,7 @@
       <header class="top-bar">
         <div class="top-bar-left">
           <div id="top-host-badge" style="font-weight: bold; color: var(--text);">HOST: <span id="pulse-host" style="color: var(--cyan);">server</span></div>
-          <div id="top-verdict-badge" class="badge badge-mint">[✓] CALM</div>
+          <div id="top-verdict-badge" class="badge badge-mint">[✓] HEALTHY</div>
           <div id="top-coverage-badge" class="badge badge-mint">COVERAGE 100%</div>
         </div>
 
@@ -111,45 +104,56 @@
                 <div id="verdict-lead" class="verdict-lead">Evaluating server status and provenance...</div>
                 <div id="identity-line" class="identity-row" style="margin-top: 8px;">HOST: Linux Server</div>
               </div>
-              <div class="chaos-container">
-                <span class="chaos-title">CHAOS INDEX</span>
-                <div class="chaos-score-line">
-                  <span id="chaos-score">0</span><span style="font-size: 14px; color: var(--dim);">/100</span>
+              <div class="risk-container">
+                <span class="risk-title">RISK SCORE</span>
+                <div class="risk-score-line">
+                  <span id="risk-score">0</span><span style="font-size: 14px; color: var(--dim);">/100</span>
                 </div>
-                <div id="chaos-badge" class="badge badge-mint">[✓] CALM</div>
+                <div id="risk-badge" class="badge badge-mint">[✓] HEALTHY</div>
               </div>
             </div>
           </div>
 
-          <!-- Symptom Picker -->
-          <div class="symptom-picker-panel" style="margin-top: var(--space-20);">
-            <div style="font-size: 13px; font-weight: bold; color: var(--lavender);">[?] SYMPTOM INVESTIGATION (HUMAN-FIRST WORKFLOW)</div>
+          <!-- Guided Triage Panel -->
+          <div class="triage-picker-panel" style="margin-top: var(--space-20);">
+            <div style="font-size: 13px; font-weight: bold; color: var(--lavender);">[?] GUIDED TRIAGE</div>
             <div style="font-size: 12px; color: var(--dim); margin-top: 4px;">Select an issue to inspect targeted read-only checks with plain-English rationales:</div>
-            <div class="symptom-buttons">
-              <button class="symptom-btn" data-symptom="slow"><span>[⌛]</span> Something is slow</button>
-              <button class="symptom-btn" data-symptom="service-down"><span>[⚠]</span> Service down</button>
-              <button class="symptom-btn" data-symptom="cant-connect"><span>[🔌]</span> Can't connect</button>
-              <button class="symptom-btn" data-symptom="disk-full"><span>[💾]</span> Disk full</button>
-              <button class="symptom-btn" data-symptom="looks-hacked"><span>[🛡]</span> Looks hacked</button>
+            <div class="triage-buttons">
+              <button class="triage-btn" data-triage="slow"><span>[⌛]</span> Performance degradation</button>
+              <button class="triage-btn" data-triage="service-down"><span>[⚠]</span> Service unavailable</button>
+              <button class="triage-btn" data-triage="cant-connect"><span>[🔌]</span> Network connectivity failure</button>
+              <button class="triage-btn" data-triage="disk-full"><span>[💾]</span> Storage exhaustion</button>
+              <button class="triage-btn" data-triage="looks-hacked"><span>[🛡]</span> Security compromise indicators</button>
             </div>
           </div>
 
-          <!-- Symptom Results View (Hidden by default) -->
-          <div id="symptom-result-panel" class="panel" style="display: none; margin-top: var(--space-20);">
+          <!-- Guided Triage Results View (Hidden by default) -->
+          <div id="triage-result-panel" class="panel" style="display: none; margin-top: var(--space-20);">
             <div class="panel-header">
-              <h2 id="symptom-result-title" class="panel-title">[?] SYMPTOM RESULTS</h2>
-              <button id="symptom-close-btn" class="btn btn-secondary" style="font-size: 11px;">CLOSE</button>
+              <h2 id="triage-result-title" class="panel-title">[?] GUIDED TRIAGE RESULTS</h2>
+              <button id="triage-close-btn" class="btn btn-secondary" style="font-size: 11px;">CLOSE</button>
             </div>
-            <div id="symptom-result-content" class="checks-grid" style="margin-top: 8px;"></div>
+            <div id="triage-result-content" class="checks-grid" style="margin-top: 8px;"></div>
           </div>
 
-          <!-- 4 Core Panels Grid: Pulse, Danger, Waste, Changes -->
+          <!-- Top Findings Panel -->
+          <div class="panel" style="margin-top: var(--space-20);">
+            <div class="panel-header">
+              <h2 class="panel-title">[▲] TOP FINDINGS</h2>
+              <span id="top-findings-count" class="badge badge-mint">0 ACTIVE</span>
+            </div>
+            <div id="top-findings-list" class="checks-grid" style="margin-top: 8px;">
+              <div class="empty-state">No critical or high severity findings detected on this host.</div>
+            </div>
+          </div>
+
+          <!-- 4 Core Panels Grid: Diagnostics and Visibility, Impact analysis, Waste, Changes -->
           <div class="grid-2x2" style="margin-top: var(--space-20);">
-            <!-- PULSE PANEL -->
+            <!-- DIAGNOSTICS AND VISIBILITY PANEL -->
             <div class="panel" aria-labelledby="pulse-title">
               <div class="panel-header">
-                <h2 id="pulse-title" class="panel-title">[●] PULSE</h2>
-                <span class="badge badge-mint">[✓] NORMAL</span>
+                <h2 id="pulse-title" class="panel-title">[●] DIAGNOSTICS AND VISIBILITY</h2>
+                <span class="badge badge-mint">[✓] HEALTHY</span>
               </div>
               <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
                 <div><span style="color: var(--dim);">Kernel:</span> <span id="pulse-kernel" style="color: var(--cyan);">Linux</span></div>
@@ -176,25 +180,25 @@
               </div>
             </div>
 
-            <!-- DANGER PANEL -->
-            <div class="panel" aria-labelledby="danger-title">
+            <!-- RISK CONTRIBUTORS PANEL -->
+            <div class="panel" aria-labelledby="contributors-title">
               <div class="panel-header">
-                <h2 id="danger-title" class="panel-title">[▲] DANGER & EXPOSURE</h2>
-                <span id="danger-count" class="badge badge-mint">[✓] 0 active</span>
+                <h2 id="contributors-title" class="panel-title">[▲] RISK CONTRIBUTORS</h2>
+                <span id="danger-count" class="badge badge-mint">[✓] 0 ACTIVE</span>
               </div>
               <div id="danger-list" class="finding-list">
-                <div style="color: var(--mint);">[✓] No critical exposures detected.</div>
+                <div class="empty-state">[✓] No active risk contributors identified.</div>
               </div>
             </div>
 
-            <!-- WASTE PANEL -->
+            <!-- WASTE & REDUNDANCY PANEL -->
             <div class="panel" aria-labelledby="waste-title">
               <div class="panel-header">
-                <h2 id="waste-title" class="panel-title">[$] WASTE & DRIFT</h2>
+                <h2 id="waste-title" class="panel-title">[$] WASTE & REDUNDANCY</h2>
                 <span id="waste-monthly" class="badge badge-peach">$0.00 / month</span>
               </div>
               <div id="waste-list" class="finding-list">
-                <div style="color: var(--mint);">[✓] No idle or redundant resources identified.</div>
+                <div class="empty-state">[✓] No idle or redundant resources identified.</div>
               </div>
             </div>
 
@@ -214,10 +218,10 @@
               </div>
             </div>
 
-            <!-- BLAST RADIUS DECISION SUPPORT -->
+            <!-- IMPACT ANALYSIS DECISION SUPPORT -->
             <div class="panel" aria-labelledby="blast-title" style="grid-column: 1 / -1;">
               <div class="panel-header">
-                <h2 id="blast-title" class="panel-title">[💥] BLAST RADIUS: SAFE TO TOUCH?</h2>
+                <h2 id="blast-title" class="panel-title">[💥] IMPACT ANALYSIS: SAFE TO TOUCH?</h2>
                 <span id="blast-verdict-badge" class="badge badge-mint">[✓] SAFE</span>
               </div>
               <div style="display: flex; gap: var(--space-16); flex-wrap: wrap; align-items: center;">
@@ -245,139 +249,7 @@
           </div>
         </section>
 
-        <!-- 2. BRIEFING VIEW -->
-        <section id="view-briefing" class="view-panel" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. Plain-English deterministic server truth briefing.</span>
-          </div>
-          <div class="panel" style="margin-top: var(--space-16);">
-            <div class="panel-header">
-              <h2 id="briefing-title" class="panel-title">[✦] SERVER TRUTH BRIEFING</h2>
-              <span id="coverage-badge" class="badge badge-mint">COVERAGE 100%</span>
-            </div>
-            <div id="briefing-content" style="font-size: 13px; line-height: 1.6; color: var(--text);">
-              <div id="briefing-loading" style="color: var(--dim);">Generating human-first server briefing...</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 3. ROLE CHECKS VIEWS (DevOps, Cloud, Cloud Platform, Infrastructure, DevSecOps, Platform, Network) -->
-        <section id="view-devops" class="view-panel role-view" data-role="devops" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. DevOps checks: unit state, socket binds, process health, PSI metrics.</span>
-          </div>
-          <div class="checks-grid" id="checks-list-devops" style="margin-top: var(--space-16);"></div>
-        </section>
-
-        <section id="view-cloud" class="view-panel role-view" data-role="cloud" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. Cloud checks: cloud-init results, guest daemons, attached block devices.</span>
-          </div>
-          <div class="checks-grid" id="checks-list-cloud" style="margin-top: var(--space-16);"></div>
-        </section>
-
-        <section id="view-cloud-platform" class="view-panel role-view" data-role="cloud-platform" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. Cloud Platform checks: container daemons, kubelet runtime, engine storage.</span>
-          </div>
-          <div class="checks-grid" id="checks-list-cloud-platform" style="margin-top: var(--space-16);"></div>
-        </section>
-
-        <section id="view-infrastructure" class="view-panel role-view" data-role="infrastructure" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. Infrastructure checks: storage & inode capacity, degraded units, clock drift.</span>
-          </div>
-          <div class="checks-grid" id="checks-list-infrastructure" style="margin-top: var(--space-16);"></div>
-        </section>
-
-        <section id="view-devsecops" class="view-panel role-view" data-role="devsecops" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. DevSecOps checks: sudoers membership, sshd security, auth failure logs.</span>
-          </div>
-          <div class="checks-grid" id="checks-list-devsecops" style="margin-top: var(--space-16);"></div>
-        </section>
-
-        <section id="view-platform" class="view-panel role-view" data-role="platform" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. Platform checks: essential host tooling, config validation, file permissions.</span>
-          </div>
-          <div class="checks-grid" id="checks-list-platform" style="margin-top: var(--space-16);"></div>
-        </section>
-
-        <section id="view-network" class="view-panel role-view" data-role="network" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. Network checks: default routing, listening sockets, resolv.conf, active probes.</span>
-          </div>
-          <div class="checks-grid" id="checks-list-network" style="margin-top: var(--space-16);"></div>
-        </section>
-
-        <!-- 4. ACTIVITY VIEW -->
-        <section id="view-activity" class="view-panel" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. Local append-only check execution audit log.</span>
-          </div>
-          <div class="panel" style="margin-top: var(--space-16);">
-            <div class="panel-header">
-              <h2 class="panel-title">[📝] AUDIT ACTIVITY LOG</h2>
-              <button id="refresh-activity-btn" class="btn" style="font-size: 11px;">REFRESH</button>
-            </div>
-            <div style="overflow-x: auto; margin-top: 8px;">
-              <table class="htop-table" id="activity-table">
-                <thead>
-                  <tr>
-                    <th>TIME (UTC)</th>
-                    <th>CHECK ID</th>
-                    <th>ROLE</th>
-                    <th>STATUS</th>
-                    <th>INITIATOR</th>
-                    <th>SUMMARY</th>
-                  </tr>
-                </thead>
-                <tbody id="activity-tbody">
-                  <tr><td colspan="6" style="color: var(--dim);">No checks executed yet.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- 5. DESIRED VS ACTUAL VIEW (Phase 25) -->
-        <section id="view-desired" class="view-panel" style="display: none;">
-          <div class="readonly-banner">
-            <span>ℹ</span>
-            <span>This only reads; it changes nothing. Compares desired manifest against observed actual state. Remediation commands are SHOWN ONLY.</span>
-          </div>
-          <div class="panel" style="margin-top: var(--space-16);">
-            <div class="panel-header">
-              <h2 class="panel-title">[⚖] DESIRED VS ACTUAL (DRIFT AUDIT)</h2>
-              <span id="drift-summary-badge" class="badge badge-mint">ZERO DRIFT</span>
-            </div>
-            <div id="drift-items-container" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
-              <div style="color: var(--dim); font-size: 13px;">Loading desired state evaluation...</div>
-            </div>
-          </div>
-
-          <div class="panel" style="margin-top: var(--space-16);">
-            <div class="panel-header">
-              <h2 class="panel-title">[🛠] REMEDIATION PLAN (WHAT WOULD CHANGE)</h2>
-              <span id="plan-policy-badge" class="badge badge-cyan">READ-ONLY PLAN</span>
-            </div>
-            <div id="plan-steps-container" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
-              <div style="color: var(--dim); font-size: 13px;">No remediation plan required.</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 4b. SOFTWARE VIEW -->
+        <!-- 2. SOFTWARE VIEW -->
         <section id="view-software" class="view-panel" style="display: none;">
           <div class="readonly-banner">
             <span>ℹ</span>
@@ -393,7 +265,6 @@
               </div>
             </div>
 
-            <!-- Filters & Stats -->
             <div style="margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
               <div style="display: flex; gap: 8px; align-items: center;">
                 <input type="text" id="software-search" placeholder="Filter packages..." style="background: var(--surface-2); border: 1px solid var(--border); color: var(--fg); padding: 4px 8px; font-family: monospace; border-radius: 4px; font-size: 13px;" />
@@ -409,51 +280,175 @@
               </div>
             </div>
 
-            <!-- Table -->
             <div style="margin-top: 16px; overflow-x: auto;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px;" id="software-table">
                 <thead>
                   <tr style="border-bottom: 1px solid var(--border); color: var(--dim); text-align: left;">
-                    <th style="padding: 6px 8px;">PACKAGE</th>
-                    <th style="padding: 6px 8px;">INSTALLED</th>
-                    <th style="padding: 6px 8px;">CANDIDATE</th>
-                    <th style="padding: 6px 8px;">STATUS</th>
+                    <th class="sortable-th" data-sort="name" style="padding: 6px 8px;">PACKAGE ↕</th>
+                    <th class="sortable-th" data-sort="installed" style="padding: 6px 8px;">INSTALLED ↕</th>
+                    <th class="sortable-th" data-sort="candidate" style="padding: 6px 8px;">CANDIDATE ↕</th>
+                    <th class="sortable-th" data-sort="status" style="padding: 6px 8px;">STATUS ↕</th>
                     <th style="padding: 6px 8px; text-align: right;">ACTION</th>
                   </tr>
                 </thead>
                 <tbody id="software-table-body">
-                  <tr><td colspan="5" style="padding: 12px; color: var(--dim); text-align: center;">Loading software inventory...</td></tr>
+                  <tr><td colspan="5" class="empty-state" style="text-align: center;">Loading software inventory...</td></tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <!-- Detail / Plan Modal / Drawer -->
           <div id="software-plan-modal" class="panel" style="margin-top: var(--space-16); display: none;">
             <div class="panel-header">
               <h2 class="panel-title" id="software-plan-title">[🛠] DRY-RUN PLAN</h2>
               <button id="software-plan-close" style="background: transparent; border: 1px solid var(--border); color: var(--dim); cursor: pointer; padding: 2px 6px; font-family: monospace;">[x] CLOSE</button>
             </div>
-            <div id="software-plan-content" style="margin-top: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 12px;">
-              <!-- Plan details injected dynamically -->
-            </div>
+            <div id="software-plan-content" style="margin-top: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 12px;"></div>
           </div>
         </section>
 
-        <!-- 4c. PLATFORMS VIEW -->
+        <!-- 3. SERVICES VIEW -->
+        <section id="view-services" class="view-panel domain-view" data-domain="services" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Services checks: process health, systemd units, resource saturation.</span>
+          </div>
+          <div class="checks-grid" id="checks-list-services" style="margin-top: var(--space-16);"></div>
+        </section>
+
+        <!-- 4. NETWORK VIEW -->
+        <section id="view-network" class="view-panel domain-view" data-domain="network" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Network checks: default route, listening sockets, DNS resolver configuration.</span>
+          </div>
+          <div class="checks-grid" id="checks-list-network" style="margin-top: var(--space-16);"></div>
+        </section>
+
+        <!-- 5. STORAGE VIEW -->
+        <section id="view-storage" class="view-panel domain-view" data-domain="storage" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Storage checks: filesystem capacity, inode usage, container storage.</span>
+          </div>
+          <div class="checks-grid" id="checks-list-storage" style="margin-top: var(--space-16);"></div>
+        </section>
+
+        <!-- 6. SECURITY VIEW -->
+        <section id="view-security" class="view-panel domain-view" data-domain="security" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Security checks: sudo privileges, SSH daemon configuration, authentication failures.</span>
+          </div>
+          <div class="checks-grid" id="checks-list-security" style="margin-top: var(--space-16);"></div>
+        </section>
+
+        <!-- 7. LOGS VIEW -->
+        <section id="view-logs" class="view-panel domain-view" data-domain="logs" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Logs checks: application log streams, platform agent log health.</span>
+          </div>
+          <div class="checks-grid" id="checks-list-logs" style="margin-top: var(--space-16);"></div>
+        </section>
+
+        <!-- 8. PLATFORMS VIEW -->
         <section id="view-platforms" class="view-panel" style="display: none;">
           <div class="panel">
             <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <h1 style="color: var(--mint); font-size: var(--font-20); margin-bottom: 4px;">Platform Signature Catalog & Detection</h1>
+                <h1 style="color: var(--mint); font-size: var(--font-20); margin-bottom: 4px;">Platform Signature Catalog &amp; Detection</h1>
                 <p style="color: var(--dim); font-size: 13px;">Honest visibility into detected host platforms and local adapter telemetry. Kazeshini reports exactly what it can and cannot see.</p>
               </div>
               <button id="refresh-platforms-btn" class="btn btn-secondary">[R] REFRESH</button>
             </div>
           </div>
+          <div id="platforms-container" style="margin-top: var(--space-16); display: flex; flex-direction: column; gap: 16px;"></div>
+        </section>
 
-          <div id="platforms-container" style="margin-top: var(--space-16); display: flex; flex-direction: column; gap: 16px;">
-            <!-- Category groups injected dynamically -->
+        <!-- 9. DRIFT VIEW -->
+        <section id="view-drift" class="view-panel" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Compares desired manifest against observed actual state. Remediation commands are SHOWN ONLY.</span>
+          </div>
+          <div class="panel" style="margin-top: var(--space-16);">
+            <div class="panel-header">
+              <h2 class="panel-title">[⚖] DESIRED VS ACTUAL (DRIFT AUDIT)</h2>
+              <span id="drift-summary-badge" class="badge badge-mint">ZERO DRIFT</span>
+            </div>
+            <div id="drift-items-container" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+              <div class="empty-state">Loading desired state evaluation...</div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top: var(--space-16);">
+            <div class="panel-header">
+              <h2 class="panel-title">[🛠] REMEDIATION PLAN (WHAT WOULD CHANGE)</h2>
+              <span id="plan-policy-badge" class="badge badge-cyan">READ-ONLY PLAN</span>
+            </div>
+            <div id="plan-steps-container" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+              <div class="empty-state">No remediation plan required.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 10. AUDIT LOG VIEW -->
+        <section id="view-audit-log" class="view-panel" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Local append-only check execution audit log.</span>
+          </div>
+          <div class="panel" style="margin-top: var(--space-16);">
+            <div class="panel-header">
+              <h2 class="panel-title">[📝] AUDIT LOG</h2>
+              <button id="refresh-activity-btn" class="btn" style="font-size: 11px;">REFRESH</button>
+            </div>
+            <div style="overflow-x: auto; margin-top: 8px;">
+              <table class="htop-table" id="activity-table">
+                <thead>
+                  <tr>
+                    <th class="sortable-th" data-sort="time">TIME (UTC) ↕</th>
+                    <th class="sortable-th" data-sort="check">CHECK ID ↕</th>
+                    <th class="sortable-th" data-sort="domain">DOMAIN ↕</th>
+                    <th class="sortable-th" data-sort="status">STATUS ↕</th>
+                    <th class="sortable-th" data-sort="initiator">INITIATOR ↕</th>
+                    <th>SUMMARY</th>
+                  </tr>
+                </thead>
+                <tbody id="activity-tbody">
+                  <tr><td colspan="6" class="empty-state" style="text-align: center;">No checks executed yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 11. SETTINGS VIEW -->
+        <section id="view-settings" class="view-panel" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>Settings and local node configuration. Read-only host inspector defaults.</span>
+          </div>
+          <div class="panel" style="margin-top: var(--space-16);">
+            <div class="panel-header">
+              <h2 class="panel-title">[⚙] SETTINGS &amp; AUTHENTICATION</h2>
+            </div>
+            <div style="font-size: 13px; display: flex; flex-direction: column; gap: 16px;">
+              <div>
+                <strong>Authentication Token:</strong>
+                <div style="color: var(--dim); margin-top: 4px;">Configured token stored in browser localStorage.</div>
+                <button id="settings-token-btn" class="btn btn-secondary" style="margin-top: 8px;">CONFIGURE AUTH TOKEN</button>
+              </div>
+              <div style="border-top: 1px dashed var(--panel-border); padding-top: 12px;">
+                <strong>Local Tsumuji Pet Widget:</strong>
+                <div style="color: var(--dim); margin-top: 4px;">Default is OFF. Optional background visual indicator.</div>
+                <div style="margin-top: 8px; display: flex; gap: 8px;">
+                  <button id="settings-pet-on" class="btn btn-secondary">ENABLE PET</button>
+                  <button id="settings-pet-off" class="btn btn-secondary">DISABLE PET</button>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -479,7 +474,7 @@
         <span style="font-weight: bold; color: var(--lavender); font-size: 13px;">COMMAND PALETTE</span>
         <span style="font-size: 11px; color: var(--dim);">[Esc to close]</span>
       </div>
-      <input type="text" id="palette-input" class="modal-input" placeholder="Type a view name or command (e.g. 'devops', ':pet off')...">
+      <input type="text" id="palette-input" class="modal-input" placeholder="Type a domain or command (e.g. 'services', 'network', ':pet off')...">
       <div id="palette-results" class="palette-results"></div>
     </div>
   </div>

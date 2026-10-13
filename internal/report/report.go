@@ -130,7 +130,7 @@ func (g *Generator) RenderMarkdown() string {
 	fmt.Fprintf(&sb, "# %s\n\n", h.Title)
 	fmt.Fprintf(&sb, "**Generated At**: %s | **Tool Version**: %s\n\n", h.GeneratedAt.Format(time.RFC3339), h.ToolVersion)
 	fmt.Fprintf(&sb, "## Verdict: %s\n", h.Verdict.OneLineVerdict)
-	fmt.Fprintf(&sb, "- **Chaos Index**: %d / 100 (%s)\n", h.Verdict.ChaosIndex, h.Verdict.StateLabel)
+	fmt.Fprintf(&sb, "- **Risk Score**: %d / 100 (%s)\n", h.Verdict.RiskScore, h.Verdict.StateLabel)
 	fmt.Fprintf(&sb, "- **Identity**: %s\n", h.Verdict.IdentityLine)
 	fmt.Fprintf(&sb, "- **Monthly Waste**: $%.2f\n\n", h.Verdict.EstimatedWasteUSD)
 
@@ -201,9 +201,9 @@ func (g *Generator) RenderHTML() string {
   <hr style="border-color: #1E2230; margin: 16px 0;">
 
   <div class="box">
-    <h2>VERDICT & CHAOS INDEX</h2>
+    <h2>VERDICT & RISK SCORE</h2>
     <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">%s</div>
-    <div>Chaos Index: <span class="badge badge-mint">%d/100 (%s)</span> | Identity: %s</div>
+    <div>Risk Score: <span class="badge badge-mint">%d/100 (%s)</span> | Identity: %s</div>
     <div>Estimated Monthly Waste: $%.2f</div>
   </div>
 
@@ -238,7 +238,7 @@ func (g *Generator) RenderHTML() string {
 		h.GeneratedAt.Format(time.RFC3339),
 		h.ToolVersion,
 		h.Verdict.OneLineVerdict,
-		h.Verdict.ChaosIndex,
+		h.Verdict.RiskScore,
 		h.Verdict.StateLabel,
 		h.Verdict.IdentityLine,
 		h.Verdict.EstimatedWasteUSD,

@@ -8,63 +8,157 @@ import (
 	"strings"
 )
 
-// RenderTerminal formats a CheckResult into plain terminal text.
+// RenderTerminal formats a CheckResult into the single standardized Phase 34 card layout:
+// Severity | Title | Result (one sentence) | Impact | Recommended action | Evidence | Confidence | Visibility
 func (c CheckResult) RenderTerminal() string {
 	var sb strings.Builder
-	statusTag := fmt.Sprintf("[%s]", c.Status)
-	fmt.Fprintf(&sb, "%-6s %s (%s)\n", statusTag, c.Title, c.Role)
-	fmt.Fprintf(&sb, "       Summary:  %s\n", c.SummaryPlain)
-	if c.ExplainLevels[0] != "" {
-		fmt.Fprintf(&sb, "       What:     %s\n", c.ExplainLevels[0])
+
+	// Map internal Status to canonical Severity
+	severity := "Info"
+	switch c.Status {
+	case StatusCrit:
+		severity = "Critical"
+	case StatusWarn:
+		severity = "High"
+	case StatusOK:
+		severity = "Low"
+	case StatusUnknown, StatusNotApplicable:
+		severity = "Info"
 	}
-	if c.ExplainLevels[1] != "" {
-		fmt.Fprintf(&sb, "       So what:  %s\n", c.ExplainLevels[1])
-	}
-	if c.ExplainLevels[2] != "" {
-		fmt.Fprintf(&sb, "       Now what: %s\n", c.ExplainLevels[2])
-	}
-	if c.NextStepCommand != "" {
-		fmt.Fprintf(&sb, "       Next cmd: %s\n", c.NextStepCommand)
-	}
+
+	confidence := "Observed"
 	if c.Certainty != "" {
-		fmt.Fprintf(&sb, "       Certainty: [%s]\n", strings.ToUpper(string(c.Certainty)))
+		confidence = strings.Title(strings.ToLower(string(c.Certainty)))
 	}
+
+	visibility := "Full"
+	if c.Coverage.Total > 0 {
+		visibility = fmt.Sprintf("%d of %d", c.Coverage.Seen, c.Coverage.Total)
+	} else if c.Coverage.Reason != "" {
+		visibility = c.Coverage.Reason
+	}
+
+	resultSentence := c.SummaryPlain
+	if resultSentence == "" && c.ExplainLevels[0] != "" {
+		resultSentence = c.ExplainLevels[0]
+	}
+
+	impact := c.ExplainLevels[1]
+	if impact == "" {
+		impact = "None detected under current operational conditions."
+	}
+
+	recommendedAction := c.NextStepCommand
+	if recommendedAction == "" && c.ExplainLevels[2] != "" {
+		recommendedAction = c.ExplainLevels[2]
+	}
+	if recommendedAction == "" {
+		recommendedAction = "No action needed (system healthy)."
+	}
+
+	var evidenceList []string
+	if len(c.Evidence) > 0 {
+		for _, ev := range c.Evidence {
+			detail := ev.Details
+			if detail == "" {
+				detail = ev.Raw
+			}
+			if detail != "" {
+				evidenceList = append(evidenceList, fmt.Sprintf("%s (%s)", ev.Source, detail))
+			} else {
+				evidenceList = append(evidenceList, ev.Source)
+			}
+		}
+	} else if c.EquivalentCommand != "" {
+		evidenceList = append(evidenceList, c.EquivalentCommand)
+	} else {
+		evidenceList = append(evidenceList, c.ID)
+	}
+
+	fmt.Fprintf(&sb, "Severity:           %s\n", severity)
+	fmt.Fprintf(&sb, "Title:              %s\n", c.Title)
+	fmt.Fprintf(&sb, "Result:             %s\n", resultSentence)
+	fmt.Fprintf(&sb, "Impact:             %s\n", impact)
+	fmt.Fprintf(&sb, "Recommended action: %s\n", recommendedAction)
+	fmt.Fprintf(&sb, "Evidence:           %s\n", strings.Join(evidenceList, "; "))
+	fmt.Fprintf(&sb, "Confidence:         %s\n", confidence)
+	fmt.Fprintf(&sb, "Visibility:         %s\n", visibility)
+
 	return sb.String()
 }
 
-// RenderHTML formats a CheckResult into an accessible HTML snippet for the embedded web UI.
+// RenderHTML formats a CheckResult into an accessible, standardized card following Phase 34 layout.
 func (c CheckResult) RenderHTML() string {
-	statusClass := "badge-mint"
+	severity := "Info"
+	statusClass := "badge-dim"
 	switch c.Status {
 	case StatusCrit:
+		severity = "Critical"
 		statusClass = "badge-rose"
 	case StatusWarn:
+		severity = "High"
 		statusClass = "badge-peach"
+	case StatusOK:
+		severity = "Low"
+		statusClass = "badge-mint"
 	case StatusUnknown, StatusNotApplicable:
+		severity = "Info"
 		statusClass = "badge-dim"
 	}
 
-	return fmt.Sprintf(`<div class="check-result" data-id="%s" data-status="%s">
-  <div class="check-header">
-    <span class="badge %s">[%s]</span>
-    <strong class="check-title">%s</strong>
-    <span class="check-role">(%s)</span>
-  </div>
-  <div class="check-summary">%s</div>
-  <div class="check-explains">
-    <div class="explain-what"><span class="label">What:</span> %s</div>
-    <div class="explain-so-what"><span class="label">So what:</span> %s</div>
-    <div class="explain-now-what"><span class="label">Now what:</span> %s</div>
+	confidence := "Observed"
+	if c.Certainty != "" {
+		confidence = strings.Title(strings.ToLower(string(c.Certainty)))
+	}
+
+	visibility := "Full"
+	if c.Coverage.Total > 0 {
+		visibility = fmt.Sprintf("%d of %d", c.Coverage.Seen, c.Coverage.Total)
+	} else if c.Coverage.Reason != "" {
+		visibility = c.Coverage.Reason
+	}
+
+	resultSentence := c.SummaryPlain
+	if resultSentence == "" && c.ExplainLevels[0] != "" {
+		resultSentence = c.ExplainLevels[0]
+	}
+
+	impact := c.ExplainLevels[1]
+	if impact == "" {
+		impact = "None detected."
+	}
+
+	recommendedAction := c.NextStepCommand
+	if recommendedAction == "" && c.ExplainLevels[2] != "" {
+		recommendedAction = c.ExplainLevels[2]
+	}
+	if recommendedAction == "" {
+		recommendedAction = "None."
+	}
+
+	evidenceSummary := c.ID
+	if len(c.Evidence) > 0 {
+		evidenceSummary = c.Evidence[0].Source
+	}
+
+	return fmt.Sprintf(`<div class="check-result-card" data-id="%s" data-severity="%s">
+  <div class="card-row"><span class="badge %s">%s</span> <strong class="card-title">%s</strong></div>
+  <div class="card-field"><span class="field-label">Result:</span> %s</div>
+  <div class="card-field"><span class="field-label">Impact:</span> %s</div>
+  <div class="card-field"><span class="field-label">Recommended action:</span> <code>%s</code></div>
+  <div class="card-meta">
+    <span><strong>Evidence:</strong> %s</span> |
+    <span><strong>Confidence:</strong> %s</span> |
+    <span><strong>Visibility:</strong> %s</span>
   </div>
 </div>`,
-		c.ID, c.Status,
-		statusClass, c.Status,
-		c.Title,
-		c.Role,
-		c.SummaryPlain,
-		c.ExplainLevels[0],
-		c.ExplainLevels[1],
-		c.ExplainLevels[2],
+		c.ID, severity,
+		statusClass, severity, c.Title,
+		resultSentence,
+		impact,
+		recommendedAction,
+		evidenceSummary,
+		confidence,
+		visibility,
 	)
 }
-

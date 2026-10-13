@@ -18,7 +18,7 @@ import (
 // Check is the interface implemented by all read-only inspection checks.
 type Check interface {
 	ID() string
-	Role() string // devops, cloud, cloud-platform, infrastructure, devsecops, platform, network
+	Role() string // legacy role alias
 	Title() string
 	Description() string
 	Run(ctx context.Context, rfs fs.FS, params map[string]string) (contract.CheckResult, error)
@@ -28,6 +28,7 @@ type Check interface {
 type ActivityEntry struct {
 	CheckID     string          `json:"check_id"`
 	Role        string          `json:"role"`
+	Domain      string          `json:"domain,omitempty"`
 	Timestamp   time.Time       `json:"timestamp"`
 	TokenHolder string          `json:"token_holder"` // "local-cli", "bearer-token", or client identity
 	Status      contract.Status `json:"status"`

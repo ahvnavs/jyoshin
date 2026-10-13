@@ -235,9 +235,10 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/migration", s.handleMigration)
 	mux.HandleFunc("GET /api/v1/report", s.handleReport)
 
-	// Phase 18: Coverage Honesty & Plain Briefing
+	// Phase 18: Coverage Honesty & Plain Summary/Overview (with legacy briefing alias)
 	mux.HandleFunc("GET /api/v1/coverage", s.handleCoverage)
 	mux.HandleFunc("GET /api/v1/briefing", s.handleBriefing)
+	mux.HandleFunc("GET /api/v1/overview", s.handleBriefing)
 
 	// Phase 21: Read-Only Checks & Activity Log
 	mux.HandleFunc("GET /api/v1/checks", s.handleChecks)
@@ -851,9 +852,12 @@ func (s *Server) handleChecks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	domain := r.URL.Query().Get("domain")
 	role := r.URL.Query().Get("role")
 	var checksList []checks.Check
-	if role != "" {
+	if domain != "" {
+		checksList = s.checksEngine.Registry().ByDomain(domain)
+	} else if role != "" {
 		checksList = s.checksEngine.Registry().ByRole(role)
 	} else {
 		checksList = s.checksEngine.Registry().All()
@@ -862,6 +866,7 @@ func (s *Server) handleChecks(w http.ResponseWriter, r *http.Request) {
 	type checkMeta struct {
 		ID          string `json:"id"`
 		Role        string `json:"role"`
+		Domain      string `json:"domain"`
 		Title       string `json:"title"`
 		Description string `json:"description"`
 	}
@@ -871,6 +876,7 @@ func (s *Server) handleChecks(w http.ResponseWriter, r *http.Request) {
 		res[i] = checkMeta{
 			ID:          c.ID(),
 			Role:        c.Role(),
+			Domain:      checks.DomainForCheck(c),
 			Title:       c.Title(),
 			Description: c.Description(),
 		}

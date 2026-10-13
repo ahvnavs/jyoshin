@@ -111,6 +111,7 @@ func (r *RouteRoleRegistry) registerDefaults() {
 	r.routes["GET /api/v1/report"] = RoleViewer
 	r.routes["GET /api/v1/coverage"] = RoleViewer
 	r.routes["GET /api/v1/briefing"] = RoleViewer
+	r.routes["GET /api/v1/overview"] = RoleViewer
 	r.routes["GET /api/v1/checks"] = RoleViewer
 	r.routes["GET /api/v1/activity"] = RoleViewer
 	r.routes["GET /api/v1/drift"] = RoleViewer

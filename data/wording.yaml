@@ -1,0 +1,44 @@
+# Canonical user-facing wording dictionary for Kazeshini
+# Generated per Phase 34 requirements.
+
+domains:
+  overview: "Overview"
+  software: "Software"
+  services: "Services"
+  network: "Network"
+  storage: "Storage"
+  security: "Security"
+  logs: "Logs"
+  platforms: "Platforms"
+  drift: "Drift"
+  audit: "Audit Log"
+  settings: "Settings"
+
+states:
+  healthy: "Healthy"
+  degraded: "Degraded"
+  critical: "Critical"
+  partial: "Partial visibility"
+  unknown: "Unknown"
+
+scoring:
+  risk_score: "Risk Score"
+  risk_contributors: "Risk Contributors"
+  summary: "Summary"
+  diagnostics: "Diagnostics and Visibility"
+  guided_triage: "Guided Triage"
+  unmanaged_software: "Unmanaged software"
+  impact_analysis: "Impact analysis"
+
+severities:
+  critical: "Critical"
+  high: "High"
+  medium: "Medium"
+  low: "Low"
+  info: "Info"
+
+confidence:
+  observed: "Observed"
+  derived: "Derived"
+  inferred: "Inferred"
+

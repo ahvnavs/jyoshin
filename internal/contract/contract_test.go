@@ -63,16 +63,16 @@ func TestCheckResult_UnifiedAgreement(t *testing.T) {
 		t.Errorf("JSON mismatch: got %+v, want %+v", unmarshaled, res)
 	}
 
-	// 2. Terminal Text Agreement
+	// 2. Terminal Text Agreement (Phase 34 Standardized 8-Field Card)
 	termText := res.RenderTerminal()
-	if !strings.Contains(termText, "[WARN]") {
+	if !strings.Contains(termText, "Severity:           High") {
 		t.Errorf("terminal text missing status: %s", termText)
 	}
 	if !strings.Contains(termText, res.Title) {
 		t.Errorf("terminal text missing title: %s", termText)
 	}
-	if !strings.Contains(termText, res.ExplainLevels[0]) {
-		t.Errorf("terminal text missing what explanation: %s", termText)
+	if !strings.Contains(termText, res.SummaryPlain) {
+		t.Errorf("terminal text missing result explanation: %s", termText)
 	}
 	if !strings.Contains(termText, res.NextStepCommand) {
 		t.Errorf("terminal text missing next step command: %s", termText)
@@ -80,13 +80,13 @@ func TestCheckResult_UnifiedAgreement(t *testing.T) {
 
 	// 3. HTML Agreement
 	htmlSnippet := res.RenderHTML()
-	if !strings.Contains(htmlSnippet, `data-status="WARN"`) {
+	if !strings.Contains(htmlSnippet, `data-severity="High"`) {
 		t.Errorf("HTML snippet missing status attribute: %s", htmlSnippet)
 	}
 	if !strings.Contains(htmlSnippet, res.Title) {
 		t.Errorf("HTML snippet missing title: %s", htmlSnippet)
 	}
 	if !strings.Contains(htmlSnippet, res.ExplainLevels[1]) {
-		t.Errorf("HTML snippet missing so what explanation: %s", htmlSnippet)
+		t.Errorf("HTML snippet missing impact explanation: %s", htmlSnippet)
 	}
 }
