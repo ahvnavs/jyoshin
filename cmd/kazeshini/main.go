@@ -50,6 +50,7 @@ import (
 	"github.com/OWNER/kazeshini/internal/sensors/service"
 	"github.com/OWNER/kazeshini/internal/sensors/storage"
 	"github.com/OWNER/kazeshini/internal/sensors/user"
+	"github.com/OWNER/kazeshini/internal/software"
 	"github.com/OWNER/kazeshini/internal/store"
 	"github.com/OWNER/kazeshini/internal/supervisor"
 	"github.com/OWNER/kazeshini/internal/verdict"
@@ -129,6 +130,9 @@ func run(args []string) error {
 	case "plan":
 		return runPlan(subargs)
 
+	case "software":
+		return runSoftware(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -156,6 +160,7 @@ Commands:
   desired    Manage declarative desired state manifests (e.g. kazeshini desired lint <file>)
   drift      Audit discrepancies between desired state and observed host resources
   plan       Generate deterministic topologically sorted remediation DAG (read-only, shown only)
+  software   Read-only software inventory, local candidate versions, and dry-run safety plans
   rules      Lint or evaluate declarative rules (e.g. kazeshini rules lint <file>)
   snapshot   Capture a point-in-time provenance snapshot (stub)
   version    Print binary version information
@@ -1318,4 +1323,273 @@ func runPlan(args []string) error {
 	fmt.Println("======================================================================")
 	return nil
 }
+
+func runSoftware(args []string) error {
+	if len(args) == 0 {
+		printSoftwareUsage()
+		return nil
+	}
+
+	subcmd := args[0]
+	subargs := args[1:]
+
+	switch subcmd {
+	case "list":
+		return runSoftwareList(subargs)
+	case "available":
+		return runSoftwareAvailable(subargs)
+	case "plan":
+		return runSoftwarePlan(subargs)
+	case "help", "-h", "--help":
+		printSoftwareUsage()
+		return nil
+	default:
+		printSoftwareUsage()
+		return fmt.Errorf("unknown software subcommand %q", subcmd)
+	}
+}
+
+func printSoftwareUsage() {
+	fmt.Println(`Usage:
+  kazeshini software <subcommand> [options]
+
+Subcommands:
+  list                 List installed packages, status, and local upgrade candidates
+  available <package>  Show available candidate version from local metadata cache
+  plan upgrade <pkg>   Generate deterministic dry-run upgrade plan with safety analysis
+  plan remove <pkg>    Generate deterministic dry-run removal plan with safety analysis
+  plan install <pkg>   Generate deterministic dry-run installation plan with safety analysis
+
+Flags for 'list':
+  --upgradable         Show only packages with local candidate upgrades
+  --security           Show only packages with security updates
+  --format text|json   Output format (default: text)`)
+}
+
+func runSoftwareList(args []string) error {
+	flags := flag.NewFlagSet("software list", flag.ContinueOnError)
+	upgradable := flags.Bool("upgradable", false, "Show only upgradable packages")
+	security := flags.Bool("security", false, "Show only security updates")
+	format := flags.String("format", "text", "Output format: text or json")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	rfs := fs.Default()
+	reader := software.NewInventoryReader(rfs)
+
+	// Collect live graph nodes if possible
+	nodes, _ := collectHostObservation()
+
+	inv := reader.Collect(nodes)
+
+	if *format == "json" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(inv)
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Printf("Kazeshini Software Inventory — Total: %d installed (%d upgradable, %d security)\n",
+		inv.TotalInstalled, inv.TotalUpgradable, inv.TotalSecurity)
+	if inv.Metadata.Available {
+		staleTag := ""
+		if inv.Metadata.IsStale {
+			staleTag = " [STALE]"
+		}
+		fmt.Printf("Metadata cache age: %s%s (last refresh: %s)\n",
+			inv.Metadata.AgeHuman, staleTag, inv.Metadata.LastRefreshed.Format(time.RFC3339))
+	} else {
+		fmt.Printf("Metadata cache: %s\n", inv.Metadata.AgeHuman)
+	}
+	if inv.Metadata.RefreshNeeded && inv.Metadata.RefreshCmd != "" {
+		fmt.Printf("To refresh local metadata: %s (explicit user action only, Principle 5')\n", inv.Metadata.RefreshCmd)
+	}
+	fmt.Println(strings.Repeat("-", 70))
+	fmt.Printf("%-30s %-20s %-20s %s\n", "PACKAGE", "INSTALLED", "CANDIDATE", "STATUS")
+	fmt.Println(strings.Repeat("-", 70))
+
+	shown := 0
+	for _, p := range inv.Packages {
+		if *security && (p.Candidate == nil || p.Candidate.UpgradeKind != software.UpgradeKindSecurity) {
+			continue
+		}
+		if *upgradable && !p.IsUpgradable {
+			continue
+		}
+
+		candStr := "-"
+		if p.Candidate != nil {
+			candStr = p.Candidate.Version
+			if p.Candidate.UpgradeKind == software.UpgradeKindSecurity {
+				candStr += " [sec]"
+			}
+		}
+
+		statusStr := string(p.Status)
+		if p.Running.IsRunning {
+			statusStr += " (running)"
+		}
+
+		fmt.Printf("%-30s %-20s %-20s %s\n", p.Name, p.Version, candStr, statusStr)
+		shown++
+	}
+
+	if shown == 0 {
+		fmt.Println("No packages matched the requested filters.")
+	}
+	fmt.Println(strings.Repeat("-", 70))
+	fmt.Printf("Displayed %d packages.\n", shown)
+	fmt.Println("======================================================================")
+	return nil
+}
+
+func runSoftwareAvailable(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("package name required: kazeshini software available <pkg>")
+	}
+	pkgName := args[0]
+	if err := software.ValidatePackageName(pkgName); err != nil {
+		return err
+	}
+
+	rfs := fs.Default()
+	reader := software.NewInventoryReader(rfs)
+
+	nodes, _ := collectHostObservation()
+
+	entry := reader.LookupPackage(pkgName, nodes)
+	if entry == nil {
+		return fmt.Errorf("package %q is not installed in local dpkg status", pkgName)
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Printf("Package:           %s\n", entry.Name)
+	fmt.Printf("Installed Version: %s\n", entry.Version)
+	if entry.Candidate != nil {
+		fmt.Printf("Candidate Version: %s (%s)\n", entry.Candidate.Version, entry.Candidate.UpgradeKind)
+		fmt.Printf("Origin:            %s\n", entry.Candidate.Origin)
+	} else {
+		fmt.Println("Candidate Version: none available in local metadata")
+	}
+	fmt.Printf("Status:            %s\n", entry.Status)
+	if entry.IsHeld {
+		fmt.Println("Held:              YES (locked by administrator)")
+	}
+	if entry.IsPinned {
+		fmt.Printf("Pinned:            YES (%s)\n", entry.PinReason)
+	}
+	if entry.Running.IsRunning {
+		fmt.Printf("Running:           YES (services: %s)\n", strings.Join(entry.Running.ServiceNames, ", "))
+	}
+	if len(entry.ReverseDependents) > 0 {
+		fmt.Printf("Required By:       %s\n", strings.Join(entry.ReverseDependents, ", "))
+	}
+	fmt.Println("======================================================================")
+	return nil
+}
+
+func runSoftwarePlan(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usage: kazeshini software plan <upgrade|remove|install> <pkg>")
+	}
+	action := args[0]
+	pkgName := args[1]
+
+	var kind software.DryRunKind
+	switch action {
+	case "upgrade":
+		kind = software.DryRunUpgrade
+	case "remove":
+		kind = software.DryRunRemove
+	case "install":
+		kind = software.DryRunInstall
+	default:
+		return fmt.Errorf("unknown plan action %q (expected: upgrade, remove, install)", action)
+	}
+
+	if err := software.ValidatePackageName(pkgName); err != nil {
+		return err
+	}
+
+	rfs := fs.Default()
+	reader := software.NewInventoryReader(rfs)
+
+	nodes, _ := collectHostObservation()
+
+	planner := software.NewPlanner(reader, nil)
+
+	// Running kernel version
+	runningKernel := ""
+	for _, n := range nodes {
+		if n.Type == graph.NodeSystem && (n.Label == "kernel" || n.ID == "system:kernel") {
+			if k, ok := n.Properties["release"].(string); ok {
+				runningKernel = k
+				break
+			}
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	p, err := planner.CreatePlan(ctx, pkgName, kind, nodes, runningKernel)
+	if err != nil {
+		return fmt.Errorf("generating software plan: %w", err)
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Printf("Kazeshini Software Dry-Run Plan: %s %s\n", strings.ToUpper(string(p.Kind)), p.PackageName)
+	fmt.Println("Principle 2/2': Read-only. Plans are plain data. No changes are ever applied.")
+	fmt.Println(strings.Repeat("-", 70))
+	fmt.Printf("Target Package:    %s\n", p.PackageName)
+	fmt.Printf("Operation:         %s\n", p.Kind)
+	fmt.Printf("From Version:      %s\n", p.FromVersion)
+	if p.ToVersion != "" {
+		fmt.Printf("To Version:        %s\n", p.ToVersion)
+	}
+	fmt.Printf("Requires Reboot:   %v\n", p.RequiresReboot)
+	fmt.Printf("Reversible:        %v\n", p.IsReversible)
+	fmt.Printf("Metadata Age:      %s (stale: %v)\n", p.MetadataAge, p.MetadataStale)
+
+	fmt.Println(strings.Repeat("-", 70))
+	fmt.Println("SAFETY ANALYSIS:")
+	if p.Safety.Blocked {
+		fmt.Println("  Status: BLOCKED (Critical safety risk detected)")
+	} else if p.Safety.Safe {
+		fmt.Println("  Status: SAFE (No known hazards detected)")
+	} else {
+		fmt.Println("  Status: WARNING (Non-critical risks detected)")
+	}
+	fmt.Printf("  Summary: %s\n", p.Safety.Summary)
+	for _, f := range p.Safety.Flags {
+		fmt.Printf("  [%s] (%s): %s\n", f.Severity, f.Code, f.PlainReason)
+	}
+
+	if len(p.ServicesRestarted) > 0 {
+		fmt.Printf("  Services to Restart: %s\n", strings.Join(p.ServicesRestarted, ", "))
+	}
+
+	if p.BlastSummary != "" {
+		fmt.Println(strings.Repeat("-", 70))
+		fmt.Printf("BLAST RADIUS (Score: %d/100):\n  %s\n", p.BlastScore, p.BlastSummary)
+	}
+
+	fmt.Println(strings.Repeat("-", 70))
+	fmt.Println("RAW PACKAGE MANAGER SIMULATION (Fact, not inference):")
+	if strings.TrimSpace(p.RawSimulation) != "" {
+		for _, line := range strings.Split(strings.TrimSpace(p.RawSimulation), "\n") {
+			fmt.Printf("  %s\n", line)
+		}
+	} else {
+		fmt.Println("  (no simulation output produced)")
+	}
+
+	fmt.Println(strings.Repeat("-", 70))
+	fmt.Println("EQUIVALENT COMMAND (SHOWN ONLY, NEVER AUTO-APPLIED):")
+	fmt.Printf("  $ %s\n", p.EquivalentCommand)
+	fmt.Println("======================================================================")
+	return nil
+}
+
 

@@ -108,7 +108,7 @@
   // Left Rail View Switching & Hash Routing
   const views = [
     'overview', 'briefing', 'devops', 'cloud', 'cloud-platform',
-    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'activity', 'styleguide'
+    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'software', 'activity', 'styleguide'
   ];
 
   function switchView(target) {
@@ -126,6 +126,8 @@
 
     if (target === 'desired') {
       refreshDesiredView();
+    } else if (target === 'software') {
+      refreshSoftwareView();
     } else if (target === 'activity') {
       refreshActivityLog();
     } else if (['devops', 'cloud', 'cloud-platform', 'infrastructure', 'devsecops', 'platform', 'network'].includes(target)) {
@@ -1087,6 +1089,191 @@
     }
   }
 
+  // --- Phase 26: Software Inventory & Dry-Run Planning View ---
+  let cachedSoftwarePackages = [];
+
+  async function refreshSoftwareView() {
+    const tableBody = document.getElementById('software-table-body');
+    const metaText = document.getElementById('software-meta-text');
+    const metaBadge = document.getElementById('software-meta-badge');
+    const upgBadge = document.getElementById('software-upgradable-badge');
+    const railCount = document.getElementById('count-software');
+
+    if (!tableBody) return;
+
+    try {
+      const res = await fetch('/api/v1/software', { headers: getHeaders() });
+      if (!res.ok) {
+        tableBody.innerHTML = `<tr><td colspan="5" style="padding: 12px; color: var(--rose); text-align: center;">Error loading software: ${res.statusText}</td></tr>`;
+        return;
+      }
+      const data = await res.json();
+      cachedSoftwarePackages = data.packages || [];
+
+      if (railCount) railCount.textContent = data.total_upgradable || 0;
+      if (upgBadge) upgBadge.textContent = `${data.total_upgradable || 0} UPGRADABLE`;
+
+      if (metaBadge && metaText && data.metadata) {
+        if (data.metadata.is_stale) {
+          metaBadge.className = 'badge badge-peach';
+          metaBadge.textContent = '[!] STALE CACHE';
+        } else if (data.metadata.available) {
+          metaBadge.className = 'badge badge-mint';
+          metaBadge.textContent = '[✓] FRESH';
+        } else {
+          metaBadge.className = 'badge badge-lavender';
+          metaBadge.textContent = '[?] UNKNOWN';
+        }
+        metaText.textContent = `Cache age: ${data.metadata.age_human || 'unknown'}`;
+      }
+
+      renderSoftwareTable();
+    } catch (err) {
+      console.error('failed fetching software inventory:', err);
+      tableBody.innerHTML = `<tr><td colspan="5" style="padding: 12px; color: var(--rose); text-align: center;">Failed to connect to software API</td></tr>`;
+    }
+  }
+
+  function renderSoftwareTable() {
+    const tableBody = document.getElementById('software-table-body');
+    const searchInput = document.getElementById('software-search');
+    const filterUpg = document.getElementById('software-filter-upgradable');
+    const filterSec = document.getElementById('software-filter-security');
+
+    if (!tableBody) return;
+
+    const query = (searchInput?.value || '').toLowerCase().trim();
+    const upgOnly = filterUpg?.checked || false;
+    const secOnly = filterSec?.checked || false;
+
+    const filtered = cachedSoftwarePackages.filter(p => {
+      if (query && !p.name.toLowerCase().includes(query)) return false;
+      if (upgOnly && !p.is_upgradable) return false;
+      if (secOnly && (!p.candidate || p.candidate.upgrade_kind !== 'security')) return false;
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="5" style="padding: 12px; color: var(--dim); text-align: center;">No matching packages found.</td></tr>`;
+      return;
+    }
+
+    tableBody.innerHTML = '';
+    filtered.slice(0, 100).forEach(p => {
+      const row = document.createElement('tr');
+      row.style.borderBottom = '1px solid var(--surface-2)';
+
+      let candText = '-';
+      if (p.candidate) {
+        candText = p.candidate.version;
+        if (p.candidate.upgrade_kind === 'security') {
+          candText += ` <span class="badge badge-peach" style="font-size: 10px;">sec</span>`;
+        }
+      }
+
+      let statusBadge = `<span class="badge badge-dim">${p.status}</span>`;
+      if (p.status === 'upgradable') {
+        statusBadge = `<span class="badge badge-cyan">[↑] upgradable</span>`;
+      } else if (p.status === 'held' || p.status === 'pinned') {
+        statusBadge = `<span class="badge badge-peach">[🔒] ${p.status}</span>`;
+      }
+
+      row.innerHTML = `
+        <td style="padding: 6px 8px; font-weight: bold; color: var(--cyan);">${p.name}</td>
+        <td style="padding: 6px 8px; color: var(--fg);">${p.version}</td>
+        <td style="padding: 6px 8px;">${candText}</td>
+        <td style="padding: 6px 8px;">${statusBadge}</td>
+        <td style="padding: 6px 8px; text-align: right;">
+          <button class="plan-update-btn" data-pkg="${p.name}" style="background: var(--surface-2); border: 1px solid var(--border); color: var(--fg); cursor: pointer; padding: 2px 8px; font-family: monospace; border-radius: 3px; font-size: 12px;">Plan update</button>
+        </td>
+      `;
+
+      row.querySelector('.plan-update-btn').addEventListener('click', () => {
+        showSoftwarePlan(p.name, 'upgrade');
+      });
+
+      tableBody.appendChild(row);
+    });
+  }
+
+  // Hook up filter listeners
+  document.getElementById('software-search')?.addEventListener('input', renderSoftwareTable);
+  document.getElementById('software-filter-upgradable')?.addEventListener('change', renderSoftwareTable);
+  document.getElementById('software-filter-security')?.addEventListener('change', renderSoftwareTable);
+  document.getElementById('software-plan-close')?.addEventListener('click', () => {
+    const modal = document.getElementById('software-plan-modal');
+    if (modal) modal.style.display = 'none';
+  });
+
+  async function showSoftwarePlan(pkgName, kind) {
+    const modal = document.getElementById('software-plan-modal');
+    const content = document.getElementById('software-plan-content');
+    const title = document.getElementById('software-plan-title');
+
+    if (!modal || !content) return;
+
+    modal.style.display = 'block';
+    if (title) title.textContent = `[🛠] DRY-RUN PLAN: ${kind.toUpperCase()} ${pkgName}`;
+    content.innerHTML = `<div style="color: var(--dim);">Generating deterministic dry-run plan &amp; safety analysis for ${pkgName}...</div>`;
+
+    try {
+      const res = await fetch('/api/v1/software/plan', {
+        method: 'POST',
+        headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: pkgName, kind: kind })
+      });
+      if (!res.ok) {
+        content.innerHTML = `<div style="color: var(--rose);">Failed to generate plan: ${res.statusText}</div>`;
+        return;
+      }
+      const p = await res.json();
+
+      let safetyBadgeClass = 'badge-mint';
+      let safetyLabel = '[✓] SAFE';
+      if (p.safety.blocked) {
+        safetyBadgeClass = 'badge-rose';
+        safetyLabel = '[▲] BLOCKED';
+      } else if (!p.safety.safe) {
+        safetyBadgeClass = 'badge-peach';
+        safetyLabel = '[!] WARNING';
+      }
+
+      content.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+          <div>
+            <strong>From:</strong> <code>${p.from_version}</code> &rarr; <strong>To:</strong> <code>${p.to_version || 'n/a'}</code>
+          </div>
+          <span class="badge ${safetyBadgeClass}">${safetyLabel}</span>
+        </div>
+
+        <div>
+          <strong>Safety Analysis:</strong> ${p.safety.summary}
+          ${(p.safety.flags || []).map(f => `
+            <div style="margin-top: 4px; padding: 4px 8px; background: var(--surface-2); border-left: 3px solid ${f.severity === 'critical' ? 'var(--rose)' : 'var(--peach)'};">
+              <span class="badge badge-dim" style="font-size: 10px;">${f.code}</span> ${f.plain_reason}
+            </div>
+          `).join('')}
+        </div>
+
+        <div>
+          <strong>Equivalent Command (SHOWN ONLY):</strong>
+          <pre style="background: var(--surface-1); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-family: monospace; color: var(--mint); margin-top: 4px;">${p.equivalent_command}</pre>
+        </div>
+
+        <div>
+          <strong>Package Manager Raw Simulation (Fact, not inference):</strong>
+          <pre style="background: var(--surface-1); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 11px; max-height: 160px; overflow-y: auto; margin-top: 4px; color: var(--dim);">${p.raw_simulation || '(no output)'}</pre>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px;">
+          <button disabled title="Actuator not enabled (Principle 2')" style="background: var(--surface-2); border: 1px solid var(--border); color: var(--dim); padding: 4px 12px; font-family: monospace; border-radius: 4px; cursor: not-allowed; opacity: 0.6;">Apply with approval (Actuator not enabled)</button>
+        </div>
+      `;
+    } catch (err) {
+      content.innerHTML = `<div style="color: var(--rose);">Error: ${err.message}</div>`;
+    }
+  }
+
   function refreshAll() {
     refreshVerdict();
     refreshBriefing();
@@ -1096,6 +1283,7 @@
     refreshBlastRadiusNodes();
     refreshActivityLog();
     refreshDesiredView();
+    refreshSoftwareView();
     loadChecks();
   }
 

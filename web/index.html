@@ -57,6 +57,10 @@
             <span>[⚖] Desired vs Actual</span>
             <span class="rail-count" id="count-desired">0</span>
           </a>
+          <a href="#software" id="nav-software" class="rail-item">
+            <span>[📦] Software</span>
+            <span class="rail-count" id="count-software">0</span>
+          </a>
           <a href="#activity" id="nav-activity" class="rail-item">
             <span>[📝] Activity Log</span>
           </a>
@@ -368,6 +372,69 @@
             </div>
             <div id="plan-steps-container" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
               <div style="color: var(--dim); font-size: 13px;">No remediation plan required.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4b. SOFTWARE VIEW -->
+        <section id="view-software" class="view-panel" style="display: none;">
+          <div class="readonly-banner">
+            <span>ℹ</span>
+            <span>This only reads; it changes nothing. Candidate versions from local metadata caches only. Dry-run simulations are SHOWN ONLY.</span>
+          </div>
+
+          <div class="panel" style="margin-top: var(--space-16);">
+            <div class="panel-header">
+              <h2 class="panel-title">[📦] SOFTWARE INVENTORY &amp; LOCAL CANDIDATES</h2>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span id="software-meta-badge" class="badge badge-dim">METADATA</span>
+                <span id="software-upgradable-badge" class="badge badge-peach">0 UPGRADABLE</span>
+              </div>
+            </div>
+
+            <!-- Filters & Stats -->
+            <div style="margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="software-search" placeholder="Filter packages..." style="background: var(--surface-2); border: 1px solid var(--border); color: var(--fg); padding: 4px 8px; font-family: monospace; border-radius: 4px; font-size: 13px;" />
+                <label style="font-size: 12px; color: var(--dim); display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                  <input type="checkbox" id="software-filter-upgradable" /> Upgradable Only
+                </label>
+                <label style="font-size: 12px; color: var(--dim); display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                  <input type="checkbox" id="software-filter-security" /> Security Only
+                </label>
+              </div>
+              <div id="software-meta-text" style="font-size: 12px; color: var(--dim);">
+                Cache age: checking...
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div style="margin-top: 16px; overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border); color: var(--dim); text-align: left;">
+                    <th style="padding: 6px 8px;">PACKAGE</th>
+                    <th style="padding: 6px 8px;">INSTALLED</th>
+                    <th style="padding: 6px 8px;">CANDIDATE</th>
+                    <th style="padding: 6px 8px;">STATUS</th>
+                    <th style="padding: 6px 8px; text-align: right;">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody id="software-table-body">
+                  <tr><td colspan="5" style="padding: 12px; color: var(--dim); text-align: center;">Loading software inventory...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Detail / Plan Modal / Drawer -->
+          <div id="software-plan-modal" class="panel" style="margin-top: var(--space-16); display: none;">
+            <div class="panel-header">
+              <h2 class="panel-title" id="software-plan-title">[🛠] DRY-RUN PLAN</h2>
+              <button id="software-plan-close" style="background: transparent; border: 1px solid var(--border); color: var(--dim); cursor: pointer; padding: 2px 6px; font-family: monospace;">[x] CLOSE</button>
+            </div>
+            <div id="software-plan-content" style="margin-top: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 12px;">
+              <!-- Plan details injected dynamically -->
             </div>
           </div>
         </section>

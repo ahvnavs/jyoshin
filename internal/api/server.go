@@ -40,6 +40,7 @@ import (
 	"github.com/OWNER/kazeshini/internal/report"
 	"github.com/OWNER/kazeshini/internal/resource"
 	"github.com/OWNER/kazeshini/internal/rules"
+	"github.com/OWNER/kazeshini/internal/software"
 	"github.com/OWNER/kazeshini/internal/store"
 	"github.com/OWNER/kazeshini/internal/supervisor"
 	"github.com/OWNER/kazeshini/internal/verdict"
@@ -74,6 +75,8 @@ type Server struct {
 	blastAnalyzer   *blastradius.Analyzer
 	decisionsEngine *decisions.Engine
 	checksEngine    *checks.Engine
+	softwareReader  *software.InventoryReader
+	softwarePlanner *software.Planner
 	samplesMu       sync.RWMutex
 	samples         map[string][]forecast.Sample
 	lastActivityMu  sync.RWMutex
@@ -138,6 +141,8 @@ func NewServer(
 		blastAnalyzer:   blastradius.NewAnalyzer(pGraph),
 		decisionsEngine: decisions.NewEngine(pGraph),
 		checksEngine:    checks.NewEngine(nil, actLog, internalfs.Default()),
+		softwareReader:  software.NewInventoryReader(internalfs.Default()),
+		softwarePlanner: software.NewPlanner(software.NewInventoryReader(internalfs.Default()), blastradius.NewAnalyzer(pGraph)),
 		samples:         make(map[string][]forecast.Sample),
 		logger:          logger,
 	}
@@ -221,6 +226,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Phase 25: Desired State, Drift, and Remediation Plans
 	mux.HandleFunc("GET /api/v1/drift", s.handleDrift)
 	mux.HandleFunc("GET /api/v1/plans", s.handlePlans)
+
+	// Phase 26: Software Inventory & Dry-Run Planning
+	mux.HandleFunc("GET /api/v1/software", s.handleSoftwareList)
+	mux.HandleFunc("GET /api/v1/software/{pkg}", s.handleSoftwareDetail)
+	mux.HandleFunc("POST /api/v1/software/plan", s.handleSoftwarePlan)
 
 	// Profiling endpoints (served only when --debug is set, behind auth)
 	if s.cfg.Debug {
@@ -1257,6 +1267,144 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"unsupported format: %s"}`, format), http.StatusBadRequest)
 	}
 }
+
+func (s *Server) handleSoftwareList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	var nodes []graph.Node
+	if s.pGraph != nil {
+		nodes, _ = s.pGraph.Snapshot()
+	}
+
+	reader := s.softwareReader
+	if reader == nil {
+		reader = software.NewInventoryReader(internalfs.Default())
+	}
+
+	inv := reader.Collect(nodes)
+
+	// Filter query params
+	upgradableOnly := r.URL.Query().Get("upgradable") == "true"
+	securityOnly := r.URL.Query().Get("security") == "true"
+
+	if upgradableOnly || securityOnly {
+		var filtered []software.PackageEntry
+		for _, p := range inv.Packages {
+			if securityOnly {
+				if p.Candidate != nil && p.Candidate.UpgradeKind == software.UpgradeKindSecurity {
+					filtered = append(filtered, p)
+				}
+			} else if upgradableOnly {
+				if p.IsUpgradable {
+					filtered = append(filtered, p)
+				}
+			}
+		}
+		inv.Packages = filtered
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(inv)
+}
+
+func (s *Server) handleSoftwareDetail(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	pkgName := r.PathValue("pkg")
+	if pkgName == "" {
+		pkgName = r.URL.Query().Get("name")
+	}
+
+	if err := software.ValidatePackageName(pkgName); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	var nodes []graph.Node
+	if s.pGraph != nil {
+		nodes, _ = s.pGraph.Snapshot()
+	}
+
+	reader := s.softwareReader
+	if reader == nil {
+		reader = software.NewInventoryReader(internalfs.Default())
+	}
+
+	entry := reader.LookupPackage(pkgName, nodes)
+	if entry == nil {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("package %q not found", pkgName)})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(entry)
+}
+
+type softwarePlanRequest struct {
+	Package string `json:"package"`
+	Kind    string `json:"kind"` // "upgrade", "remove", "install"
+}
+
+func (s *Server) handleSoftwarePlan(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	var req softwarePlanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body: " + err.Error()})
+		return
+	}
+
+	if err := software.ValidatePackageName(req.Package); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	kind := software.DryRunKind(req.Kind)
+	if kind == "" {
+		kind = software.DryRunUpgrade
+	}
+	if kind != software.DryRunUpgrade && kind != software.DryRunRemove && kind != software.DryRunInstall {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("unsupported dry-run kind %q (supported: upgrade, remove, install)", req.Kind)})
+		return
+	}
+
+	var nodes []graph.Node
+	if s.pGraph != nil {
+		nodes, _ = s.pGraph.Snapshot()
+	}
+
+	planner := s.softwarePlanner
+	if planner == nil {
+		reader := software.NewInventoryReader(internalfs.Default())
+		planner = software.NewPlanner(reader, s.blastAnalyzer)
+	}
+
+	// Detect running kernel
+	runningKernel := ""
+	if s.pGraph != nil {
+		if sysNode, ok := s.pGraph.GetNode("system:kernel"); ok {
+			if k, ok := sysNode.Properties["release"].(string); ok {
+				runningKernel = k
+			}
+		}
+	}
+
+	plan, err := planner.CreatePlan(r.Context(), req.Package, kind, nodes, runningKernel)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(plan)
+}
+
 
 // Start begins listening and serving traffic on the configured address.
 func (s *Server) Start() error {
