@@ -37,7 +37,8 @@ func TestReport_GenerationAndFormats(t *testing.T) {
 
 	vSum := verdict.Summary{
 		OneLineVerdict:    "Server operating under normal operational baseline.",
-		StateLabel:        "CALM",
+		StateLabel:        "HEALTHY",
+		RiskScore:         8,
 		ChaosIndex:        8,
 		IdentityLine:      "prod-box (Debian 12, 8 cores)",
 		EstimatedWasteUSD: 15.0,

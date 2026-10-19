@@ -72,11 +72,10 @@ func TestUI_DOMContract(t *testing.T) {
 	requiredElements := []string{
 		"verdict-banner",
 		"verdict-lead",
-		"chaos-score",
-		"chaos-badge",
+		"risk-score",
+		"risk-badge",
 		"identity-line",
 		"pulse-title",
-		"danger-title",
 		"waste-title",
 		"changes-title",
 		"auth-modal",
@@ -141,23 +140,23 @@ func TestUI_DOMContract(t *testing.T) {
 		t.Errorf("sans-serif placed before monospace in --font: %s", fontLine)
 	}
 
-	// Phase 22 App Shell assertions: Left rail, Key hint bar, Symptom picker, Pet isolation
+	// Phase 34: 11 Canonical Domains & App Shell Elements
 	shellElements := []string{
 		"left-rail",
 		"nav-overview",
-		"nav-briefing",
-		"nav-devops",
-		"nav-cloud",
-		"nav-cloud-platform",
-		"nav-infrastructure",
-		"nav-devsecops",
-		"nav-platform",
+		"nav-software",
+		"nav-services",
 		"nav-network",
-		"nav-activity",
+		"nav-storage",
+		"nav-security",
+		"nav-logs",
+		"nav-platforms",
+		"nav-drift",
+		"nav-audit-log",
+		"nav-settings",
 		"quick-filter",
 		"command-palette-modal",
 		"help-modal",
-		"symptom-picker-panel",
 		"key-hint-bar",
 	}
 	for _, elemID := range shellElements {
@@ -214,8 +213,8 @@ func TestUI_Scenarios(t *testing.T) {
 		var findings []rules.Finding
 		summary := verdict.ComputeVerdict(nodes, findings, 0)
 
-		if summary.StateLabel != "CALM" {
-			t.Errorf("expected CALM state, got %s", summary.StateLabel)
+		if summary.StateLabel != "Healthy" && summary.StateLabel != "CALM" {
+			t.Errorf("expected Healthy state, got %s", summary.StateLabel)
 		}
 		if summary.ChaosIndex > 15 {
 			t.Errorf("expected ChaosIndex <= 15 for calm server, got %d", summary.ChaosIndex)
@@ -264,8 +263,8 @@ func TestUI_Scenarios(t *testing.T) {
 		}
 		summary := verdict.ComputeVerdict(nodes, findings, 8)
 
-		if summary.StateLabel != "MESSY" && summary.StateLabel != "MODERATE" {
-			t.Errorf("expected MESSY or MODERATE state, got %s", summary.StateLabel)
+		if summary.StateLabel != "Degraded" && summary.StateLabel != "MESSY" && summary.StateLabel != "MODERATE" {
+			t.Errorf("expected Degraded state, got %s", summary.StateLabel)
 		}
 		if summary.ChaosIndex < 16 {
 			t.Errorf("expected ChaosIndex >= 16 for messy server, got %d", summary.ChaosIndex)
@@ -309,8 +308,8 @@ func TestUI_Scenarios(t *testing.T) {
 		}
 		summary := verdict.ComputeVerdict(nodes, findings, 5)
 
-		if summary.StateLabel != "CRITICAL" {
-			t.Errorf("expected CRITICAL state, got %s", summary.StateLabel)
+		if summary.StateLabel != "Critical" && summary.StateLabel != "CRITICAL" {
+			t.Errorf("expected Critical state, got %s", summary.StateLabel)
 		}
 		if summary.CriticalFindings != 1 {
 			t.Errorf("expected 1 critical finding, got %d", summary.CriticalFindings)

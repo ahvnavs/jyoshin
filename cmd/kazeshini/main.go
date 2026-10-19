@@ -99,10 +99,10 @@ func run(args []string) error {
 		fmt.Printf("kazeshini %s (commit: %s, built: %s, %s)\n", v.Version, v.Commit, v.BuildDate, v.GoVersion)
 		return nil
 
-	case "doctor":
+	case "doctor", "visibility":
 		return runDoctor()
 
-	case "briefing":
+	case "briefing", "overview":
 		return runBriefing(subargs)
 
 	case "snapshot":
@@ -144,6 +144,9 @@ func run(args []string) error {
 	case "facts":
 		return runFacts(subargs)
 
+	case "completion":
+		return runCompletion(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -163,24 +166,43 @@ func printUsage() {
 Usage:
   kazeshini <command> [options]
 
-Commands:
-  open       Foreground local server truth dashboard for headless/SSH servers (no root, ephemeral)
-  briefing   Print plain-English server truth briefing in terminal (works over SSH)
-  doctor     Inspect host sensor visibility and coverage honesty table
-  check      Execute read-only diagnostics (list, run, symptom)
-  serve      Start the local API and web dashboard
-  report     Generate a standalone State of this Server report (html, json, md)
-  token      Print the local API authentication token (0600)
-  desired    Manage declarative desired state manifests (e.g. kazeshini desired lint <file>)
-  drift      Audit discrepancies between desired state and observed host resources
-  plan       Generate deterministic topologically sorted remediation DAG (read-only, shown only)
-  software   Read-only software inventory, local candidate versions, and dry-run safety plans
-  audit      Verify cryptographic integrity or tail API request audit log (audit verify|tail)
-  rules      Lint or evaluate declarative rules (e.g. kazeshini rules lint <file>)
-  snapshot   Capture a point-in-time provenance snapshot (stub)
-  version    Print binary version information
+Start:
+  open           Foreground local dashboard for headless/SSH servers
+                 Example: kazeshini open
+  serve          Start daemon listening on loopback (default 127.0.0.1:7777)
+                 Example: kazeshini serve --port 7777
 
-Run 'kazeshini open --help' or 'kazeshini check help' for options.`)
+Inspect:
+  overview       Print plain-English server overview and diagnostics
+                 Example: kazeshini overview
+  visibility     Inspect host sensor visibility and coverage honesty table
+                 Example: kazeshini visibility
+  check          Execute read-only diagnostics (list, run, triage)
+                 Example: kazeshini check run listening-ports
+  software       Inspect installed packages, candidates, and safe dry-runs
+                 Example: kazeshini software list
+  drift          Audit discrepancies between desired state and host state
+                 Example: kazeshini drift --exit-code
+
+Report:
+  report         Generate standalone State of this Server report (html, json, md)
+                 Example: kazeshini report --format html > report.html
+  facts          Emit machine-readable inventory facts for automation
+                 Example: kazeshini facts --json
+  audit          Verify cryptographic audit log integrity or stream events
+                 Example: kazeshini audit verify
+
+Configure:
+  token          Print local API authentication token (0600)
+                 Example: kazeshini token
+  desired        Lint or inspect declarative desired state manifests
+                 Example: kazeshini desired lint /etc/kazeshini/desired.yaml
+  completion     Generate shell completion script (bash, zsh)
+                 Example: source <(kazeshini completion bash)
+  version        Print binary version information
+                 Example: kazeshini version
+
+Run 'kazeshini <command> --help' for detailed options.`)
 }
 
 func runToken(args []string) error {
@@ -331,7 +353,7 @@ func runRules(args []string) error {
 
 func runDoctor() error {
 	fmt.Println("======================================================================")
-	fmt.Println("風死 · KAZESHINI DOCTOR — SENSOR INSPECTION & COVERAGE HONESTY")
+	fmt.Println("風死 · KAZESHINI DIAGNOSTICS & VISIBILITY — SENSOR INSPECTION")
 	fmt.Println("======================================================================")
 
 	rfs := fs.Default()
@@ -379,7 +401,7 @@ func runDoctor() error {
 	if cov.IsAdequate {
 		fmt.Println("RESULT: [OK] Sensor coverage adequate for truth analysis.")
 	} else {
-		fmt.Println("RESULT: [PARTIAL] Some sensors have limited visibility (CALM verdict suspended).")
+		fmt.Println("RESULT: [PARTIAL] Some sensors have limited visibility (HEALTHY verdict suspended).")
 	}
 	fmt.Println("======================================================================")
 	return nil
@@ -712,7 +734,7 @@ func runServe(args []string) error {
 
 func runCheck(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: kazeshini check <list|run <id>|run --role <role>|symptom <name>> [--json]")
+		return errors.New("usage: kazeshini check <list|run <id>|run --domain <domain>|triage <name>> [--json]")
 	}
 
 	rfs := fs.Default()
@@ -767,7 +789,8 @@ func runCheck(args []string) error {
 
 	case "run":
 		flags := flag.NewFlagSet("check run", flag.ContinueOnError)
-		roleFlag := flags.String("role", "", "Role category to run (devops, cloud, cloud-platform, infrastructure, devsecops, platform, network)")
+		roleFlag := flags.String("role", "", "Domain or legacy role category to run (services, network, storage, security, platform)")
+		domainFlag := flags.String("domain", "", "Domain category to run (services, network, storage, security, platform)")
 		jsonFlag := flags.Bool("json", false, "Output results in JSON format")
 		failOnFlag := flags.String("fail-on", "", "Fail with exit code 1 if any check reports status (warn, crit)")
 		targetFlag := flags.String("target", "", "Target host:port for active connectivity probe (e.g. 127.0.0.1:80)")
@@ -781,7 +804,7 @@ func runCheck(args []string) error {
 			arg := subargs[i]
 			if strings.HasPrefix(arg, "-") {
 				parsedArgs = append(parsedArgs, arg)
-				if (arg == "--role" || arg == "-role" || arg == "--fail-on" || arg == "-fail-on" || arg == "--target" || arg == "-target" || arg == "--file" || arg == "-file" || arg == "--unit" || arg == "-unit") && i+1 < len(subargs) {
+				if (arg == "--role" || arg == "-role" || arg == "--domain" || arg == "-domain" || arg == "--fail-on" || arg == "-fail-on" || arg == "--target" || arg == "-target" || arg == "--file" || arg == "-file" || arg == "--unit" || arg == "-unit") && i+1 < len(subargs) {
 					i++
 					parsedArgs = append(parsedArgs, subargs[i])
 				}
@@ -793,6 +816,11 @@ func runCheck(args []string) error {
 
 		if err := flags.Parse(parsedArgs); err != nil {
 			return err
+		}
+
+		targetDomain := *domainFlag
+		if targetDomain == "" {
+			targetDomain = *roleFlag
 		}
 
 		params := make(map[string]string)
@@ -825,8 +853,8 @@ func runCheck(args []string) error {
 			return nil
 		}
 
-		if *roleFlag != "" {
-			results, err := engine.RunRole(ctx, *roleFlag, params, "local-cli")
+		if targetDomain != "" {
+			results, err := engine.RunRole(ctx, targetDomain, params, "local-cli")
 			if err != nil {
 				return err
 			}
@@ -836,7 +864,7 @@ func runCheck(args []string) error {
 				return evaluateFailOn(results...)
 			}
 			fmt.Println("======================================================================")
-			fmt.Printf("風死 · KAZESHINI CHECK RUN — ROLE: [%s]\n", strings.ToUpper(*roleFlag))
+			fmt.Printf("風死 · KAZESHINI CHECK RUN — DOMAIN: [%s]\n", strings.ToUpper(targetDomain))
 			fmt.Println("======================================================================")
 			for _, r := range results {
 				fmt.Print(r.RenderTerminal())
@@ -847,7 +875,7 @@ func runCheck(args []string) error {
 
 		remArgs := flags.Args()
 		if len(remArgs) == 0 {
-			return errors.New("usage: kazeshini check run <id> or kazeshini check run --role <role>")
+			return errors.New("usage: kazeshini check run <id> or kazeshini check run --domain <domain>")
 		}
 
 		checkID := remArgs[0]
@@ -869,11 +897,11 @@ func runCheck(args []string) error {
 		fmt.Println("======================================================================")
 		return evaluateFailOn(res)
 
-	case "symptom":
+	case "triage", "symptom":
 		if len(subargs) == 0 {
-			fmt.Println("Available symptoms:")
-			for _, s := range checks.AvailableSymptoms() {
-				fmt.Printf("  • %-16s — %s\n", s.ID, s.Description)
+			fmt.Println("Available guided triage scenarios:")
+			for _, s := range checks.AvailableTriageScenarios() {
+				fmt.Printf("  • %-20s — %s\n", s.ID, s.Description)
 			}
 			return nil
 		}
@@ -886,7 +914,7 @@ func runCheck(args []string) error {
 			}
 		}
 
-		sym, err := checks.FindSymptom(query)
+		scenario, err := checks.FindTriageScenario(query)
 		if err != nil {
 			return err
 		}
@@ -895,15 +923,15 @@ func runCheck(args []string) error {
 		defer cancel()
 
 		var results []contract.CheckResult
-		for _, cid := range sym.CheckIDs {
+		for _, cid := range scenario.CheckIDs {
 			res, _ := engine.RunCheck(ctx, cid, nil, "local-cli")
 			results = append(results, res)
 		}
 
 		if jsonFlag {
 			output := map[string]any{
-				"symptom": sym,
-				"results": results,
+				"triage_scenario": scenario,
+				"results":         results,
 			}
 			data, _ := json.MarshalIndent(output, "", "  ")
 			fmt.Println(string(data))
@@ -911,26 +939,22 @@ func runCheck(args []string) error {
 		}
 
 		fmt.Println("======================================================================")
-		fmt.Printf("風死 · KAZESHINI SYMPTOM INVESTIGATION: %s\n", strings.ToUpper(sym.Name))
-		fmt.Printf("Description: %s\n", sym.Description)
+		fmt.Printf("風死 · KAZESHINI GUIDED TRIAGE: %s\n", strings.ToUpper(scenario.Name))
+		fmt.Printf("Description: %s\n", scenario.Description)
 		fmt.Println("======================================================================")
-		for i, cid := range sym.CheckIDs {
+		for i, cid := range scenario.CheckIDs {
 			fmt.Printf("\n[%d] CHECK: %s\n", i+1, cid)
-			if i < len(sym.Reasons) {
-				fmt.Printf("    Rationale: %s\n", sym.Reasons[i])
+			if i < len(scenario.Reasons) {
+				fmt.Printf("    Rationale: %s\n", scenario.Reasons[i])
 			}
 			res := results[i]
-			fmt.Printf("    Status:    [%s]\n", res.Status)
-			fmt.Printf("    Observed:  %s\n", res.SummaryPlain)
-			if res.ExplainLevels[1] != "" {
-				fmt.Printf("    Possible Cause: %s\n", res.ExplainLevels[1])
-			}
+			fmt.Print(res.RenderTerminal())
 		}
 		fmt.Println("\n======================================================================")
 		return nil
 
 	default:
-		return fmt.Errorf("unknown check subcommand %q (supported: list, run, symptom)", subcmd)
+		return fmt.Errorf("unknown check subcommand %q (supported: list, run, triage)", subcmd)
 	}
 }
 
@@ -1099,10 +1123,10 @@ func runOpen(args []string) error {
 
 func renderTUI(ctx context.Context, rfs fs.FS, cov coverage.Report) {
 	fmt.Println("\n--- TERMINAL TUI SCREEN (STDLIB ANSI) ---")
-	verdictLabel := "CALM"
+	verdictLabel := "HEALTHY"
 	colorCode := "\033[1;32m" // Green
 	if !cov.IsAdequate {
-		verdictLabel = "PARTIAL"
+		verdictLabel = "PARTIAL VISIBILITY"
 		colorCode = "\033[1;33m" // Yellow
 	}
 	fmt.Printf("VERDICT: %s[%s]\033[0m   COVERAGE: %.0f%% (%s)\n\n", colorCode, verdictLabel, cov.OverallCoverage, cov.SummaryNote)
@@ -1733,7 +1757,7 @@ func runFacts(args []string) error {
 	fmt.Println("風死 · KAZESHINI SYSTEM FACTS")
 	fmt.Println("======================================================================")
 	fmt.Printf("HOST ID:          %s\n", f.HostID)
-	fmt.Printf("VERDICT:          %s (Chaos Index: %d)\n", strings.ToUpper(f.VerdictStatus), f.ChaosIndex)
+	fmt.Printf("VERDICT:          %s (Risk Score: %d)\n", strings.ToUpper(f.VerdictStatus), f.ChaosIndex)
 	fmt.Printf("COVERAGE:         %.1f%% (Adequate: %v)\n", f.CoveragePercent, f.CoverageAdequate)
 	if f.OSRelease != nil && f.OSRelease["PRETTY_NAME"] != "" {
 		fmt.Printf("OS:               %s\n", f.OSRelease["PRETTY_NAME"])
@@ -1744,3 +1768,83 @@ func runFacts(args []string) error {
 	fmt.Println("======================================================================")
 	return nil
 }
+
+func runCompletion(args []string) error {
+	shell := "bash"
+	if len(args) > 0 {
+		shell = strings.ToLower(args[0])
+	}
+
+	switch shell {
+	case "bash":
+		fmt.Print(`# bash completion for kazeshini
+_kazeshini() {
+    local cur prev subcommands
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    subcommands="open serve overview visibility check software drift report facts audit token desired completion version"
+
+    if [ "$COMP_CWORD" -eq 1 ]; then
+        COMPREPLY=( $(compgen -W "${subcommands}" -- ${cur}) )
+        return 0
+    fi
+
+    case "${prev}" in
+        check)
+            COMPREPLY=( $(compgen -W "list run triage" -- ${cur}) )
+            return 0
+            ;;
+        software)
+            COMPREPLY=( $(compgen -W "list info plan" -- ${cur}) )
+            return 0
+            ;;
+        desired)
+            COMPREPLY=( $(compgen -W "lint show" -- ${cur}) )
+            return 0
+            ;;
+        audit)
+            COMPREPLY=( $(compgen -W "verify tail" -- ${cur}) )
+            return 0
+            ;;
+        completion)
+            COMPREPLY=( $(compgen -W "bash zsh" -- ${cur}) )
+            return 0
+            ;;
+    esac
+}
+complete -F _kazeshini kazeshini
+`)
+		return nil
+
+	case "zsh":
+		fmt.Print(`#compdef kazeshini
+_kazeshini() {
+    local -a commands
+    commands=(
+        'open:Foreground local dashboard for headless/SSH servers'
+        'serve:Start daemon listening on loopback'
+        'overview:Print plain-English server overview and diagnostics'
+        'visibility:Inspect host sensor visibility and coverage honesty table'
+        'check:Execute read-only diagnostics'
+        'software:Inspect installed packages and dry-runs'
+        'drift:Audit discrepancies between desired and actual state'
+        'report:Generate standalone State of this Server report'
+        'facts:Emit machine-readable inventory facts'
+        'audit:Verify cryptographic audit log integrity'
+        'token:Print local API authentication token'
+        'desired:Manage declarative desired state manifests'
+        'completion:Generate shell completion script'
+        'version:Print binary version information'
+    )
+    _describe 'command' commands
+}
+_kazeshini
+`)
+		return nil
+
+	default:
+		return fmt.Errorf("unsupported shell %q (supported: bash, zsh)", shell)
+	}
+}
+

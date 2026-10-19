@@ -94,14 +94,37 @@ func (r *Registry) All() []Check {
 	return res
 }
 
-// ByRole returns all checks belonging to a role.
-func (r *Registry) ByRole(role string) []Check {
+// DomainForCheck resolves the canonical domain for a check.
+func DomainForCheck(c Check) string {
+	role := strings.ToLower(c.Role())
+	switch role {
+	case "network":
+		return "network"
+	case "infrastructure":
+		return "storage"
+	case "devsecops":
+		return "security"
+	case "platform":
+		return "platforms"
+	case "cloud":
+		return "storage"
+	case "cloud-platform":
+		return "services"
+	case "devops":
+		return "services"
+	default:
+		return "services"
+	}
+}
+
+// ByDomain returns all checks belonging to a domain.
+func (r *Registry) ByDomain(domain string) []Check {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var res []Check
-	target := strings.ToLower(strings.TrimSpace(role))
+	target := strings.ToLower(strings.TrimSpace(domain))
 	for _, c := range r.checks {
-		if strings.ToLower(c.Role()) == target {
+		if DomainForCheck(c) == target || strings.ToLower(c.Role()) == target {
 			res = append(res, c)
 		}
 	}
@@ -109,6 +132,11 @@ func (r *Registry) ByRole(role string) []Check {
 		return res[i].ID() < res[j].ID()
 	})
 	return res
+}
+
+// ByRole returns all checks belonging to a role or domain.
+func (r *Registry) ByRole(role string) []Check {
+	return r.ByDomain(role)
 }
 
 // Engine coordinates running checks and recording activity logs.

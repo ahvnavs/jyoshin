@@ -560,23 +560,23 @@ func (b *Builder) Build(
 	}
 }
 
-// RenderTerminal formats the briefing into clean plain text for CLI / SSH output.
+// RenderTerminal formats the overview into clean plain text for CLI / SSH output.
 func (b *Briefing) RenderTerminal() string {
 	var sb strings.Builder
 
 	sb.WriteString("======================================================================\n")
-	sb.WriteString("風死 · KAZESHINI — SERVER TRUTH BRIEFING\n")
-	fmt.Fprintf(&sb, "STATUS: [%s]   CHAOS INDEX: %d/100   COVERAGE: %.0f%%\n",
-		b.Verdict.StateLabel, b.Verdict.ChaosIndex, b.Coverage.OverallCoverage)
-	if len(b.Verdict.ChaosContributors) > 0 {
-		sb.WriteString("CHAOS CONTRIBUTORS:\n")
-		for _, c := range b.Verdict.ChaosContributors {
+	sb.WriteString("風死 · KAZESHINI — SERVER OVERVIEW & DIAGNOSTICS\n")
+	fmt.Fprintf(&sb, "HEALTH: [%s]   RISK SCORE: %d/100   VISIBILITY: %.0f%%\n",
+		strings.ToUpper(b.Verdict.StateLabel), b.Verdict.RiskScore, b.Coverage.OverallCoverage)
+	if len(b.Verdict.RiskContributors) > 0 {
+		sb.WriteString("RISK CONTRIBUTORS:\n")
+		for _, c := range b.Verdict.RiskContributors {
 			fmt.Fprintf(&sb, "  • %-42s (+%d pts)\n", c.Label, c.Points)
 		}
 	}
 	sb.WriteString("======================================================================\n\n")
 
-	sb.WriteString("VERDICT:\n")
+	sb.WriteString("SUMMARY:\n")
 	fmt.Fprintf(&sb, "  %s\n\n", b.Verdict.OneLineVerdict)
 
 	// 1. What this machine is

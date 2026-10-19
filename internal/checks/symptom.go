@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// Symptom defines a human-facing problem scenario mapped to read-only checks.
-type Symptom struct {
+// TriageScenario defines a guided triage problem scenario mapped to read-only checks.
+type TriageScenario struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
@@ -17,8 +17,11 @@ type Symptom struct {
 	Reasons     []string `json:"reasons"` // One-line reason per check in order
 }
 
-// SymptomExplanation pairs an observed result with potential causes.
-type SymptomExplanation struct {
+// Symptom is an alias for TriageScenario for backwards compatibility.
+type Symptom = TriageScenario
+
+// TriageExplanation pairs an observed result with potential causes.
+type TriageExplanation struct {
 	CheckID       string `json:"check_id"`
 	Title         string `json:"title"`
 	Status        string `json:"status"`
@@ -26,9 +29,12 @@ type SymptomExplanation struct {
 	PossibleCause string `json:"possible_cause"` // Inferred diagnostic explanation
 }
 
-// AvailableSymptoms returns the deterministic list of symptoms.
-func AvailableSymptoms() []Symptom {
-	return []Symptom{
+// SymptomExplanation is an alias for TriageExplanation.
+type SymptomExplanation = TriageExplanation
+
+// AvailableTriageScenarios returns the deterministic list of guided triage scenarios.
+func AvailableTriageScenarios() []TriageScenario {
+	return []TriageScenario{
 		{
 			ID:          "slow",
 			Name:        "Something is slow",
@@ -119,15 +125,35 @@ func AvailableSymptoms() []Symptom {
 	}
 }
 
-// FindSymptom looks up a symptom by id or name substring.
-func FindSymptom(query string) (*Symptom, error) {
+// AvailableSymptoms is an alias for AvailableTriageScenarios.
+func AvailableSymptoms() []Symptom {
+	return AvailableTriageScenarios()
+}
+
+// FindTriageScenario looks up a scenario by id or name substring, supporting legacy aliases.
+func FindTriageScenario(query string) (*TriageScenario, error) {
 	q := strings.TrimSpace(strings.ToLower(query))
-	syms := AvailableSymptoms()
+	aliasMap := map[string]string{
+		"slow":         "slow",
+		"cant-connect": "cant-connect",
+		"disk-full":    "disk-full",
+		"looks-hacked": "looks-hacked",
+	}
+	if mapped, ok := aliasMap[q]; ok {
+		q = mapped
+	}
+
+	syms := AvailableTriageScenarios()
 	for i := range syms {
 		if syms[i].ID == q || strings.Contains(strings.ToLower(syms[i].Name), q) {
 			return &syms[i], nil
 		}
 	}
-	return nil, fmt.Errorf("unknown symptom %q (available: slow, service-down, cant-connect, disk-full, looks-hacked)", query)
+	return nil, fmt.Errorf("unknown triage scenario %q (available: slow, service-down, cant-connect, disk-full, looks-hacked)", query)
+}
+
+// FindSymptom is an alias for FindTriageScenario.
+func FindSymptom(query string) (*Symptom, error) {
+	return FindTriageScenario(query)
 }
 

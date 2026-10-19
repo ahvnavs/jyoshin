@@ -20,7 +20,7 @@
   const STORAGE_KEY = 'kazeshini_pet_enabled';
 
   // Wind-Wisp ASCII Frames per mood:
-  // Sleeping (CALM)
+  // Sleeping (HEALTHY)
   const FRAMES_SLEEP = [
     '( -.- )~',
     '( -.- )~~',
@@ -85,9 +85,9 @@
     getStoredEnabled() {
       try {
         const item = localStorage.getItem(STORAGE_KEY);
-        return item === null ? true : item === 'true';
+        return item === null ? false : item === 'true';
       } catch (e) {
-        return true;
+        return false;
       }
     }
 
@@ -236,8 +236,8 @@
       }
 
       // Read only verdict string from DOM, no network calls!
-      let verdictText = 'CALM';
-      const badge = document.getElementById('chaos-badge');
+      let verdictText = 'HEALTHY';
+      const badge = document.getElementById('risk-badge');
       if (badge && badge.textContent) {
         verdictText = badge.textContent.toUpperCase();
       }
@@ -246,7 +246,7 @@
         this.mood = 'alert';
       } else if (verdictText.includes('PARTIAL') || verdictText.includes('UNKNOWN')) {
         this.mood = 'squint';
-      } else if (verdictText.includes('CALM')) {
+      } else if (verdictText.includes('HEALTHY')) {
         this.mood = 'sleep';
       } else {
         this.mood = 'wander';

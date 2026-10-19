@@ -284,8 +284,8 @@ func TestChaosFixtureHost(t *testing.T) {
 	}
 
 	v := verdict.ComputeVerdict(nodes, findings, 10)
-	if v.StateLabel != "MESSY" && v.StateLabel != "CRITICAL" {
-		t.Errorf("expected chaos host verdict to be MESSY or CRITICAL, got: %s", v.StateLabel)
+	if v.StateLabel != "MESSY" && v.StateLabel != "CRITICAL" && v.StateLabel != "Degraded" && v.StateLabel != "Critical" {
+		t.Errorf("expected chaos host verdict to be Degraded or Critical, got: %s", v.StateLabel)
 	}
 	if v.ChaosIndex < 40 {
 		t.Errorf("expected chaos index >= 40 for chaos host, got: %d", v.ChaosIndex)

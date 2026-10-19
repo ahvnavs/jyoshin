@@ -50,3 +50,4 @@ Kazeshini has undergone a comprehensive repository-wide inventory and pruning pa
 - Default binary symbol verification:
   - `go tool nm ./kazeshini | grep -E "(fleet|actuator|plugin|oidc)"` returns **empty**.
   - `strings ./kazeshini | grep -E "kazeshini-actuator|github.com/OWNER/kazeshini/internal/(actuator|fleet|plugin)"` returns **empty**.
+

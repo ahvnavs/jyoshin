@@ -41,8 +41,8 @@ func TestComputeVerdict_Scenarios(t *testing.T) {
 		orphanCount := 0
 
 		summary := ComputeVerdict(nodes, findings, orphanCount)
-		if summary.StateLabel != "CALM" {
-			t.Errorf("expected CALM state, got %s", summary.StateLabel)
+		if summary.StateLabel != "Healthy" && summary.StateLabel != "CALM" {
+			t.Errorf("expected Healthy state, got %s", summary.StateLabel)
 		}
 		if summary.ChaosIndex > 15 {
 			t.Errorf("expected low ChaosIndex (<=15), got %d", summary.ChaosIndex)
@@ -148,8 +148,8 @@ func TestComputeVerdict_Scenarios(t *testing.T) {
 		orphanCount := 2
 
 		summary := ComputeVerdict(nodes, findings, orphanCount)
-		if summary.StateLabel != "CRITICAL" {
-			t.Errorf("expected CRITICAL state, got %s", summary.StateLabel)
+		if summary.StateLabel != "Critical" && summary.StateLabel != "CRITICAL" {
+			t.Errorf("expected Critical state, got %s", summary.StateLabel)
 		}
 		if summary.ChaosIndex < 45 {
 			t.Errorf("expected elevated ChaosIndex for critical scenario, got %d", summary.ChaosIndex)
@@ -177,8 +177,8 @@ func TestComputeVerdict_Scenarios(t *testing.T) {
 		orphanCount := 0
 
 		summary := ComputeVerdictWithCoverage(nodes, findings, orphanCount, false, "unreadable /proc/<pid>/fd for 12 processes")
-		if summary.StateLabel != "PARTIAL" {
-			t.Errorf("expected PARTIAL state when coverage is inadequate, got %s", summary.StateLabel)
+		if summary.StateLabel != "Partial visibility" && summary.StateLabel != "PARTIAL" {
+			t.Errorf("expected Partial visibility state when coverage is inadequate, got %s", summary.StateLabel)
 		}
 		if summary.CoverageHonest {
 			t.Errorf("expected CoverageHonest to be false")
@@ -187,8 +187,8 @@ func TestComputeVerdict_Scenarios(t *testing.T) {
 
 	t.Run("Coverage Honesty - Unknown Scenario", func(t *testing.T) {
 		summary := ComputeVerdictWithCoverage(nil, nil, 0, false, "sensors not yet initialized")
-		if summary.StateLabel != "UNKNOWN" {
-			t.Errorf("expected UNKNOWN state, got %s", summary.StateLabel)
+		if summary.StateLabel != "Unknown" && summary.StateLabel != "UNKNOWN" {
+			t.Errorf("expected Unknown state, got %s", summary.StateLabel)
 		}
 	})
 

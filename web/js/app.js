@@ -14,8 +14,8 @@
   const el = {
     verdictBanner: document.getElementById('verdict-banner'),
     verdictLead: document.getElementById('verdict-lead'),
-    chaosScore: document.getElementById('chaos-score'),
-    chaosBadge: document.getElementById('chaos-badge'),
+    riskScore: document.getElementById('risk-score'),
+    riskBadge: document.getElementById('risk-badge'),
     identityLine: document.getElementById('identity-line'),
     topHostBadge: document.getElementById('top-host-badge'),
     topVerdictBadge: document.getElementById('top-verdict-badge'),
@@ -26,6 +26,8 @@
     pulseHost: document.getElementById('pulse-host'),
     pulseKernel: document.getElementById('pulse-kernel'),
     pulseUptime: document.getElementById('pulse-uptime'),
+    topFindingsList: document.getElementById('top-findings-list'),
+    topFindingsCount: document.getElementById('top-findings-count'),
     dangerList: document.getElementById('danger-list'),
     dangerCount: document.getElementById('danger-count'),
     wasteMonthly: document.getElementById('waste-monthly'),
@@ -43,10 +45,10 @@
     authSubmit: document.getElementById('auth-token-submit'),
     authCancel: document.getElementById('auth-token-cancel'),
     tokenBtn: document.getElementById('token-button'),
-    symptomResultPanel: document.getElementById('symptom-result-panel'),
-    symptomResultTitle: document.getElementById('symptom-result-title'),
-    symptomResultContent: document.getElementById('symptom-result-content'),
-    symptomCloseBtn: document.getElementById('symptom-close-btn'),
+    triageResultPanel: document.getElementById('triage-result-panel'),
+    triageResultTitle: document.getElementById('triage-result-title'),
+    triageResultContent: document.getElementById('triage-result-content'),
+    triageCloseBtn: document.getElementById('triage-close-btn'),
     activityTbody: document.getElementById('activity-tbody'),
     refreshActivityBtn: document.getElementById('refresh-activity-btn'),
   };
@@ -79,7 +81,7 @@
     const h = Math.floor((seconds % 86400) / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
-    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (d > 0) return `${d}d ${h}m`;
     if (h > 0) return `${h}h ${m}m`;
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;
@@ -105,10 +107,10 @@
 
   setInterval(checkStaleness, 5000);
 
-  // Left Rail View Switching & Hash Routing
+  // Left Rail View Switching & Hash Routing (Exact 11 Domains)
   const views = [
-    'overview', 'briefing', 'devops', 'cloud', 'cloud-platform',
-    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'software', 'platforms', 'activity'
+    'overview', 'software', 'services', 'network', 'storage',
+    'security', 'logs', 'platforms', 'drift', 'audit-log', 'settings'
   ];
 
   function switchView(target) {
@@ -124,16 +126,16 @@
       }
     });
 
-    if (target === 'desired') {
+    if (target === 'drift') {
       refreshDesiredView();
     } else if (target === 'software') {
       refreshSoftwareView();
     } else if (target === 'platforms') {
       refreshPlatformsView();
-    } else if (target === 'activity') {
+    } else if (target === 'audit-log') {
       refreshActivityLog();
-    } else if (['devops', 'cloud', 'cloud-platform', 'infrastructure', 'devsecops', 'platform', 'network'].includes(target)) {
-      renderRoleChecks(target);
+    } else if (['services', 'network', 'storage', 'security', 'logs'].includes(target)) {
+      renderDomainChecks(target);
     }
   }
 
@@ -153,6 +155,27 @@
       el.authInput.value = authToken;
       el.authModal.style.display = 'flex';
       el.authInput.focus();
+    });
+  }
+
+  const settingsTokenBtn = document.getElementById('settings-token-btn');
+  if (settingsTokenBtn) {
+    settingsTokenBtn.addEventListener('click', () => {
+      if (el.tokenBtn) el.tokenBtn.click();
+    });
+  }
+
+  const petOnBtn = document.getElementById('settings-pet-on');
+  if (petOnBtn) {
+    petOnBtn.addEventListener('click', () => {
+      if (window.Tsumuji) window.Tsumuji.set(true);
+    });
+  }
+
+  const petOffBtn = document.getElementById('settings-pet-off');
+  if (petOffBtn) {
+    petOffBtn.addEventListener('click', () => {
+      if (window.Tsumuji) window.Tsumuji.set(false);
     });
   }
 
@@ -198,18 +221,18 @@
 
   const commandsList = [
     { name: 'Overview', desc: 'Jump to Overview verdict screen', action: () => { window.location.hash = '#overview'; } },
-    { name: 'Briefing', desc: 'Jump to plain-English Server Truth Briefing', action: () => { window.location.hash = '#briefing'; } },
-    { name: 'DevOps Checks', desc: 'Jump to DevOps checks & metrics', action: () => { window.location.hash = '#devops'; } },
-    { name: 'Cloud Checks', desc: 'Jump to Cloud provider & storage checks', action: () => { window.location.hash = '#cloud'; } },
-    { name: 'Cloud Platform Checks', desc: 'Jump to Kubernetes & container checks', action: () => { window.location.hash = '#cloud-platform'; } },
-    { name: 'Infrastructure Checks', desc: 'Jump to Disk, systemd & timesync checks', action: () => { window.location.hash = '#infrastructure'; } },
-    { name: 'DevSecOps Checks', desc: 'Jump to Sudoers, SSH & auth checks', action: () => { window.location.hash = '#devsecops'; } },
-    { name: 'Platform Checks', desc: 'Jump to Tooling, config & permission checks', action: () => { window.location.hash = '#platform'; } },
-    { name: 'Network Checks', desc: 'Jump to Sockets, DNS & probe checks', action: () => { window.location.hash = '#network'; } },
-    { name: 'Desired vs Actual', desc: 'Jump to Desired vs Actual drift audit & plan', action: () => { window.location.hash = '#desired'; } },
-    { name: 'Activity Log', desc: 'Jump to local audit execution log', action: () => { window.location.hash = '#activity'; } },
-    { name: ':pet off', desc: 'Turn off TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(false); } },
-    { name: ':pet on', desc: 'Turn on TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(true); } },
+    { name: 'Software', desc: 'Jump to Software inventory and packages', action: () => { window.location.hash = '#software'; } },
+    { name: 'Services', desc: 'Jump to Services and process health checks', action: () => { window.location.hash = '#services'; } },
+    { name: 'Network', desc: 'Jump to Network sockets and routing checks', action: () => { window.location.hash = '#network'; } },
+    { name: 'Storage', desc: 'Jump to Storage and filesystem checks', action: () => { window.location.hash = '#storage'; } },
+    { name: 'Security', desc: 'Jump to Security and authentication checks', action: () => { window.location.hash = '#security'; } },
+    { name: 'Logs', desc: 'Jump to Logs and agent stream checks', action: () => { window.location.hash = '#logs'; } },
+    { name: 'Platforms', desc: 'Jump to Platform signature catalog', action: () => { window.location.hash = '#platforms'; } },
+    { name: 'Drift', desc: 'Jump to Desired vs actual drift audit', action: () => { window.location.hash = '#drift'; } },
+    { name: 'Audit Log', desc: 'Jump to Audit Log execution history', action: () => { window.location.hash = '#audit-log'; } },
+    { name: 'Settings', desc: 'Jump to node configuration and auth', action: () => { window.location.hash = '#settings'; } },
+    { name: ':pet off', desc: 'Turn off wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(false); } },
+    { name: ':pet on', desc: 'Turn on wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(true); } },
     { name: 'Token', desc: 'Configure API bearer token', action: () => { el.tokenBtn.click(); } },
     { name: 'Refresh', desc: 'Trigger immediate refresh', action: () => { refreshAll(); } },
   ];
@@ -287,13 +310,13 @@
     el.quickFilter.addEventListener('input', (e) => {
       filterQuery = e.target.value.toLowerCase().trim();
       const currentHash = window.location.hash.replace(/^#/, '');
-      if (['devops', 'cloud', 'cloud-platform', 'infrastructure', 'devsecops', 'platform', 'network'].includes(currentHash)) {
-        renderRoleChecks(currentHash);
+      if (['services', 'network', 'storage', 'security', 'logs'].includes(currentHash)) {
+        renderDomainChecks(currentHash);
       }
     });
   }
 
-  // Render Check Card
+  // Render Check Card (Canonical 8-field layout)
   function renderCheckCard(check, resultData) {
     const card = document.createElement('details');
     const status = (resultData ? resultData.status : 'unknown').toLowerCase();
@@ -341,7 +364,6 @@
         });
         if (res.ok) {
           const runRes = await res.json();
-          // Update check card in-place
           const parent = card.parentElement;
           const newCard = renderCheckCard(check, runRes);
           newCard.open = true;
@@ -361,21 +383,25 @@
     summary.appendChild(actions);
     card.appendChild(summary);
 
-    // Expandable Details
+    // Expandable Details (8 Canonical Fields)
     const details = document.createElement('div');
     details.className = 'check-details';
+
+    const resultSentence = resultData && resultData.explain_levels && resultData.explain_levels[0] ? resultData.explain_levels[0] : (resultData ? resultData.summary_plain : check.description);
+    const impactSentence = resultData && resultData.explain_levels && resultData.explain_levels[1] ? resultData.explain_levels[1] : 'Host operation impact evaluated deterministically.';
+    const recSentence = resultData && resultData.explain_levels && resultData.explain_levels[2] ? resultData.explain_levels[2] : (resultData && resultData.recommendation ? resultData.recommendation : 'No immediate remediation required.');
+    const confidenceText = resultData ? (resultData.certainty || 'OBSERVED') : 'OBSERVED';
+    const evidenceList = resultData && resultData.evidence ? resultData.evidence : [];
 
     details.innerHTML = `
       <div class="check-read-banner">
         <span>ℹ This only reads; it changes nothing. Read-only host safety guarantee.</span>
       </div>
-      ${resultData && resultData.explain_levels ? `
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <div><strong style="color: var(--dim); font-size: 11px;">[WHAT]</strong> <div>${resultData.explain_levels[0] || 'N/A'}</div></div>
-          <div><strong style="color: var(--peach); font-size: 11px;">[SO WHAT]</strong> <div>${resultData.explain_levels[1] || 'N/A'}</div></div>
-          <div><strong style="color: var(--mint); font-size: 11px;">[NOW WHAT (RECOMMENDATION)]</strong> <div>${resultData.explain_levels[2] || 'N/A'}</div></div>
-        </div>
-      ` : `<div>${check.description}</div>`}
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+        <div><strong style="color: var(--dim); font-size: 11px;">[RESULT]</strong> <div>${resultSentence}</div></div>
+        <div><strong style="color: var(--peach); font-size: 11px;">[IMPACT]</strong> <div>${impactSentence}</div></div>
+        <div><strong style="color: var(--mint); font-size: 11px;">[RECOMMENDED ACTION (SHOWN ONLY, NEVER RUN)]</strong> <div>${recSentence}</div></div>
+      </div>
 
       ${resultData && resultData.equivalent_command ? `
         <div style="margin-top: 6px;">
@@ -384,14 +410,14 @@
         </div>
       ` : ''}
 
-      ${resultData && resultData.evidence && resultData.evidence.length > 0 ? `
-        <div style="margin-top: 6px;">
-          <div style="font-size: 11px; color: var(--dim);">EVIDENCE & CERTAINTY ([✓] ${resultData.certainty || 'OBSERVED'}):</div>
-          <ul style="list-style: none; padding-left: 0; font-size: 12px; color: var(--cyan);">
-            ${resultData.evidence.map(ev => `<li>└─ [${ev.source}] ${ev.description}</li>`).join('')}
+      <div style="margin-top: 6px;">
+        <div style="font-size: 11px; color: var(--dim);">CONFIDENCE & CERTAINTY: <span style="color: var(--mint); font-weight: bold;">[✓] ${confidenceText.toUpperCase()}</span></div>
+        ${evidenceList.length > 0 ? `
+          <ul style="list-style: none; padding-left: 0; font-size: 12px; color: var(--cyan); margin-top: 4px;">
+            ${evidenceList.map(ev => `<li>└─ [${ev.source}] ${ev.description}</li>`).join('')}
           </ul>
-        </div>
-      ` : ''}
+        ` : '<div style="font-size: 11px; color: var(--dim);">Direct kernel /proc /sys fact provenance.</div>'}
+      </div>
 
       ${resultData && resultData.raw_redacted ? `
         <details style="margin-top: 6px;">
@@ -405,28 +431,41 @@
     return card;
   }
 
-  // Load and Render Role Checks
+  // Load and Render Domain Checks
   async function loadChecks() {
     try {
       const res = await fetch('/api/v1/checks', { headers: getHeaders() });
       if (res.ok) {
         checksCache = await res.json();
+        updateDomainCounts();
       }
     } catch (err) {
       console.error('failed fetching checks list:', err);
     }
   }
 
-  function renderRoleChecks(role) {
-    const container = document.getElementById(`checks-list-${role}`);
+  function updateDomainCounts() {
+    const domains = ['services', 'network', 'storage', 'security', 'logs'];
+    domains.forEach(d => {
+      const elCount = document.getElementById(`count-${d}`);
+      if (elCount) {
+        const count = checksCache.filter(c => (c.domain || '').toLowerCase() === d || (c.role || '').toLowerCase() === d).length;
+        elCount.textContent = count;
+      }
+    });
+  }
+
+  function renderDomainChecks(domain) {
+    const container = document.getElementById(`checks-list-${domain}`);
     if (!container) return;
     container.innerHTML = '';
 
-    const roleChecks = checksCache.filter(c => c.role === role);
-    const filtered = filterQuery ? roleChecks.filter(c => c.title.toLowerCase().includes(filterQuery) || c.id.toLowerCase().includes(filterQuery) || c.description.toLowerCase().includes(filterQuery)) : roleChecks;
+    const dTarget = domain.toLowerCase();
+    const domainChecks = checksCache.filter(c => (c.domain || '').toLowerCase() === dTarget || (c.role || '').toLowerCase() === dTarget);
+    const filtered = filterQuery ? domainChecks.filter(c => c.title.toLowerCase().includes(filterQuery) || c.id.toLowerCase().includes(filterQuery) || c.description.toLowerCase().includes(filterQuery)) : domainChecks;
 
     if (filtered.length === 0) {
-      container.innerHTML = '<div style="color: var(--dim); padding: 12px;">No checks match filter criteria.</div>';
+      container.innerHTML = '<div class="empty-state">No checks found for this domain matching filter criteria.</div>';
       return;
     }
 
@@ -444,11 +483,11 @@
       const entries = await res.json();
       el.activityTbody.innerHTML = '';
 
-      const countEl = document.getElementById('count-activity');
+      const countEl = document.getElementById('count-audit-log');
       if (countEl) countEl.textContent = entries.length;
 
       if (entries.length === 0) {
-        el.activityTbody.innerHTML = '<tr><td colspan="6" style="color: var(--dim);">No checks executed yet.</td></tr>';
+        el.activityTbody.innerHTML = '<tr><td colspan="6" class="empty-state" style="text-align: center;">No checks executed yet.</td></tr>';
         return;
       }
 
@@ -462,9 +501,9 @@
         tr.innerHTML = `
           <td>${tStr}</td>
           <td><strong style="color: var(--cyan);">${entry.check_id}</strong></td>
-          <td>${entry.role}</td>
+          <td>${entry.domain || entry.role || 'general'}</td>
           <td><span class="badge ${stClass}">${entry.status}</span></td>
-          <td>${entry.token_holder}</td>
+          <td>${entry.token_holder || 'system'}</td>
           <td>${entry.summary}</td>
         `;
         el.activityTbody.appendChild(tr);
@@ -478,28 +517,33 @@
     el.refreshActivityBtn.addEventListener('click', refreshActivityLog);
   }
 
-  // Symptom Picker
-  const symptomButtons = document.querySelectorAll('.symptom-btn');
-  symptomButtons.forEach(btn => {
+  // Guided Triage Picker
+  const triageButtons = document.querySelectorAll('.triage-btn');
+  triageButtons.forEach(btn => {
     btn.addEventListener('click', async () => {
-      const sym = btn.getAttribute('data-symptom');
-      if (!sym) return;
-      el.symptomResultPanel.style.display = 'block';
-      el.symptomResultTitle.textContent = `[?] INVESTIGATING SYMPTOM: ${btn.textContent.trim().toUpperCase()}`;
-      el.symptomResultContent.innerHTML = '<div style="color: var(--dim);">Running targeted checks...</div>';
+      const trg = btn.getAttribute('data-triage');
+      if (!trg) return;
+      if (el.triageResultPanel) {
+        el.triageResultPanel.style.display = 'block';
+      }
+      if (el.triageResultTitle) {
+        el.triageResultTitle.textContent = `[?] GUIDED TRIAGE: ${btn.textContent.trim().toUpperCase()}`;
+      }
+      if (el.triageResultContent) {
+        el.triageResultContent.innerHTML = '<div style="color: var(--dim);">Running targeted diagnostic checks...</div>';
+      }
 
       try {
-        // Query check definitions matching symptom
         const checksToRun = [];
-        if (sym === 'slow') checksToRun.push('cpu-memory', 'disk-inodes', 'app-health', 'time-sync');
-        else if (sym === 'service-down') checksToRun.push('failed-services', 'app-health', 'app-logs', 'service-permissions');
-        else if (sym === 'cant-connect') checksToRun.push('listening-ports', 'dns-config', 'interfaces-routes', 'app-health');
-        else if (sym === 'disk-full') checksToRun.push('disk-inodes', 'container-storage', 'attached-storage', 'app-logs');
-        else if (sym === 'looks-hacked') checksToRun.push('users-sudo', 'ssh-settings', 'auth-logs', 'listening-ports');
+        if (trg === 'slow') checksToRun.push('cpu-memory', 'disk-inodes', 'app-health', 'time-sync');
+        else if (trg === 'service-down') checksToRun.push('failed-services', 'app-health', 'app-logs', 'service-permissions');
+        else if (trg === 'cant-connect') checksToRun.push('listening-ports', 'dns-config', 'interfaces-routes', 'app-health');
+        else if (trg === 'disk-full') checksToRun.push('disk-inodes', 'container-storage', 'attached-storage', 'app-logs');
+        else if (trg === 'looks-hacked') checksToRun.push('users-sudo', 'ssh-settings', 'auth-logs', 'listening-ports');
 
-        el.symptomResultContent.innerHTML = '';
+        if (el.triageResultContent) el.triageResultContent.innerHTML = '';
         for (const cid of checksToRun) {
-          const cDef = checksCache.find(c => c.id === cid) || { id: cid, title: cid, role: 'investigation', description: cid };
+          const cDef = checksCache.find(c => c.id === cid) || { id: cid, title: cid, domain: 'services', description: cid };
           const res = await fetch(`/api/v1/checks/${encodeURIComponent(cid)}/run`, {
             method: 'POST',
             headers: getHeaders(),
@@ -508,18 +552,18 @@
             const data = await res.json();
             const card = renderCheckCard(cDef, data);
             card.open = true;
-            el.symptomResultContent.appendChild(card);
+            if (el.triageResultContent) el.triageResultContent.appendChild(card);
           }
         }
       } catch (err) {
-        el.symptomResultContent.innerHTML = `<div style="color: var(--rose);">Symptom investigation failed: ${err.message}</div>`;
+        if (el.triageResultContent) el.triageResultContent.innerHTML = `<div style="color: var(--rose);">Guided triage failed: ${err.message}</div>`;
       }
     });
   });
 
-  if (el.symptomCloseBtn) {
-    el.symptomCloseBtn.addEventListener('click', () => {
-      el.symptomResultPanel.style.display = 'none';
+  if (el.triageCloseBtn) {
+    el.triageCloseBtn.addEventListener('click', () => {
+      if (el.triageResultPanel) el.triageResultPanel.style.display = 'none';
     });
   }
 
@@ -545,12 +589,13 @@
     if (el.topVerdictBadge) {
       let bClass = 'badge-mint';
       let glyph = '[✓]';
-      if (v.state_label === 'CRITICAL') { bClass = 'badge-rose'; glyph = '[▲]'; }
-      else if (v.state_label === 'MESSY' || v.state_label === 'WARN') { bClass = 'badge-peach'; glyph = '[!]'; }
-      else if (v.state_label === 'PARTIAL' || v.state_label === 'UNKNOWN') { bClass = 'badge-lavender'; glyph = '[?]'; }
+      const label = v.state_label || 'HEALTHY';
+      if (label === 'CRITICAL') { bClass = 'badge-rose'; glyph = '[▲]'; }
+      else if (label === 'DEGRADED' || label === 'WARN' || label === 'MESSY') { bClass = 'badge-peach'; glyph = '[!]'; }
+      else if (label === 'PARTIAL' || label === 'PARTIAL VISIBILITY' || label === 'UNKNOWN') { bClass = 'badge-lavender'; glyph = '[?]'; }
 
       el.topVerdictBadge.className = `badge ${bClass}`;
-      el.topVerdictBadge.textContent = `${glyph} ${v.state_label || 'CALM'}`;
+      el.topVerdictBadge.textContent = `${glyph} ${label}`;
     }
     if (el.lastUpdated) {
       el.lastUpdated.textContent = new Date().toLocaleTimeString();
@@ -568,25 +613,25 @@
     if (el.verdictLead) {
       el.verdictLead.textContent = v.plain_verdict || 'Server is operating within normal parameters.';
     }
-    if (el.chaosScore) {
-      el.chaosScore.textContent = v.chaos_index !== undefined ? v.chaos_index : 0;
+    const score = v.risk_score !== undefined ? v.risk_score : (v.chaos_index !== undefined ? v.chaos_index : 0);
+    if (el.riskScore) {
+      el.riskScore.textContent = score;
     }
 
     let badgeClass = 'badge-mint';
     let glyph = '[✓]';
-    if (v.state_label === 'CRITICAL' || v.chaos_index >= 70) {
+    const label = v.state_label || 'HEALTHY';
+    if (label === 'CRITICAL' || score >= 70) {
       badgeClass = 'badge-rose'; glyph = '[▲]';
-    } else if (v.state_label === 'MESSY' || v.chaos_index >= 45) {
+    } else if (label === 'DEGRADED' || label === 'MESSY' || score >= 45) {
       badgeClass = 'badge-peach'; glyph = '[!]';
-    } else if (v.state_label === 'MODERATE' || v.chaos_index >= 16) {
-      badgeClass = 'badge-lavender'; glyph = '[●]';
-    } else if (v.state_label === 'PARTIAL' || v.state_label === 'UNKNOWN') {
+    } else if (label === 'PARTIAL VISIBILITY' || label === 'PARTIAL' || label === 'UNKNOWN') {
       badgeClass = 'badge-cyan'; glyph = '[?]';
     }
 
-    if (el.chaosBadge) {
-      el.chaosBadge.className = `badge ${badgeClass}`;
-      el.chaosBadge.textContent = `${glyph} ${v.state_label || 'CALM'}`;
+    if (el.riskBadge) {
+      el.riskBadge.className = `badge ${badgeClass}`;
+      el.riskBadge.textContent = `${glyph} ${label}`;
     }
     if (el.identityLine) {
       el.identityLine.textContent = `HOST: ${v.identity_line || 'Linux Server'}`;
@@ -594,7 +639,32 @@
 
     if (el.dangerCount) {
       const totalRisks = (v.critical_findings || 0) + (v.high_findings || 0);
-      el.dangerCount.textContent = `${totalRisks} active`;
+      el.dangerCount.textContent = `${totalRisks} ACTIVE`;
+      el.dangerCount.className = totalRisks > 0 ? 'badge badge-rose' : 'badge badge-mint';
+    }
+
+    // Populate Risk Contributors
+    if (el.dangerList) {
+      const contribs = v.risk_contributors || v.chaos_contributors || [];
+      if (contribs.length === 0) {
+        el.dangerList.innerHTML = '<div class="empty-state">[✓] No active risk contributors identified.</div>';
+      } else {
+        el.dangerList.innerHTML = '';
+        contribs.forEach(c => {
+          const row = document.createElement('div');
+          row.style.fontSize = '12px';
+          row.style.display = 'flex';
+          row.style.justifyContent = 'space-between';
+          row.style.borderBottom = '1px dashed var(--panel-border)';
+          row.style.padding = '4px 0';
+          row.innerHTML = `
+            <span><strong>${c.title || c.source}</strong>: ${c.reason || ''}</span>
+            <span class="badge badge-peach">+${c.weight || c.points || 0} pts</span>
+          `;
+          el.dangerList.appendChild(row);
+        });
+      }
+    }
       el.dangerCount.className = totalRisks > 0 ? 'badge badge-rose' : 'badge badge-mint';
     }
 
@@ -603,10 +673,10 @@
     }
   }
 
-  // Refresh Briefing & Coverage
-  async function refreshBriefing() {
+  // Refresh Overview Summary & Coverage
+  async function refreshOverviewSummary() {
     try {
-      const res = await fetch('/api/v1/briefing', { headers: getHeaders() });
+      const res = await fetch('/api/v1/overview', { headers: getHeaders() });
       if (!res.ok) return;
       const b = await res.json();
 
@@ -622,7 +692,7 @@
         el.topCoverageBadge.className = b.coverage.is_adequate ? 'badge badge-mint' : 'badge badge-peach';
       }
 
-      const content = document.getElementById('briefing-content');
+      const content = document.getElementById('overview-summary-content');
       if (content) {
         content.innerHTML = `
           <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">${b.summary_sentence || ''}</div>
@@ -636,7 +706,7 @@
         `;
       }
     } catch (err) {
-      console.error('failed fetching briefing:', err);
+      console.error('failed fetching overview summary:', err);
     }
   }
 
@@ -686,27 +756,35 @@
       const res = await fetch('/api/v1/findings', { headers: getHeaders() });
       if (!res.ok) return;
       const findings = await res.json();
-      if (!el.dangerList) return;
 
-      el.dangerList.innerHTML = '';
-      if (!findings || findings.length === 0) {
-        el.dangerList.innerHTML = '<div style="color: var(--mint);">[✓] No critical exposures detected.</div>';
-        return;
+      if (el.topFindingsCount) {
+        el.topFindingsCount.textContent = `${(findings || []).length} ACTIVE`;
       }
 
-      findings.forEach(f => {
-        const row = document.createElement('div');
-        row.style.fontSize = '12px';
-        row.style.display = 'flex';
-        row.style.justifyContent = 'space-between';
-        row.style.borderBottom = '1px dashed var(--panel-border)';
-        row.style.padding = '4px 0';
-        row.innerHTML = `
-          <span><strong>${f.id}</strong>: ${f.what}</span>
-          <span class="badge ${f.severity === 'critical' ? 'badge-rose' : 'badge-peach'}">${f.severity.toUpperCase()}</span>
-        `;
-        el.dangerList.appendChild(row);
-      });
+      if (el.topFindingsList) {
+        el.topFindingsList.innerHTML = '';
+        if (!findings || findings.length === 0) {
+          el.topFindingsList.innerHTML = '<div class="empty-state">No critical or high severity findings detected on this host.</div>';
+        } else {
+          const top5 = findings.slice(0, 5);
+          top5.forEach(f => {
+            const cDef = checksCache.find(c => c.id === f.rule_id || c.id === f.id) || {
+              id: f.id,
+              title: f.title || f.what || f.id,
+              description: f.so_what || f.what,
+            };
+            const mockRes = {
+              status: f.severity === 'critical' ? 'CRIT' : (f.severity === 'high' ? 'WARN' : 'INFO'),
+              summary_plain: f.what,
+              explain_levels: [f.what, f.so_what, f.now_what ? f.now_what.action : ''],
+              certainty: f.certainty || 'OBSERVED',
+              evidence: f.evidence || [],
+            };
+            const card = renderCheckCard(cDef, mockRes);
+            el.topFindingsList.appendChild(card);
+          });
+        }
+      }
     } catch (err) {
       console.error('failed fetching findings:', err);
     }
@@ -1368,7 +1446,7 @@
 
   function refreshAll() {
     refreshVerdict();
-    refreshBriefing();
+    refreshOverviewSummary();
     refreshPulse();
     refreshFindings();
     refreshDependencies();
@@ -1380,6 +1458,34 @@
     loadChecks();
   }
 
+  // Table column sorting support
+  let currentSort = { col: '', asc: true };
+  document.querySelectorAll('.sortable-th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.getAttribute('data-sort');
+      if (currentSort.col === col) {
+        currentSort.asc = !currentSort.asc;
+      } else {
+        currentSort.col = col;
+        currentSort.asc = true;
+      }
+      if (th.closest('#software-table')) {
+        cachedSoftwarePackages.sort((a, b) => {
+          let valA = a[col] || '';
+          let valB = b[col] || '';
+          if (col === 'candidate') {
+            valA = a.candidate ? a.candidate.version : '';
+            valB = b.candidate ? b.candidate.version : '';
+          }
+          if (valA < valB) return currentSort.asc ? -1 : 1;
+          if (valA > valB) return currentSort.asc ? 1 : -1;
+          return 0;
+        });
+        renderSoftwareTable();
+      }
+    });
+  });
+
   // Startup Initializer
   handleRoute();
   loadChecks();
@@ -1389,7 +1495,7 @@
   setInterval(() => {
     refreshVerdict();
     refreshPulse();
-    refreshBriefing();
+    refreshOverviewSummary();
   }, 5000);
 
 })();

@@ -101,11 +101,11 @@ func TestCoverage_FaultInjection(t *testing.T) {
 	// Compute verdict with coverage honesty
 	vSum := verdict.ComputeVerdictWithCoverage(nil, nil, 0, cov.IsAdequate, cov.SummaryNote)
 
-	// Assert: verdict is NEVER CALM when visibility is inadequate
-	if vSum.StateLabel == "CALM" {
-		t.Fatalf("Verdict must NEVER report CALM when sensor coverage is inadequate!")
+	// Assert: verdict is NEVER HEALTHY or CALM when visibility is inadequate
+	if vSum.StateLabel == "CALM" || vSum.StateLabel == "HEALTHY" || vSum.StateLabel == "Healthy" {
+		t.Fatalf("Verdict must NEVER report Healthy when sensor coverage is inadequate!")
 	}
-	if vSum.StateLabel != "PARTIAL" && vSum.StateLabel != "UNKNOWN" {
-		t.Errorf("expected verdict state PARTIAL or UNKNOWN, got %s", vSum.StateLabel)
+	if vSum.StateLabel != "PARTIAL" && vSum.StateLabel != "UNKNOWN" && vSum.StateLabel != "Partial visibility" && vSum.StateLabel != "Unknown" {
+		t.Errorf("expected verdict state Partial visibility or Unknown, got %s", vSum.StateLabel)
 	}
 }
