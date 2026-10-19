@@ -59,4 +59,3 @@ func NewCheckResult(id, role, title string, status Status, summary string) Check
 		CollectedAt:  time.Now().UTC(),
 	}
 }
-

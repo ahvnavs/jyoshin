@@ -10,6 +10,16 @@
   let checksCache = [];
   let filterQuery = '';
 
+  function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // DOM Elements cache
   const el = {
     verdictBanner: document.getElementById('verdict-banner'),
@@ -584,7 +594,7 @@
 
   function updateTopBar(v) {
     if (el.topHostBadge && v.identity_line) {
-      el.topHostBadge.innerHTML = `HOST: <span style="color: var(--cyan);">${v.identity_line}</span>`;
+      el.topHostBadge.innerHTML = `HOST: <span style="color: var(--cyan);">${escapeHTML(v.identity_line)}</span>`;
     }
     if (el.topVerdictBadge) {
       let bClass = 'badge-mint';
@@ -658,7 +668,7 @@
           row.style.borderBottom = '1px dashed var(--panel-border)';
           row.style.padding = '4px 0';
           row.innerHTML = `
-            <span><strong>${c.title || c.source}</strong>: ${c.reason || ''}</span>
+            <span><strong>${escapeHTML(c.title || c.source || c.label)}</strong>: ${escapeHTML(c.reason || '')}</span>
             <span class="badge badge-peach">+${c.weight || c.points || 0} pts</span>
           `;
           el.dangerList.appendChild(row);
@@ -695,13 +705,13 @@
       const content = document.getElementById('overview-summary-content');
       if (content) {
         content.innerHTML = `
-          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">${b.summary_sentence || ''}</div>
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">${escapeHTML(b.summary_sentence || '')}</div>
           <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim);">
-            ${(b.bullet_points || []).map(bp => `<div>• ${bp}</div>`).join('')}
+            ${(b.bullet_points || []).map(bp => `<div>• ${escapeHTML(bp)}</div>`).join('')}
           </div>
           <div style="margin-top: 12px; font-size: 12px; color: var(--cyan); border-top: 1px dashed var(--panel-border); padding-top: 8px;">
-            <div><strong>PROVENANCE & INTEGRITY:</strong> ${b.untracked_surface || ''}</div>
-            <div style="margin-top: 4px;"><strong>CAPACITY FORECAST:</strong> ${b.exhaustion_headline || ''}</div>
+            <div><strong>PROVENANCE & INTEGRITY:</strong> ${escapeHTML(b.untracked_surface || '')}</div>
+            <div style="margin-top: 4px;"><strong>CAPACITY FORECAST:</strong> ${escapeHTML(b.exhaustion_headline || '')}</div>
           </div>
         `;
       }
@@ -1485,6 +1495,145 @@
       }
     });
   });
+
+  // Guidance Panel & Ask Technical Modal Handlers
+  const btnAskTechnical = document.getElementById('btn-ask-technical');
+  const technicalModal = document.getElementById('technical-modal');
+  const techCloseBtn = document.getElementById('tech-close-btn');
+  const techCopyBtn = document.getElementById('tech-copy-btn');
+  const techPrintBtn = document.getElementById('tech-print-btn');
+  const techSummaryText = document.getElementById('tech-summary-text');
+  const btnCopyCommand = document.getElementById('btn-copy-command');
+  const guidanceCommand = document.getElementById('guidance-command');
+
+  if (btnCopyCommand && guidanceCommand) {
+    btnCopyCommand.addEventListener('click', () => {
+      navigator.clipboard.writeText(guidanceCommand.textContent.trim()).then(() => {
+        const orig = btnCopyCommand.textContent;
+        btnCopyCommand.textContent = 'Copied!';
+        setTimeout(() => { btnCopyCommand.textContent = orig; }, 2000);
+      });
+    });
+  }
+
+  if (btnAskTechnical && technicalModal && techSummaryText) {
+    btnAskTechnical.addEventListener('click', () => {
+      const hostName = el.pulseHost ? el.pulseHost.textContent : 'Linux Server';
+      const risk = el.riskScore ? el.riskScore.textContent : '0';
+      const status = el.riskBadge ? el.riskBadge.textContent : '[✓] HEALTHY';
+      const dateStr = new Date().toISOString();
+
+      let summaryContent = `======================================================================\n`;
+      summaryContent += `KAZESHINI SYSTEM SUMMARY (TECHNICAL SHAREABLE)\n`;
+      summaryContent += `Generated: ${dateStr}\n`;
+      summaryContent += `Host: ${hostName} | Status: ${status} | Risk Score: ${risk}/100\n`;
+      summaryContent += `Confidentiality: Secret-free sanitized diagnostic record\n`;
+      summaryContent += `======================================================================\n\n`;
+      summaryContent += `1. OVERVIEW & HEALTH:\n`;
+      summaryContent += `   Lead: ${el.verdictLead ? el.verdictLead.textContent : 'Normal operation'}\n\n`;
+      summaryContent += `2. PRIMARY ACTION TO RESOLVE:\n`;
+      const actionTxt = document.getElementById('guidance-action-text');
+      summaryContent += `   ${actionTxt ? actionTxt.textContent.trim() : 'No critical action'}\n`;
+      summaryContent += `   Command: ${guidanceCommand ? guidanceCommand.textContent.trim() : 'kazeshini --once'}\n\n`;
+      summaryContent += `3. RUNTIME METRICS:\n`;
+      summaryContent += `   Kernel: ${el.pulseKernel ? el.pulseKernel.textContent : 'Linux'}\n`;
+      summaryContent += `   Uptime: ${el.pulseUptime ? el.pulseUptime.textContent : '0s'}\n\n`;
+      summaryContent += `4. REPRODUCIBLE HOST QUERY:\n`;
+      summaryContent += `   kazeshini --once --json\n`;
+      summaryContent += `======================================================================\n`;
+
+      techSummaryText.value = summaryContent;
+      technicalModal.style.display = 'flex';
+    });
+  }
+
+  if (techCloseBtn && technicalModal) {
+    techCloseBtn.addEventListener('click', () => {
+      technicalModal.style.display = 'none';
+    });
+  }
+
+  if (techCopyBtn && techSummaryText) {
+    techCopyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(techSummaryText.value).then(() => {
+        const orig = techCopyBtn.textContent;
+        techCopyBtn.textContent = 'Copied!';
+        setTimeout(() => { techCopyBtn.textContent = orig; }, 2000);
+      });
+    });
+  }
+
+  if (techPrintBtn && techSummaryText) {
+    techPrintBtn.addEventListener('click', () => {
+      window.print();
+    });
+  }
+
+  // Glossary Lookup Modal
+  const glossaryModal = document.getElementById('glossary-modal');
+  const glossaryCloseBtn = document.getElementById('glossary-close-btn');
+  const glossaryTitle = document.getElementById('glossary-modal-title');
+  const glossarySummary = document.getElementById('glossary-summary');
+  const glossaryDetails = document.getElementById('glossary-details');
+
+  const GLOSSARY_TERMS = {
+    'port': {
+      summary: 'A port is like a door for network traffic. Programs use it to talk to other computers.',
+      details: 'When a program wants to communicate over the network, it opens a port (e.g. 80 for websites, 22 for remote login). Listening ports reachable on all interfaces are accessible to outside callers.'
+    },
+    'service': {
+      summary: 'A service is a background program. It starts up and runs tasks for the server.',
+      details: 'Services manage web servers, databases, and system tasks. If a service crashes or enters a degraded state, users or other applications may be unable to connect.'
+    },
+    'package': {
+      summary: 'A package is a bundle of software files. The system installs and tracks it safely.',
+      details: 'Using packages ensures programs receive security updates, can be uninstalled safely, and do not leave behind orphan files.'
+    },
+    'kernel': {
+      summary: 'The kernel is the main engine of the server. It manages the hardware, memory, and disks.',
+      details: 'All applications ask the kernel to access disks, network connections, or memory. Kazeshini reads kernel status files directly without changing them.'
+    },
+    'inode': {
+      summary: 'An inode is an index number for a file. The disk uses it to track each item.',
+      details: 'Even if a disk has free gigabytes left, running out of inodes prevents creating any new files (such as log entries or user uploads).'
+    },
+    'unmanaged software': {
+      summary: 'This is software put on the machine by hand. The system package tool does not track it.',
+      details: 'Because the operating system does not know about it, it will not receive automated security patches and may be forgotten over time.'
+    },
+    'risk score': {
+      summary: 'A score from 0 to 100. Lower numbers mean the server is safe, while high numbers show problems.',
+      details: 'Points are added when critical security flaws, failed services, or unprotected network ports are detected.'
+    },
+    'drift': {
+      summary: 'Drift means settings have changed. The server does not match what you expected.',
+      details: 'For example, if a package was accidentally installed or removed outside of configuration management, Kazeshini points out the difference.'
+    },
+    'visibility': {
+      summary: 'Visibility is how much of the server was seen. It tells you what could be checked.',
+      details: 'If running without administrator (root) rights, some security files cannot be read. Kazeshini is always honest about what it could not inspect.'
+    }
+  };
+
+  document.addEventListener('click', (e) => {
+    const target = e.target.closest('[data-glossary]');
+    if (target && glossaryModal) {
+      const termKey = target.getAttribute('data-glossary').toLowerCase().trim();
+      const def = GLOSSARY_TERMS[termKey];
+      if (def) {
+        glossaryTitle.textContent = `Term: ${termKey.toUpperCase()}`;
+        glossarySummary.textContent = def.summary;
+        glossaryDetails.textContent = def.details;
+        glossaryModal.style.display = 'flex';
+      }
+    }
+  });
+
+  if (glossaryCloseBtn && glossaryModal) {
+    glossaryCloseBtn.addEventListener('click', () => {
+      glossaryModal.style.display = 'none';
+    });
+  }
 
   // Startup Initializer
   handleRoute();

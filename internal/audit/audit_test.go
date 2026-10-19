@@ -59,4 +59,3 @@ func TestRequestLogger_AuditChainTamperDetection(t *testing.T) {
 		t.Fatal("tampered audit chain should be detected, but passed")
 	}
 }
-

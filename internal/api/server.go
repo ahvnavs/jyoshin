@@ -161,11 +161,18 @@ func NewServer(
 		logger:          logger,
 	}
 
-	if tStore, err := auth.NewTokenStore(cfg.DataDir); err == nil {
-		s.tokenStore = tStore
-	}
-	if reqAud, err := audit.NewRequestLogger(filepath.Join(cfg.DataDir, "audit.log")); err == nil {
-		s.requestAudit = reqAud
+	if !cfg.Stateless {
+		if tStore, err := auth.NewTokenStore(cfg.DataDir); err == nil {
+			s.tokenStore = tStore
+		}
+		if reqAud, err := audit.NewRequestLogger(filepath.Join(cfg.DataDir, "audit.log")); err == nil {
+			s.requestAudit = reqAud
+		}
+	} else {
+		// Stateless mode: purely in-memory audit logger, zero disk touched
+		if reqAud, err := audit.NewRequestLogger(""); err == nil {
+			s.requestAudit = reqAud
+		}
 	}
 
 	// Pre-load persisted historical samples from store into memory cache
@@ -182,11 +189,12 @@ func NewServer(
 	s.registerRoutes(mux)
 
 	s.server = &http.Server{
-		Addr:         cfg.Address(),
-		Handler:      s.hostCheckMiddleware(s.loggingMiddleware(s.authMiddleware(mux))),
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 0, // SSE streaming requires unbounded write timeout
-		IdleTimeout:  60 * time.Second,
+		Addr:           cfg.Address(),
+		Handler:        s.hostCheckMiddleware(s.requestLimitMiddleware(s.loggingMiddleware(s.authMiddleware(mux)))),
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   0, // SSE streaming requires unbounded write timeout
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB max header bytes to prevent header-bloat resource exhaustion
 	}
 
 	return s, nil
@@ -303,7 +311,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.WriteHeader(http.StatusTooManyRequests)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"error":  "too many authentication failures: client temporarily locked out",
+					"error":               "too many authentication failures: client temporarily locked out",
 					"retry_after_seconds": int(remaining.Seconds()),
 				})
 				return
@@ -519,6 +527,16 @@ func (s *Server) hostCheckMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) requestLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Cap incoming request body to 2MB to prevent memory exhaustion attacks
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -986,10 +1004,10 @@ func (s *Server) handleDrift(w http.ResponseWriter, r *http.Request) {
 	if desiredPath == "" {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status":   "no_desired_state",
-			"message":  "No kazeshini.desired.yaml configured. Specify path via --desired, KAZESHINI_DESIRED, or ?desired=path",
-			"items":    []drift.Item{},
-			"summary":  drift.Summary{},
+			"status":  "no_desired_state",
+			"message": "No kazeshini.desired.yaml configured. Specify path via --desired, KAZESHINI_DESIRED, or ?desired=path",
+			"items":   []drift.Item{},
+			"summary": drift.Summary{},
 		})
 		return
 	}
@@ -1702,8 +1720,6 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(out))
 }
-
-
 
 // Start begins listening and serving traffic on the configured address.
 func (s *Server) Start() error {

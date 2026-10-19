@@ -36,9 +36,9 @@ var (
 
 	// Protected units that cannot be stopped or disabled
 	protectedUnitList = map[string]bool{
-		"ssh.service":               true,
-		"sshd.service":              true,
-		"systemd-journald.service":  true,
+		"ssh.service":                true,
+		"sshd.service":               true,
+		"systemd-journald.service":   true,
 		"kazeshini-actuator.service": true,
 	}
 )
@@ -183,4 +183,3 @@ func buildPackageCommand(action, pkg, mgr string) (*CommandSpec, error) {
 	}
 	return nil, fmt.Errorf("unsupported package manager %q", mgr)
 }
-

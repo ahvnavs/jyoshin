@@ -72,4 +72,3 @@ func TestBus_NeverBlocksSlowSubscriber(t *testing.T) {
 	}
 	t.Logf("Successfully dropped %d events without blocking publisher", dropped)
 }
-

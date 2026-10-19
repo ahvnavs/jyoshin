@@ -4,6 +4,7 @@
 package fuzz_test
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/OWNER/kazeshini/internal/checks"
 	"github.com/OWNER/kazeshini/internal/desired"
 	"github.com/OWNER/kazeshini/internal/fs"
 	"github.com/OWNER/kazeshini/internal/inventory"
@@ -133,3 +135,78 @@ func FuzzOIDCClaims(f *testing.F) {
 		_ = json.Unmarshal(data, &claims)
 	})
 }
+
+// FuzzSSHDConfig verifies OpenSSH configuration parsing never panics on arbitrary or corrupted inputs.
+func FuzzSSHDConfig(f *testing.F) {
+	seeds := []string{
+		"PermitRootLogin yes\nPasswordAuthentication no\nPermitEmptyPasswords no\n",
+		"PermitRootLogin prohibit-password\n",
+		"# comment\n\x00\xff invalid utf-8\n",
+		"Include /etc/ssh/sshd_config.d/*.conf\n",
+		strings.Repeat("PermitRootLogin no\n", 50),
+	}
+	for _, s := range seeds {
+		f.Add([]byte(s))
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		tmpDir := t.TempDir()
+		rfs := fs.NewRootedFS(tmpDir)
+		sshDir := rfs.Path("/etc/ssh")
+		_ = os.MkdirAll(sshDir, 0755)
+		_ = os.WriteFile(filepath.Join(sshDir, "sshd_config"), data, 0644)
+
+		chk := &checks.SSHSettingsCheck{}
+		_, _ = chk.Run(context.Background(), rfs, nil)
+	})
+}
+
+// FuzzPasswdAndSudoers verifies passwd and sudoers parsing resilience.
+func FuzzPasswdAndSudoers(f *testing.F) {
+	seeds := []string{
+		"root:x:0:0:root:/root:/bin/bash\nuser:x:1000:1000:User,,,:/home/user:/bin/bash\n",
+		"%sudo ALL=(ALL:ALL) ALL\n%admin ALL=(ALL) NOPASSWD: ALL\n",
+		"\x00\x00corrupt:::000\n",
+		"",
+	}
+	for _, s := range seeds {
+		f.Add([]byte(s))
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		tmpDir := t.TempDir()
+		rfs := fs.NewRootedFS(tmpDir)
+		etcDir := rfs.Path("/etc")
+		_ = os.MkdirAll(etcDir, 0755)
+		_ = os.WriteFile(filepath.Join(etcDir, "passwd"), data, 0644)
+		_ = os.WriteFile(filepath.Join(etcDir, "sudoers"), data, 0644)
+
+		chk := &checks.UsersSudoCheck{}
+		_, _ = chk.Run(context.Background(), rfs, nil)
+	})
+}
+
+// FuzzResolvConf verifies /etc/resolv.conf parsing resilience.
+func FuzzResolvConf(f *testing.F) {
+	seeds := []string{
+		"nameserver 1.1.1.1\nnameserver 8.8.8.8\nsearch corp.internal\noptions edns0\n",
+		"nameserver [::1]:53\n",
+		"\x00nameserver invalid\n",
+		strings.Repeat("nameserver 127.0.0.1\n", 100),
+	}
+	for _, s := range seeds {
+		f.Add([]byte(s))
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		tmpDir := t.TempDir()
+		rfs := fs.NewRootedFS(tmpDir)
+		etcDir := rfs.Path("/etc")
+		_ = os.MkdirAll(etcDir, 0755)
+		_ = os.WriteFile(filepath.Join(etcDir, "resolv.conf"), data, 0644)
+
+		chk := &checks.DNSConfigCheck{}
+		_, _ = chk.Run(context.Background(), rfs, nil)
+	})
+}
+

@@ -122,4 +122,3 @@ func TestMetrics_OTLPExport(t *testing.T) {
 
 	t.Logf("[✓] OTLP export verified against local fake collector endpoint (%d metrics transmitted)", len(metricsList))
 }
-

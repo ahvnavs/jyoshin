@@ -88,4 +88,3 @@ func TestPlan_DeterminismAndPlanner(t *testing.T) {
 		t.Errorf("dependency wiring failed: expected [install, start], got [%s, %s]", p1.Steps[0].Action, p1.Steps[1].Action)
 	}
 }
-

@@ -206,7 +206,6 @@ func IsRealBlockMount(device, fsType, mountPoint string) bool {
 	return false
 }
 
-
 // LargeDir captures size and entry count of inspected directory.
 type LargeDir struct {
 	Path       string `json:"path"`

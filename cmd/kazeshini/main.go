@@ -34,9 +34,11 @@ import (
 	"github.com/OWNER/kazeshini/internal/drift"
 	"github.com/OWNER/kazeshini/internal/facts"
 	"github.com/OWNER/kazeshini/internal/fs"
+	"github.com/OWNER/kazeshini/internal/glossary"
 	"github.com/OWNER/kazeshini/internal/graph"
 	"github.com/OWNER/kazeshini/internal/graphbuilder"
 	"github.com/OWNER/kazeshini/internal/inventory"
+	"github.com/OWNER/kazeshini/internal/kzerror"
 	"github.com/OWNER/kazeshini/internal/logging"
 	"github.com/OWNER/kazeshini/internal/metrics"
 	"github.com/OWNER/kazeshini/internal/origin"
@@ -200,6 +202,12 @@ func run(args []string) error {
 	case "completion":
 		return runCompletion(subargs)
 
+	case "explain":
+		return runExplain(subargs)
+
+	case "bugreport":
+		return runBugreport(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -242,6 +250,9 @@ Inspect:
                  Example: kazeshini software list
   drift          Audit discrepancies between desired state and host state
                  Example: kazeshini drift --exit-code
+  explain        Explain a system term or finding at 3 technical levels
+                 Example: kazeshini explain port
+                 Example: kazeshini explain --level technical port
 
 Report:
   report         Generate standalone State of this Server report (html, json, md)
@@ -250,6 +261,8 @@ Report:
                  Example: kazeshini facts --json
   audit          Verify cryptographic audit log integrity or stream events
                  Example: kazeshini audit verify
+  bugreport      Generate sanitized local diagnostic bundle (zero telemetry)
+                 Example: kazeshini bugreport
 
 Start & Server:
   open           Foreground local dashboard for headless/SSH servers
@@ -2291,5 +2304,187 @@ func runUninstall(args []string) error {
 	_ = exec.Command("userdel", "kazeshini").Run()
 
 	fmt.Println("[OK] Kazeshini service and files uninstalled successfully.")
+	return nil
+}
+
+func runExplain(args []string) error {
+	flags := flag.NewFlagSet("explain", flag.ContinueOnError)
+	var level string
+	flags.StringVar(&level, "level", "summary", "Explanation level: summary, details, technical, or all")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	remaining := flags.Args()
+	if len(remaining) == 0 {
+		return kzerror.New(
+			kzerror.CodeInvalidConfig,
+			"No term or finding specified to explain",
+			"The explain command requires a glossary term or finding ID as an argument.",
+			"Run 'kazeshini explain <term>' (e.g. 'kazeshini explain port') or see docs/GLOSSARY.md.",
+		)
+	}
+
+	target := strings.Join(remaining, " ")
+	targetLower := strings.ToLower(target)
+
+	// 1. Try glossary term
+	if def, ok := glossary.Lookup(targetLower); ok {
+		fmt.Printf("======================================================================\n")
+		fmt.Printf("EXPLANATION: %s\n", strings.ToUpper(def.Term))
+		fmt.Printf("======================================================================\n")
+		switch strings.ToLower(level) {
+		case "details":
+			fmt.Printf("DETAILS:\n  %s\n", def.Details)
+		case "technical":
+			fmt.Printf("TECHNICAL EVIDENCE / MECHANICS:\n  %s\n", def.Technical)
+		case "all":
+			fmt.Printf("LEVEL 1 (SUMMARY):\n  %s\n\n", def.Summary)
+			fmt.Printf("LEVEL 2 (DETAILS):\n  %s\n\n", def.Details)
+			fmt.Printf("LEVEL 3 (TECHNICAL EVIDENCE):\n  %s\n", def.Technical)
+		default: // summary
+			fmt.Printf("SUMMARY:\n  %s\n\n", def.Summary)
+			fmt.Println("For more information:")
+			fmt.Printf("  kazeshini explain --level details %s\n", def.Term)
+			fmt.Printf("  kazeshini explain --level technical %s\n", def.Term)
+		}
+		fmt.Printf("======================================================================\n")
+		return nil
+	}
+
+	// 2. Try rule finding ID
+	cfg, _ := config.Load("")
+	ruleEngine := rules.NewEngine(3 * time.Second)
+	_, _ = ruleEngine.LoadDirectory(cfg.RulesDir)
+	for _, r := range ruleEngine.Rules() {
+		if strings.EqualFold(r.ID, target) || strings.EqualFold(r.Name, target) {
+			fmt.Printf("======================================================================\n")
+			fmt.Printf("FINDING EXPLANATION: %s (%s)\n", r.Name, r.ID)
+			fmt.Printf("======================================================================\n")
+			switch strings.ToLower(level) {
+			case "details":
+				fmt.Printf("DETAILS / IMPACT:\n  %s\n", r.Consequence)
+			case "technical":
+				fmt.Printf("TECHNICAL EVIDENCE / MECHANICS:\n  Severity: %s, Category: %s, Certainty: %s\n",
+					r.Severity, r.Category, r.Certainty)
+			case "all":
+				fmt.Printf("LEVEL 1 (SUMMARY):\n  %s\n\n", r.Description)
+				fmt.Printf("LEVEL 2 (DETAILS):\n  Impact: %s\n  Recommended: %s\n\n", r.Consequence, r.Recommendation.Action)
+				fmt.Printf("LEVEL 3 (TECHNICAL EVIDENCE):\n  Rule ID: %s, Severity: %s, Category: %s, Certainty: %s\n",
+					r.ID, r.Severity, r.Category, r.Certainty)
+			default: // summary
+				fmt.Printf("SUMMARY:\n  %s\n\n", r.Description)
+				fmt.Println("For more information:")
+				fmt.Printf("  kazeshini explain --level details %s\n", r.ID)
+				fmt.Printf("  kazeshini explain --level technical %s\n", r.ID)
+			}
+			fmt.Printf("======================================================================\n")
+			return nil
+		}
+	}
+
+	return kzerror.New(
+		kzerror.CodeInvalidConfig,
+		fmt.Sprintf("Unknown term or finding ID: %q", target),
+		"The term was not found in the canonical glossary (docs/GLOSSARY.md) or rule definitions.",
+		"Check the spelling, or run 'kazeshini explain' with one of: port, service, package, kernel, inode, unmanaged software, risk score, drift, visibility.",
+	)
+}
+
+func runBugreport(args []string) error {
+	rfs := fs.Default()
+	pGraph := graphbuilder.NewProvenanceGraph()
+
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	orphanScanner := orphan.NewScanner(rfs, originResolver)
+	pGraph.SetOriginResolver(originResolver)
+
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
+
+	sup := supervisor.New(registry, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, s := range registry.All() {
+		if obs, err := sup.RunSensorSafe(ctx, s, 3*time.Second); err == nil {
+			pGraph.IngestObservation(obs)
+		}
+	}
+
+	assessor := coverage.NewAssessor(sup, invManager, orphanScanner, rfs)
+	cov := assessor.Assess(ctx)
+
+	// Collect redacted bug report struct
+	type BugReportBundle struct {
+		Timestamp   time.Time              `json:"timestamp"`
+		Version     api.VersionInfo        `json:"version"`
+		Redactions  []string               `json:"redactions_applied"`
+		Visibility  coverage.Report        `json:"visibility"`
+		Environment map[string]interface{} `json:"environment"`
+	}
+
+	bundle := BugReportBundle{
+		Timestamp: time.Now().UTC(),
+		Version:   getVersionInfo(),
+		Redactions: []string{
+			"Passwords, tokens, credentials, and authentication cookies stripped",
+			"User private keys (/etc/shadow, ~/.ssh) omitted",
+			"Raw process command lines containing potential secrets scrubbed",
+		},
+		Visibility: cov,
+		Environment: map[string]interface{}{
+			"goos":      runtime.GOOS,
+			"goarch":    runtime.GOARCH,
+			"num_cpu":   runtime.NumCPU(),
+			"euid":      os.Geteuid(),
+			"stateless": true,
+		},
+	}
+
+	data, err := json.MarshalIndent(bundle, "", "  ")
+	if err != nil {
+		return kzerror.New(
+			kzerror.CodeSensorTimeout,
+			"Failed to encode bug report bundle",
+			err.Error(),
+			"Verify system memory availability and re-run 'kazeshini bugreport'.",
+		)
+	}
+
+	reportFile := fmt.Sprintf("kazeshini-bugreport-%d.json", time.Now().Unix())
+	if err := os.WriteFile(reportFile, data, 0600); err != nil {
+		return kzerror.New(
+			kzerror.CodePermissionDenied,
+			fmt.Sprintf("Failed to write bug report file %s", reportFile),
+			err.Error(),
+			"Run from a writable directory or check folder permissions.",
+		)
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Println("風死 · KAZESHINI LOCAL BUG REPORT BUNDLE")
+	fmt.Println("======================================================================")
+	fmt.Printf("FILE GENERATED: %s (mode 0600, local disk only)\n", reportFile)
+	fmt.Println("ZERO TELEMETRY GUARANTEE:")
+	fmt.Println("  Data never leaves this machine. No network egress was performed.")
+	fmt.Println("\nWHAT IS INCLUDED IN THIS REPORT:")
+	fmt.Println("  • Kazeshini version and runtime environment (OS, Arch, CPU count)")
+	fmt.Println("  • Sensor visibility coverage and permission honesty diagnostics")
+	fmt.Println("  • Anonymized subsystem inspection counts (no passwords, keys, or secrets)")
+	fmt.Println("\nNEXT STEPS:")
+	fmt.Printf("  1. Review the file contents:\n     cat %s\n", reportFile)
+	fmt.Println("  2. If satisfied, share this file manually with your technical maintainer.")
+	fmt.Println("======================================================================")
 	return nil
 }

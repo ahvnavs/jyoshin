@@ -89,4 +89,3 @@ func TestIdleMinuteProfile(t *testing.T) {
 		}
 	}
 }
-

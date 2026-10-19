@@ -59,4 +59,3 @@ func ValidateSafeParam(val string) bool {
 	}
 	return true
 }
-

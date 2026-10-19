@@ -10,12 +10,12 @@ import (
 
 // RateLimiter tracks auth failures per client IP and enforces temporary lockouts.
 type RateLimiter struct {
-	mu           sync.Mutex
-	maxFailures  int
-	lockoutTime  time.Duration
-	window       time.Duration
-	failures     map[string][]time.Time
-	lockedUntil  map[string]time.Time
+	mu          sync.Mutex
+	maxFailures int
+	lockoutTime time.Duration
+	window      time.Duration
+	failures    map[string][]time.Time
+	lockedUntil map[string]time.Time
 }
 
 // NewRateLimiter creates a failure rate limiter.
@@ -87,4 +87,3 @@ func (rl *RateLimiter) RecordSuccess(key string) {
 	delete(rl.failures, key)
 	delete(rl.lockedUntil, key)
 }
-

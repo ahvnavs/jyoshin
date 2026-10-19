@@ -334,4 +334,3 @@ func isSubsystemAdequate(cov coverage.Report, matchTokens ...string) bool {
 	}
 	return true
 }
-

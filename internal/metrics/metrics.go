@@ -23,14 +23,14 @@ import (
 
 // Snapshot captures the observation values to export as metrics.
 type Snapshot struct {
-	HostID        string
-	Verdict       verdict.Summary
-	Coverage      coverage.Report
-	Findings      []rules.Finding
-	DriftSummary  drift.Summary
-	CheckResults  []contract.CheckResult
-	ActivePlans   int
-	Timestamp     time.Time
+	HostID       string
+	Verdict      verdict.Summary
+	Coverage     coverage.Report
+	Findings     []rules.Finding
+	DriftSummary drift.Summary
+	CheckResults []contract.CheckResult
+	ActivePlans  int
+	Timestamp    time.Time
 }
 
 // PrometheusExporter formats Snapshot into standard Prometheus text format exposition.
@@ -46,7 +46,7 @@ func (e *PrometheusExporter) Format(snap Snapshot) string {
 	// Verdict & Chaos Score
 	buf.WriteString("# HELP kazeshini_chaos_index Numerical chaos index (0-100)\n")
 	buf.WriteString("# TYPE kazeshini_chaos_index gauge\n")
-	buf.WriteString(fmt.Sprintf("kazeshini_chaos_index{host=%q} %d\n\n", snap.HostID, snap.Verdict.ChaosIndex))
+	fmt.Fprintf(&buf, "kazeshini_chaos_index{host=%q} %d\n\n", snap.HostID, snap.Verdict.ChaosIndex)
 
 	buf.WriteString("# HELP kazeshini_verdict_status Host status (1 if matching verdict status)\n")
 	buf.WriteString("# TYPE kazeshini_verdict_status gauge\n")
@@ -56,14 +56,14 @@ func (e *PrometheusExporter) Format(snap Snapshot) string {
 		if strings.EqualFold(snap.Verdict.StateLabel, st) {
 			val = 1
 		}
-		buf.WriteString(fmt.Sprintf("kazeshini_verdict_status{host=%q,status=%q} %d\n", snap.HostID, st, val))
+		fmt.Fprintf(&buf, "kazeshini_verdict_status{host=%q,status=%q} %d\n", snap.HostID, st, val)
 	}
 	buf.WriteString("\n")
 
 	// Coverage
 	buf.WriteString("# HELP kazeshini_coverage_ratio Overall sensor visibility coverage ratio (0.0 - 1.0)\n")
 	buf.WriteString("# TYPE kazeshini_coverage_ratio gauge\n")
-	buf.WriteString(fmt.Sprintf("kazeshini_coverage_ratio{host=%q} %.4f\n\n", snap.HostID, snap.Coverage.OverallCoverage/100.0))
+	fmt.Fprintf(&buf, "kazeshini_coverage_ratio{host=%q} %.4f\n\n", snap.HostID, snap.Coverage.OverallCoverage/100.0)
 
 	buf.WriteString("# HELP kazeshini_coverage_adequate Coverage adequacy boolean (1 if adequate)\n")
 	buf.WriteString("# TYPE kazeshini_coverage_adequate gauge\n")
@@ -71,7 +71,7 @@ func (e *PrometheusExporter) Format(snap Snapshot) string {
 	if snap.Coverage.IsAdequate {
 		adeq = 1
 	}
-	buf.WriteString(fmt.Sprintf("kazeshini_coverage_adequate{host=%q} %d\n\n", snap.HostID, adeq))
+	fmt.Fprintf(&buf, "kazeshini_coverage_adequate{host=%q} %d\n\n", snap.HostID, adeq)
 
 	// Findings by severity
 	buf.WriteString("# HELP kazeshini_findings_total Total findings grouped by severity\n")
@@ -88,25 +88,25 @@ func (e *PrometheusExporter) Format(snap Snapshot) string {
 		sevCounts[s]++
 	}
 	for _, sev := range []string{"critical", "high", "medium", "low", "info"} {
-		buf.WriteString(fmt.Sprintf("kazeshini_findings_total{host=%q,severity=%q} %d\n", snap.HostID, sev, sevCounts[sev]))
+		fmt.Fprintf(&buf, "kazeshini_findings_total{host=%q,severity=%q} %d\n", snap.HostID, sev, sevCounts[sev])
 	}
 	buf.WriteString("\n")
 
 	// Drift items
 	buf.WriteString("# HELP kazeshini_drift_total Total detected drift items\n")
 	buf.WriteString("# TYPE kazeshini_drift_total gauge\n")
-	buf.WriteString(fmt.Sprintf("kazeshini_drift_total{host=%q} %d\n", snap.HostID, snap.DriftSummary.TotalDrift))
-	buf.WriteString(fmt.Sprintf("kazeshini_drift_by_kind{host=%q,kind=\"missing\"} %d\n", snap.HostID, snap.DriftSummary.Missing))
-	buf.WriteString(fmt.Sprintf("kazeshini_drift_by_kind{host=%q,kind=\"extra\"} %d\n", snap.HostID, snap.DriftSummary.Extra))
-	buf.WriteString(fmt.Sprintf("kazeshini_drift_by_kind{host=%q,kind=\"mismatch\"} %d\n", snap.HostID, snap.DriftSummary.Mismatch))
-	buf.WriteString(fmt.Sprintf("kazeshini_drift_by_kind{host=%q,kind=\"wrong_state\"} %d\n", snap.HostID, snap.DriftSummary.WrongState))
-	buf.WriteString(fmt.Sprintf("kazeshini_drift_by_kind{host=%q,kind=\"ports\"} %d\n", snap.HostID, snap.DriftSummary.Ports))
+	fmt.Fprintf(&buf, "kazeshini_drift_total{host=%q} %d\n", snap.HostID, snap.DriftSummary.TotalDrift)
+	fmt.Fprintf(&buf, "kazeshini_drift_by_kind{host=%q,kind=\"missing\"} %d\n", snap.HostID, snap.DriftSummary.Missing)
+	fmt.Fprintf(&buf, "kazeshini_drift_by_kind{host=%q,kind=\"extra\"} %d\n", snap.HostID, snap.DriftSummary.Extra)
+	fmt.Fprintf(&buf, "kazeshini_drift_by_kind{host=%q,kind=\"mismatch\"} %d\n", snap.HostID, snap.DriftSummary.Mismatch)
+	fmt.Fprintf(&buf, "kazeshini_drift_by_kind{host=%q,kind=\"wrong_state\"} %d\n", snap.HostID, snap.DriftSummary.WrongState)
+	fmt.Fprintf(&buf, "kazeshini_drift_by_kind{host=%q,kind=\"ports\"} %d\n", snap.HostID, snap.DriftSummary.Ports)
 	buf.WriteString("\n")
 
 	// Active Plans
 	buf.WriteString("# HELP kazeshini_plans_active Active proposed remediation plans\n")
 	buf.WriteString("# TYPE kazeshini_plans_active gauge\n")
-	buf.WriteString(fmt.Sprintf("kazeshini_plans_active{host=%q} %d\n\n", snap.HostID, snap.ActivePlans))
+	fmt.Fprintf(&buf, "kazeshini_plans_active{host=%q} %d\n\n", snap.HostID, snap.ActivePlans)
 
 	// Check Results
 	if len(snap.CheckResults) > 0 {
@@ -124,7 +124,7 @@ func (e *PrometheusExporter) Format(snap Snapshot) string {
 			case contract.StatusUnknown:
 				code = 3
 			}
-			buf.WriteString(fmt.Sprintf("kazeshini_check_status{host=%q,check_id=%q,role=%q} %d\n", snap.HostID, c.ID, c.Role, code))
+			fmt.Fprintf(&buf, "kazeshini_check_status{host=%q,check_id=%q,role=%q} %d\n", snap.HostID, c.ID, c.Role, code)
 		}
 		buf.WriteString("\n")
 	}
@@ -138,8 +138,8 @@ type OTLPPayload struct {
 }
 
 type ResourceMetric struct {
-	Resource     OTLPResource   `json:"resource"`
-	ScopeMetrics []ScopeMetric  `json:"scopeMetrics"`
+	Resource     OTLPResource  `json:"resource"`
+	ScopeMetrics []ScopeMetric `json:"scopeMetrics"`
 }
 
 type OTLPResource struct {
@@ -147,8 +147,8 @@ type OTLPResource struct {
 }
 
 type OTLPAttribute struct {
-	Key   string          `json:"key"`
-	Value map[string]any  `json:"value"`
+	Key   string         `json:"key"`
+	Value map[string]any `json:"value"`
 }
 
 type ScopeMetric struct {
@@ -168,10 +168,10 @@ type OTLPGauge struct {
 }
 
 type OTLPDataPoint struct {
-	AsDouble   float64        `json:"asDouble,omitempty"`
-	AsInt      int64          `json:"asInt,omitempty"`
-	TimeUnixNano int64        `json:"timeUnixNano"`
-	Attributes []OTLPAttribute `json:"attributes,omitempty"`
+	AsDouble     float64         `json:"asDouble,omitempty"`
+	AsInt        int64           `json:"asInt,omitempty"`
+	TimeUnixNano int64           `json:"timeUnixNano"`
+	Attributes   []OTLPAttribute `json:"attributes,omitempty"`
 }
 
 // OTLPExporter exports Snapshot to an OTLP/HTTP JSON collector endpoint.
@@ -261,7 +261,7 @@ func (e *OTLPExporter) Export(ctx context.Context, snap Snapshot) error {
 	if err != nil {
 		return fmt.Errorf("otlp post failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("otlp collector returned non-2xx status: %d", resp.StatusCode)

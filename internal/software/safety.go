@@ -10,15 +10,15 @@ import (
 
 // SafetyFlag is a specific risk category detected for a proposed package change.
 type SafetyFlag struct {
-	Code        string `json:"code"`        // machine-readable code e.g. "KERNEL_IN_USE"
-	Severity    string `json:"severity"`    // "critical", "high", "medium"
+	Code        string `json:"code"`         // machine-readable code e.g. "KERNEL_IN_USE"
+	Severity    string `json:"severity"`     // "critical", "high", "medium"
 	PlainReason string `json:"plain_reason"` // human-readable explanation (Principle 12)
 }
 
 // SafetyAnalysis is the result of analyzing a proposed package change.
 type SafetyAnalysis struct {
 	Safe    bool         `json:"safe"`
-	Blocked bool         `json:"blocked"`  // true if critical flags present
+	Blocked bool         `json:"blocked"` // true if critical flags present
 	Flags   []SafetyFlag `json:"flags,omitempty"`
 	Summary string       `json:"summary"`
 }
@@ -32,24 +32,24 @@ var protectedPackages = map[string]string{
 	"sshd":           "SSH daemon binary. Removing it will cut off all remote access.",
 
 	// Init and session management
-	"systemd":         "Init system. Removing it will prevent the system from booting.",
-	"systemd-sysv":    "Provides /sbin/init. Removing it will prevent the system from booting.",
-	"init":            "Init system stub. Required for the boot process.",
-	"dbus":            "System message bus. Removing it breaks inter-process communication and the init system.",
+	"systemd":      "Init system. Removing it will prevent the system from booting.",
+	"systemd-sysv": "Provides /sbin/init. Removing it will prevent the system from booting.",
+	"init":         "Init system stub. Required for the boot process.",
+	"dbus":         "System message bus. Removing it breaks inter-process communication and the init system.",
 
 	// Core C library — nearly all software links against this
-	"libc6":          "Core C library. Almost all programs depend on this. Removing it will break the entire system.",
-	"libc-bin":       "Core C library utilities. Tightly coupled to libc6. Removing it will break the system.",
-	"libgcc-s1":      "GCC runtime library. Required by many programs compiled with GCC.",
+	"libc6":     "Core C library. Almost all programs depend on this. Removing it will break the entire system.",
+	"libc-bin":  "Core C library utilities. Tightly coupled to libc6. Removing it will break the system.",
+	"libgcc-s1": "GCC runtime library. Required by many programs compiled with GCC.",
 
 	// Package management — losing this means you can't install anything back
-	"apt":            "Package manager. Removing it means you cannot install, update, or remove packages.",
-	"apt-utils":      "APT utility programs. Required for package management.",
-	"dpkg":           "Low-level package manager. Removing it makes all software management impossible.",
-	"dnf":            "DNF package manager. Removing it makes all software management impossible.",
-	"rpm":            "RPM package database. Required by DNF and YUM for package management.",
-	"pacman":         "Pacman package manager. Removing it makes all software management impossible.",
-	"apk":            "APK package manager. Removing it makes all software management impossible.",
+	"apt":       "Package manager. Removing it means you cannot install, update, or remove packages.",
+	"apt-utils": "APT utility programs. Required for package management.",
+	"dpkg":      "Low-level package manager. Removing it makes all software management impossible.",
+	"dnf":       "DNF package manager. Removing it makes all software management impossible.",
+	"rpm":       "RPM package database. Required by DNF and YUM for package management.",
+	"pacman":    "Pacman package manager. Removing it makes all software management impossible.",
+	"apk":       "APK package manager. Removing it makes all software management impossible.",
 }
 
 // AnalyzeSafety evaluates a proposed package change and returns all safety flags.
@@ -263,4 +263,3 @@ func splitEpoch(ver string) (int, string) {
 	}
 	return 0, ver
 }
-

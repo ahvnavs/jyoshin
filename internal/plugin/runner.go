@@ -34,14 +34,14 @@ var (
 
 // Manifest defines the contract and constraints declared by a plugin.
 type Manifest struct {
-	Name         string            `json:"name" yaml:"name"`
-	Version      string            `json:"version" yaml:"version"`
-	APIVersion   string            `json:"api_version" yaml:"api_version"`
-	Description  string            `json:"description" yaml:"description"`
-	Emits        []resource.Kind   `json:"emits" yaml:"emits"`
-	Capabilities Capabilities      `json:"capabilities" yaml:"capabilities"`
-	Limits       ResourceLimits    `json:"limits" yaml:"limits"`
-	Signature    string            `json:"signature,omitempty" yaml:"signature,omitempty"`
+	Name         string          `json:"name" yaml:"name"`
+	Version      string          `json:"version" yaml:"version"`
+	APIVersion   string          `json:"api_version" yaml:"api_version"`
+	Description  string          `json:"description" yaml:"description"`
+	Emits        []resource.Kind `json:"emits" yaml:"emits"`
+	Capabilities Capabilities    `json:"capabilities" yaml:"capabilities"`
+	Limits       ResourceLimits  `json:"limits" yaml:"limits"`
+	Signature    string          `json:"signature,omitempty" yaml:"signature,omitempty"`
 }
 
 type Capabilities struct {
@@ -72,10 +72,10 @@ type Request struct {
 
 // Response is the JSON-RPC response returned by the plugin.
 type Response struct {
-	JSONRPC string            `json:"jsonrpc"`
-	ID      int               `json:"id"`
-	Result  *ResultPayload    `json:"result,omitempty"`
-	Error   *ErrorPayload     `json:"error,omitempty"`
+	JSONRPC string         `json:"jsonrpc"`
+	ID      int            `json:"id"`
+	Result  *ResultPayload `json:"result,omitempty"`
+	Error   *ErrorPayload  `json:"error,omitempty"`
 }
 
 type ResultPayload struct {
@@ -89,14 +89,14 @@ type ErrorPayload struct {
 
 // Status represents runtime observation state of a plugin.
 type Status struct {
-	Name        string     `json:"name"`
-	Version     string     `json:"version"`
-	Signed      bool       `json:"signed"`
-	IsUnsigned  bool       `json:"is_unsigned"`
-	Status      string     `json:"status"` // "ok", "crashed", "timeout", "failed"
+	Name         string    `json:"name"`
+	Version      string    `json:"version"`
+	Signed       bool      `json:"signed"`
+	IsUnsigned   bool      `json:"is_unsigned"`
+	Status       string    `json:"status"` // "ok", "crashed", "timeout", "failed"
 	LastObserved time.Time `json:"last_observed"`
-	Error       string     `json:"error,omitempty"`
-	Count       int        `json:"resource_count"`
+	Error        string    `json:"error,omitempty"`
+	Count        int       `json:"resource_count"`
 }
 
 // Config configures the plugin runner.
@@ -153,7 +153,7 @@ func (r *Runner) Execute(ctx context.Context, manifest *Manifest, command string
 	defer cancel()
 
 	cmd := exec.CommandContext(execCtx, command, args...)
-	
+
 	// Prepare IPC Request
 	req := Request{
 		JSONRPC: "2.0",
@@ -248,4 +248,3 @@ func (r *Runner) Execute(ctx context.Context, manifest *Manifest, command string
 	status.Count = len(resp.Result.Resources)
 	return resp.Result.Resources, status, nil
 }
-

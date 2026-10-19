@@ -43,11 +43,11 @@ func (r Role) Satisfies(required Role) bool {
 
 // Subject represents an authenticated caller identity.
 type Subject struct {
-	ID        string   `json:"id"`
-	Role      Role     `json:"role"`
-	Method    string   `json:"auth_method"` // "token", "oidc", "mtls", "proxy", "session"
-	Groups    []string `json:"groups,omitempty"`
-	PlanID    string   `json:"current_plan_id,omitempty"`
+	ID     string   `json:"id"`
+	Role   Role     `json:"role"`
+	Method string   `json:"auth_method"` // "token", "oidc", "mtls", "proxy", "session"
+	Groups []string `json:"groups,omitempty"`
+	PlanID string   `json:"current_plan_id,omitempty"`
 }
 
 type contextKey struct{}

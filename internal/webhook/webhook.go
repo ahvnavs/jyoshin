@@ -44,11 +44,11 @@ type Event struct {
 
 // Config configures the webhook dispatcher.
 type Config struct {
-	Enabled       bool          `json:"enabled"`
-	Destinations  []string      `json:"destinations"`  // Allow-listed destination URLs
-	SecretKey     string        `json:"-"`             // HMAC-SHA256 signature key
-	MaxRetries    int           `json:"max_retries"`    // Default 3
-	RetryBackoff  time.Duration `json:"retry_backoff"` // Initial backoff (e.g. 50ms)
+	Enabled      bool          `json:"enabled"`
+	Destinations []string      `json:"destinations"`  // Allow-listed destination URLs
+	SecretKey    string        `json:"-"`             // HMAC-SHA256 signature key
+	MaxRetries   int           `json:"max_retries"`   // Default 3
+	RetryBackoff time.Duration `json:"retry_backoff"` // Initial backoff (e.g. 50ms)
 }
 
 // DispatchLog records outbound transmission history.
@@ -202,4 +202,3 @@ func (d *Dispatcher) Logs() []DispatchLog {
 	copy(res, d.logs)
 	return res
 }
-

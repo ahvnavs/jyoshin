@@ -32,25 +32,25 @@ import (
 )
 
 var (
-	ErrEnrollmentExpired   = errors.New("enrollment token has expired")
-	ErrEnrollmentUsed      = errors.New("enrollment token has already been consumed")
-	ErrCertRevoked         = errors.New("client certificate has been revoked")
-	ErrHostMismatch        = errors.New("plan envelope target host ID does not match agent machine-id")
-	ErrSignatureInvalid    = errors.New("cryptographic signature verification failed")
+	ErrEnrollmentExpired     = errors.New("enrollment token has expired")
+	ErrEnrollmentUsed        = errors.New("enrollment token has already been consumed")
+	ErrCertRevoked           = errors.New("client certificate has been revoked")
+	ErrHostMismatch          = errors.New("plan envelope target host ID does not match agent machine-id")
+	ErrSignatureInvalid      = errors.New("cryptographic signature verification failed")
 	ErrHaltThresholdExceeded = errors.New("batch execution halted due to failure threshold")
 )
 
 // AgentSnapshot contains read-only telemetry pushed by an agent to the controller.
 type AgentSnapshot struct {
-	HostID          string              `json:"host_id"`           // Machine ID / hostname
-	AgentVersion    string              `json:"agent_version"`
-	Timestamp       time.Time           `json:"timestamp"`
-	Verdict         verdict.Summary     `json:"verdict"`
-	Coverage        coverage.Report     `json:"coverage"`
-	Findings        []rules.Finding     `json:"findings"`
-	DriftSummary    drift.Summary       `json:"drift_summary"`
-	Resources       []resource.Resource `json:"resources,omitempty"`
-	Signature       string              `json:"signature"`         // ed25519 signature of payload bytes
+	HostID       string              `json:"host_id"` // Machine ID / hostname
+	AgentVersion string              `json:"agent_version"`
+	Timestamp    time.Time           `json:"timestamp"`
+	Verdict      verdict.Summary     `json:"verdict"`
+	Coverage     coverage.Report     `json:"coverage"`
+	Findings     []rules.Finding     `json:"findings"`
+	DriftSummary drift.Summary       `json:"drift_summary"`
+	Resources    []resource.Resource `json:"resources,omitempty"`
+	Signature    string              `json:"signature"` // ed25519 signature of payload bytes
 }
 
 // ComputeDigest calculates canonical SHA-256 digest of AgentSnapshot data.
@@ -94,29 +94,29 @@ func (s *AgentSnapshot) Verify(pubKey ed25519.PublicKey) bool {
 
 // HostRecord stores the latest known fleet state of a registered host.
 type HostRecord struct {
-	HostID          string          `json:"host_id"`
-	FirstSeen       time.Time       `json:"first_seen"`
-	LastSeen        time.Time       `json:"last_seen"`
-	IsStale         bool            `json:"is_stale"`          // True if LastSeen > 60s ago
-	StatusLabel     string          `json:"status_label"`      // "CALM", "MESSY", "CRITICAL", "UNKNOWN (STALE)"
-	ChaosIndex      int             `json:"chaos_index"`
-	CoverageRatio   float64         `json:"coverage_ratio"`
-	CriticalCount   int             `json:"critical_count"`
-	TotalDrift      int             `json:"total_drift"`
-	PendingPlanID   string          `json:"pending_plan_id,omitempty"`
-	LatestSnapshot  *AgentSnapshot  `json:"latest_snapshot,omitempty"`
+	HostID         string         `json:"host_id"`
+	FirstSeen      time.Time      `json:"first_seen"`
+	LastSeen       time.Time      `json:"last_seen"`
+	IsStale        bool           `json:"is_stale"`     // True if LastSeen > 60s ago
+	StatusLabel    string         `json:"status_label"` // "CALM", "MESSY", "CRITICAL", "UNKNOWN (STALE)"
+	ChaosIndex     int            `json:"chaos_index"`
+	CoverageRatio  float64        `json:"coverage_ratio"`
+	CriticalCount  int            `json:"critical_count"`
+	TotalDrift     int            `json:"total_drift"`
+	PendingPlanID  string         `json:"pending_plan_id,omitempty"`
+	LatestSnapshot *AgentSnapshot `json:"latest_snapshot,omitempty"`
 }
 
 // FleetSummary aggregates rollups across all enrolled hosts.
 type FleetSummary struct {
-	TotalHosts      int `json:"total_hosts"`
-	ActiveHosts     int `json:"active_hosts"`
-	StaleHosts      int `json:"stale_hosts"`
-	CriticalHosts   int `json:"critical_hosts"`
-	MessyHosts      int `json:"messy_hosts"`
-	CalmHosts       int `json:"calm_hosts"`
-	TotalDrift      int `json:"total_drift"`
-	TotalFindings   int `json:"total_findings"`
+	TotalHosts    int `json:"total_hosts"`
+	ActiveHosts   int `json:"active_hosts"`
+	StaleHosts    int `json:"stale_hosts"`
+	CriticalHosts int `json:"critical_hosts"`
+	MessyHosts    int `json:"messy_hosts"`
+	CalmHosts     int `json:"calm_hosts"`
+	TotalDrift    int `json:"total_drift"`
+	TotalFindings int `json:"total_findings"`
 }
 
 // EnrollmentToken defines a single-use expiring token to onboard a new agent.
@@ -152,14 +152,14 @@ type BatchRolloutConfig struct {
 
 // BatchRollout tracks execution across multiple hosts.
 type BatchRollout struct {
-	ID             string                         `json:"id"`
-	PlanID         string                         `json:"plan_id"`
-	Hosts          []string                       `json:"hosts"`
-	Completed      map[string]bool                `json:"completed"`
-	Failed         map[string]error               `json:"failed"`
-	Config         BatchRolloutConfig             `json:"config"`
-	Halted         bool                           `json:"halted"`
-	HaltReason     string                         `json:"halt_reason,omitempty"`
+	ID         string             `json:"id"`
+	PlanID     string             `json:"plan_id"`
+	Hosts      []string           `json:"hosts"`
+	Completed  map[string]bool    `json:"completed"`
+	Failed     map[string]error   `json:"failed"`
+	Config     BatchRolloutConfig `json:"config"`
+	Halted     bool               `json:"halted"`
+	HaltReason string             `json:"halt_reason,omitempty"`
 }
 
 // EnvelopesQueue holds pending signed plans targeted to specific host IDs.

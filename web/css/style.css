@@ -740,3 +740,75 @@ a:hover, a:focus {
 .tsumuji-sprite:hover {
   border-color: var(--mint);
 }
+
+/* Accessibility (WCAG 2.2 AA) additions */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--mint);
+  color: var(--bg);
+  padding: 8px 16px;
+  font-weight: bold;
+  z-index: 9999;
+  text-decoration: none;
+  transition: top 0.1s ease;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+dfn.glossary-term {
+  border-bottom: 1px dotted var(--cyan);
+  cursor: help;
+  font-style: normal;
+}
+
+dfn.glossary-term:focus, dfn.glossary-term:hover {
+  color: var(--mint);
+  outline: 1px solid var(--mint);
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High Contrast / Forced Colors */
+@media (forced-colors: active) {
+  .badge, .btn, .panel, .rail-item {
+    border: 1px solid ButtonText !important;
+  }
+  :focus-visible {
+    outline: 3px solid Highlight !important;
+  }
+}
+
+/* 320px width & 200% Zoom Responsive Layout */
+@media (max-width: 600px) {
+  .app-shell {
+    flex-direction: column;
+  }
+  .left-rail {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .grid-2x2 {
+    grid-template-columns: 1fr;
+  }
+}

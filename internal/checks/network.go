@@ -307,6 +307,20 @@ func (c *ConnectivityProbeCheck) Run(ctx context.Context, rfs fs.FS, params map[
 		return contract.NewCheckResult(c.ID(), c.Role(), c.Title(), contract.StatusWarn, "Invalid port number: must be between 1 and 65535"), ErrInvalidParam
 	}
 
+	// SSRF Protection: refuse cloud metadata IPs (169.254.169.254), loopback, link-local unless explicitly allowed
+	allowLocal := params["allow_local"] == "true"
+	if !allowLocal {
+		cleanHost := strings.Trim(strings.Trim(host, "["), "]")
+		if cleanHost == "localhost" {
+			return contract.NewCheckResult(c.ID(), c.Role(), c.Title(), contract.StatusCrit, "SSRF prohibited: probe to localhost is blocked by security policy"), ErrInvalidParam
+		}
+		if ip := net.ParseIP(cleanHost); ip != nil {
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || cleanHost == "169.254.169.254" {
+				return contract.NewCheckResult(c.ID(), c.Role(), c.Title(), contract.StatusCrit, fmt.Sprintf("SSRF prohibited: probe to local/metadata IP %s is blocked by security policy", cleanHost)), ErrInvalidParam
+			}
+		}
+	}
+
 	// Rate limiting: at most 1 probe every 2 seconds
 	c.mu.Lock()
 	if time.Since(c.lastProbeAt) < 2*time.Second {

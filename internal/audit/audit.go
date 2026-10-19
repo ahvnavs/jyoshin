@@ -174,7 +174,7 @@ func VerifyChain(path string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	decoder := json.NewDecoder(f)
 	expectedPrev := "genesis"
@@ -201,4 +201,3 @@ func VerifyChain(path string) (int, error) {
 
 	return count, nil
 }
-

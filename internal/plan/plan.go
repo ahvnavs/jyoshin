@@ -35,21 +35,21 @@ type PortAction string
 
 // Step represents a single remediation operation in the plan DAG.
 type Step struct {
-	ID                string   `json:"id"`
-	Title             string   `json:"title"`
-	Description       string   `json:"description"`
-	ResourceKind      resource.Kind `json:"resource_kind"`
-	ResourceName      string   `json:"resource_name"`
-	Action            string   `json:"action"`
-	Dependencies      []string `json:"dependencies,omitempty"` // IDs of prerequisite steps
-	Preconditions     []string `json:"preconditions"`
-	Postconditions    []string `json:"postconditions"`
-	Risk              string   `json:"risk"` // "low", "medium", "high"
-	Reversible        bool     `json:"reversible"`
-	RequiresReboot    bool     `json:"requires_reboot"`
-	BlastRadiusScore  int      `json:"blast_radius_score"` // 0-100
-	BlastRadiusText   string   `json:"blast_radius_text"`
-	EquivalentCommands []string `json:"equivalent_commands"` // SHOWN ONLY, never executed (Principle 2)
+	ID                 string        `json:"id"`
+	Title              string        `json:"title"`
+	Description        string        `json:"description"`
+	ResourceKind       resource.Kind `json:"resource_kind"`
+	ResourceName       string        `json:"resource_name"`
+	Action             string        `json:"action"`
+	Dependencies       []string      `json:"dependencies,omitempty"` // IDs of prerequisite steps
+	Preconditions      []string      `json:"preconditions"`
+	Postconditions     []string      `json:"postconditions"`
+	Risk               string        `json:"risk"` // "low", "medium", "high"
+	Reversible         bool          `json:"reversible"`
+	RequiresReboot     bool          `json:"requires_reboot"`
+	BlastRadiusScore   int           `json:"blast_radius_score"` // 0-100
+	BlastRadiusText    string        `json:"blast_radius_text"`
+	EquivalentCommands []string      `json:"equivalent_commands"` // SHOWN ONLY, never executed (Principle 2)
 }
 
 // Plan represents an entire DAG of topologically ordered remediation steps.
@@ -103,7 +103,7 @@ func (p *Planner) CreatePlan(driftItems []drift.Item) (*Plan, error) {
 	maxBlast := 0
 
 	for _, s := range sortedSteps {
-		h.Write([]byte(fmt.Sprintf("%s:%s:%s:%s|", s.ID, s.ResourceKind, s.ResourceName, s.Action)))
+		_, _ = fmt.Fprintf(h, "%s:%s:%s:%s|", s.ID, s.ResourceKind, s.ResourceName, s.Action)
 		if s.Risk == "high" {
 			maxRisk = "high"
 		} else if s.Risk == "medium" && maxRisk != "high" {
@@ -363,4 +363,3 @@ func TopologicalSort(steps []Step) ([]Step, error) {
 
 	return ordered, nil
 }
-

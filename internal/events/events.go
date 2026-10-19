@@ -127,4 +127,3 @@ func (b *Bus) Publish(ctx context.Context, ev Event) error {
 func (b *Bus) DroppedCount() uint64 {
 	return b.droppedCount.Load()
 }
-

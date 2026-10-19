@@ -17,10 +17,10 @@ import (
 
 // NonceStore guards against replay attacks by tracking all seen nonces.
 type NonceStore struct {
-	mu       sync.Mutex
-	path     string
-	seen     map[string]time.Time
-	maxAge   time.Duration
+	mu     sync.Mutex
+	path   string
+	seen   map[string]time.Time
+	maxAge time.Duration
 }
 
 // NewNonceStore creates or loads a persistent nonce cache.
@@ -98,4 +98,3 @@ func (ns *NonceStore) save() error {
 	}
 	return os.WriteFile(ns.path, data, 0600)
 }
-

@@ -174,13 +174,13 @@ func (m *MTLSAuthenticator) Authenticate(r *http.Request) (*rbac.Subject, error)
 
 // TrustedProxyConfig configures reverse proxy header authentication.
 type TrustedProxyConfig struct {
-	Enabled       bool
+	Enabled        bool
 	AllowedSubnets []*net.IPNet
-	UserHeader    string // e.g. "X-Forwarded-User"
-	GroupsHeader  string // e.g. "X-Forwarded-Groups"
-	SigHeader     string // e.g. "X-Forwarded-Signature"
-	SharedSecret  string
-	RoleMappings  map[string]rbac.Role
+	UserHeader     string // e.g. "X-Forwarded-User"
+	GroupsHeader   string // e.g. "X-Forwarded-Groups"
+	SigHeader      string // e.g. "X-Forwarded-Signature"
+	SharedSecret   string
+	RoleMappings   map[string]rbac.Role
 }
 
 // TrustedProxyAuthenticator validates proxy authentication headers.
@@ -262,4 +262,3 @@ func (p *TrustedProxyAuthenticator) Authenticate(r *http.Request) (*rbac.Subject
 		Groups: groups,
 	}, nil
 }
-

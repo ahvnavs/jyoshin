@@ -75,4 +75,3 @@ func TestFacts_JSONSchemaCompatibility(t *testing.T) {
 
 	t.Logf("[✓] Facts JSON schema verified: compatible with Ansible /etc/ansible/facts.d, Terraform external, and Facter")
 }
-

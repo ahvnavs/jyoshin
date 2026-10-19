@@ -52,12 +52,12 @@ func DefaultConfig() Config {
 
 // EvaluationResult captures the policy decision and rationale.
 type EvaluationResult struct {
-	Decision       Decision `json:"decision"`
-	IsBlocked      bool     `json:"is_blocked"`
-	RequiresApproval bool   `json:"requires_approval"`
-	Summary        string   `json:"summary"`
-	Violations     []string `json:"violations,omitempty"`
-	Warnings       []string `json:"warnings,omitempty"`
+	Decision         Decision `json:"decision"`
+	IsBlocked        bool     `json:"is_blocked"`
+	RequiresApproval bool     `json:"requires_approval"`
+	Summary          string   `json:"summary"`
+	Violations       []string `json:"violations,omitempty"`
+	Warnings         []string `json:"warnings,omitempty"`
 }
 
 // Engine evaluates plans against safety policies.
@@ -132,7 +132,7 @@ func (e *Engine) EvaluatePlan(ctx context.Context, p *plan.Plan) EvaluationResul
 		return EvaluationResult{
 			Decision:         DecisionRequireApproval,
 			RequiresApproval: true,
-			Summary:          fmt.Sprintf("Plan is SAFE TO PLAN but REQUIRES OPERATOR APPROVAL (high risk or reboot requirement)"),
+			Summary:          "Plan is SAFE TO PLAN but REQUIRES OPERATOR APPROVAL (high risk or reboot requirement)",
 			Warnings:         warnings,
 		}
 	}
