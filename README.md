@@ -56,37 +56,48 @@ One static Go binary. One command installs it. It runs as an unprivileged system
 
 ---
 
-### Installation
+### Quick Start (No Install, Zero Setup)
 
-Install via the POSIX install script:
+Download the release binary and checksum, verify, and run `./kazeshini`:
 
 ```bash
-# Download the release archive and verify sha256 checksums:
+# 1. Download the release binary and SHA-256 checksum
 curl -fsSLO https://github.com/OWNER/kazeshini/releases/download/v0.1.0-beta.1/kazeshini_v0.1.0-beta.1_linux_amd64.tar.gz
+curl -fsSLO https://github.com/OWNER/kazeshini/releases/download/v0.1.0-beta.1/kazeshini_v0.1.0-beta.1_linux_amd64.tar.gz.sha256
+
+# 2. Verify checksum integrity
 sha256sum -c kazeshini_v0.1.0-beta.1_linux_amd64.tar.gz.sha256
 tar -xzf kazeshini_v0.1.0-beta.1_linux_amd64.tar.gz
 
-# Run install script:
-sudo ./scripts/install.sh --local-binary ./kazeshini
+# 3. Run directly (read-only, stateless, zero disk writes, binds free port on loopback)
+./kazeshini
 ```
 
+Or run once for scripts and terminal handoff without starting the dashboard daemon:
+
+```bash
+./kazeshini --once
+./kazeshini --once --json
+```
+
+### Persistent Service (Opt-in)
+
+To install as an unprivileged, sandboxed systemd service:
+
+```bash
+sudo ./kazeshini install
+# To remove completely:
+sudo ./kazeshini uninstall
+```
+Both commands show a deterministic preview plan and prompt for approval before applying changes.
+
 ### Accessing the Dashboard via SSH Tunnel
-Kazeshini strictly binds to `127.0.0.1:7777` and refuses remote exposure by default. Forward port 7777 over SSH:
+When started, `kazeshini` prints the exact `ssh -L` line for secure laptop-to-server tunneling:
 
 ```bash
 ssh -L 7777:127.0.0.1:7777 user@your-server
 ```
-Then visit `http://127.0.0.1:7777` in your local browser, or use `kazeshini open` for automated port allocation and tunneling instructions.
-
-### Inspect the Server Truth Immediately
-Generate a full terminal state handoff report or export clean JSON / self-contained HTML:
-
-```bash
-kazeshini report --format md
-kazeshini report --format html > server-report.html
-kazeshini report --format json > server-report.json
-kazeshini doctor
-```
+Then open `http://127.0.0.1:7777` with the printed one-time access token.
 
 ---
 
@@ -115,6 +126,15 @@ We document our operational boundaries and known gaps honestly:
 - [Installation Guide](docs/INSTALL.md)
 - [Upgrade Guide](docs/UPGRADE.md)
 - [Uninstallation Guide](docs/UNINSTALL.md)
+
+---
+
+## Known Limitations
+
+- **ZFS and btrfs Subvolumes**: Filesystem usage is measured across all mount points using standard POSIX `statfs`. Complex storage pool features (such as subvolume quotas, snapshot usage, and internal pool redundancy status) require vendor-specific command-line utilities and are not tracked by the core binary.
+- **Out-of-Date Packages on Air-Gapped / Offline Systems**: Package upgrade candidates are discovered by inspecting native local package manager dry-run and cache metadata (e.g. `apt-get -s`, `dnf check-update`). On machines without Internet access or with outdated local index caches, Kazeshini accurately reports the local cache state and alerts you if the index is older than 24 hours.
+- **Corporate Proxies**: The user-initiated active connectivity probe performs direct TCP socket connections to test egress. It does not route through HTTP or SOCKS forward proxies.
+- **Strict SELinux Enforcing**: In accordance with Principle 10 (*"Graceful degradation"*), Kazeshini handles `EACCES` gracefully and marks unreadable sensors as `unknown`. When running unprivileged on systems with strict SELinux MLS policies, reading restricted `/proc` entries may produce audit AVC denial records in `/var/log/audit/audit.log`.
 
 ---
 
