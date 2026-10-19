@@ -93,6 +93,14 @@ func run(args []string) error {
 		return runDefaultExperience(false, false)
 	}
 
+	// Platform validation guard
+	if runtime.GOOS != "linux" {
+		return fmt.Errorf("Kazeshini requires Linux. Current operating system is %s", runtime.GOOS)
+	}
+	if _, err := os.Stat("/proc"); os.IsNotExist(err) {
+		return fmt.Errorf("This host has no /proc. Kazeshini needs Linux 3.10 or newer.")
+	}
+
 	subcmd := args[0]
 	subargs := args[1:]
 
@@ -122,9 +130,26 @@ func run(args []string) error {
 	case "uninstall":
 		return runUninstall(subargs)
 
-	case "version":
+	case "version", "--version":
+		verbose := false
+		for _, a := range subargs {
+			if a == "--verbose" || a == "-v" {
+				verbose = true
+			}
+		}
 		v := getVersionInfo()
 		fmt.Printf("kazeshini %s (commit: %s, built: %s, %s)\n", v.Version, v.Commit, v.BuildDate, v.GoVersion)
+		if verbose {
+			fmt.Println("\nPlatform Compatibility & Invariants:")
+			fmt.Println("  Supported Kernels: Linux 3.10 or newer (tested on Linux 4.x, 5.x, 6.x)")
+			fmt.Println("  Supported Architectures: amd64, arm64")
+			fmt.Println("  Supported Distributions: Ubuntu (20.04+), Debian (11+), RHEL/CentOS/Rocky/Alma (8+), Fedora (38+), Arch Linux, Alpine (3.16+), openSUSE (15+)")
+			fmt.Println("\nKnown Limitations:")
+			fmt.Println("  - ZFS/btrfs: volume storage metrics measured via POSIX statfs; subvolume quotas and zpool topology are not inspected.")
+			fmt.Println("  - Out-of-date packages: discovered via local package manager simulation caches (apt-get -s, dnf check-update); requires fresh index.")
+			fmt.Println("  - Outbound Proxies: active connectivity probe checks connect via direct TCP; HTTP/SOCKS proxies are not used by probe dials.")
+			fmt.Println("  - SELinux Enforcing: unprivileged scans gracefully degrade upon EACCES; strict MLS policy may log audit AVC denial notices.")
+		}
 		return nil
 
 	case "doctor", "visibility":
