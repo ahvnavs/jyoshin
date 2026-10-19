@@ -13,6 +13,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -67,6 +68,7 @@ import (
 	"github.com/OWNER/kazeshini/internal/store"
 	"github.com/OWNER/kazeshini/internal/supervisor"
 	"github.com/OWNER/kazeshini/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/viz"
 )
 
 var (
@@ -218,6 +220,12 @@ func run(args []string) error {
 	case "update":
 		return runUpdateCheck(subargs)
 
+	case "view":
+		return runView(subargs)
+
+	case "export":
+		return runExport(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -263,6 +271,15 @@ Inspect:
   explain        Explain a system term or finding at 3 technical levels
                  Example: kazeshini explain port
                  Example: kazeshini explain --level technical port
+
+Visual Views:
+  view           Render visual models in terminal (growth, storage, tree, network, timeline)
+                 Example: kazeshini view growth
+                 Example: kazeshini view storage
+                 Example: kazeshini view network
+  export         Export visual models or data (json, csv, md, html, svg)
+                 Example: kazeshini export --format svg > growth.svg
+                 Example: kazeshini export --format html > dashboard.html
 
 Report:
   report         Generate standalone State of this Server report (html, json, md)
@@ -2716,4 +2733,234 @@ func runUpdateCheck(args []string) error {
 	}
 	fmt.Println("======================================================================")
 	return nil
+}
+
+func runView(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: kazeshini view <growth|storage|tree|network|timeline> [--no-color]")
+	}
+
+	modelType := strings.ToLower(args[0])
+	noColor := os.Getenv("NO_COLOR") != ""
+
+	rfs := fs.Default()
+	pGraph := graphbuilder.NewProvenanceGraph()
+
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	pGraph.SetOriginResolver(originResolver)
+
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
+
+	sup := supervisor.New(registry, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, s := range registry.All() {
+		if obs, err := sup.RunSensorSafe(ctx, s, 3*time.Second); err == nil {
+			pGraph.IngestObservation(obs)
+		}
+	}
+
+	nodes, edges := pGraph.Snapshot()
+	machID := "server"
+	if hObs, ok := sup.GetObservation("host"); ok && len(hObs.Items) > 0 {
+		if hi, ok := hObs.Items[0].Data.(host.HostInfo); ok && hi.Hostname != "" {
+			machID = hi.Hostname
+		}
+	}
+
+	switch modelType {
+	case "growth":
+		gm := viz.BuildGrowthMap(machID, nodes, edges, 1000, 700)
+		fmt.Print(gm.RenderTerminal(80, noColor))
+		return nil
+
+	case "storage":
+		var mounts []viz.StorageNode
+		if sObs, ok := sup.GetObservation("storage"); ok {
+			for _, it := range sObs.Items {
+				if m, ok := it.Data.(storage.MountInfo); ok {
+					mounts = append(mounts, viz.StorageNode{
+						Name:       m.MountPoint,
+						MountPoint: m.MountPoint,
+						Device:     m.Device,
+						FSType:     m.FSType,
+						TotalBytes: m.TotalBytes,
+						UsedBytes:  m.UsedBytes,
+						FreeBytes:  m.FreeBytes,
+						UsageRatio: m.UsageRatio,
+					})
+				}
+			}
+		}
+		fmt.Print(viz.RenderStorageTerminal(mounts, 80))
+		return nil
+
+	case "network":
+		var rows []viz.NetworkSocketRow
+		if nObs, ok := sup.GetObservation("network"); ok {
+			for _, it := range nObs.Items {
+				if sock, ok := it.Data.(network.SocketInfo); ok {
+					rows = append(rows, viz.NetworkSocketRow{
+						ProcessName: sock.ProcessName,
+						PID:         sock.PID,
+						LocalPort:   sock.LocalPort,
+						Protocol:    sock.Protocol,
+						RemoteIP:    sock.RemoteIP,
+						RemotePort:  sock.RemotePort,
+						State:       sock.State,
+					})
+				}
+			}
+		}
+		fmt.Print(viz.RenderNetworkMatrixTerminal(rows, 80))
+		return nil
+
+	case "tree", "provenance":
+		fmt.Println("======================================================================")
+		fmt.Println("風死 · KAZESHINI — PROVENANCE TREE")
+		fmt.Println("----------------------------------------------------------------------")
+		fmt.Printf("VISIBILITY: %d nodes, %d edges\n", len(nodes), len(edges))
+		fmt.Println("HOST ROOT")
+		for _, n := range nodes {
+			if n.Type == graph.NodeService || n.Type == graph.NodeProcess {
+				fmt.Printf("  ├── [%s] %s (%s)\n", n.Type, n.Label, n.Certainty)
+			}
+		}
+		fmt.Println("======================================================================")
+		return nil
+
+	case "timeline", "changes":
+		fmt.Println("======================================================================")
+		fmt.Println("風死 · KAZESHINI — CHANGES TIMELINE")
+		fmt.Println("----------------------------------------------------------------------")
+		fmt.Println("No baseline diff detected (requires multiple daemon snapshots over time).")
+		fmt.Println("To inspect live event stream, run: kazeshini audit tail")
+		fmt.Println("======================================================================")
+		return nil
+
+	default:
+		return fmt.Errorf("unknown view %q (choose from: growth, storage, tree, network, timeline)", modelType)
+	}
+}
+
+func runExport(args []string) error {
+	flags := flag.NewFlagSet("export", flag.ContinueOnError)
+	var formatFlag string
+	flags.StringVar(&formatFlag, "format", "json", "Export format: json, csv, md, html, svg")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	rfs := fs.Default()
+	pGraph := graphbuilder.NewProvenanceGraph()
+
+	invManager := inventory.NewManager(rfs)
+	originResolver := origin.NewResolver(rfs, invManager)
+	pGraph.SetOriginResolver(originResolver)
+
+	registry := sensors.NewRegistry()
+	_ = registry.Register(host.New(rfs))
+	_ = registry.Register(process.New(rfs))
+	_ = registry.Register(service.New(rfs))
+	_ = registry.Register(network.New(rfs))
+	_ = registry.Register(storage.New(rfs))
+	_ = registry.Register(resources.New(rfs))
+	_ = registry.Register(container.New(rfs))
+	_ = registry.Register(user.NewSensor(rfs.Root()))
+	_ = registry.Register(scheduler.NewSensor(rfs.Root()))
+	_ = registry.Register(kernel.NewSensor(rfs.Root()))
+
+	sup := supervisor.New(registry, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, s := range registry.All() {
+		if obs, err := sup.RunSensorSafe(ctx, s, 3*time.Second); err == nil {
+			pGraph.IngestObservation(obs)
+		}
+	}
+
+	nodes, edges := pGraph.Snapshot()
+	machID := "server"
+	if hObs, ok := sup.GetObservation("host"); ok && len(hObs.Items) > 0 {
+		if hi, ok := hObs.Items[0].Data.(host.HostInfo); ok && hi.Hostname != "" {
+			machID = hi.Hostname
+		}
+	}
+
+	switch strings.ToLower(formatFlag) {
+	case "svg":
+		gm := viz.BuildGrowthMap(machID, nodes, edges, 1000, 700)
+		fmt.Print(gm.RenderSVG())
+		return nil
+
+	case "html":
+		gm := viz.BuildGrowthMap(machID, nodes, edges, 1000, 700)
+		svgData := gm.RenderSVG()
+		fmt.Printf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Kazeshini Export - %s</title>
+  <style>
+    body { background: #0b0c10; color: #d8dee9; font-family: monospace; margin: 0; padding: 20px; }
+    h1 { color: #8fffc8; font-size: 18px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Kazeshini Export - %s</h1>
+    <div style="border: 1px solid #1e2230; margin-top: 16px;">
+      %s
+    </div>
+  </div>
+</body>
+</html>`+"\n", html.EscapeString(machID), html.EscapeString(machID), svgData)
+		return nil
+
+	case "csv":
+		fmt.Println("id,type,label,certainty")
+		for _, n := range nodes {
+			fmt.Printf("%q,%q,%q,%q\n", n.ID, n.Type, n.Label, n.Certainty)
+		}
+		return nil
+
+	case "md", "markdown":
+		fmt.Printf("# Kazeshini Export - %s\n\n", machID)
+		fmt.Printf("Total entities: %d | Provenance relations: %d\n\n", len(nodes), len(edges))
+		fmt.Println("| Type | Label | Certainty |")
+		fmt.Println("|---|---|---|")
+		for _, n := range nodes {
+			fmt.Printf("| %s | %s | %s |\n", n.Type, n.Label, n.Certainty)
+		}
+		return nil
+
+	case "json":
+		data, err := json.MarshalIndent(map[string]any{
+			"machine_id": machID,
+			"nodes":      nodes,
+			"edges":      edges,
+		}, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+
+	default:
+		return fmt.Errorf("unsupported export format %q (choose from: json, csv, md, html, svg)", formatFlag)
+	}
 }

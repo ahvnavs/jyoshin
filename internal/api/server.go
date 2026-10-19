@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -50,6 +51,7 @@ import (
 	"github.com/OWNER/kazeshini/internal/store"
 	"github.com/OWNER/kazeshini/internal/supervisor"
 	"github.com/OWNER/kazeshini/internal/verdict"
+	"github.com/OWNER/kazeshini/internal/viz"
 	"github.com/OWNER/kazeshini/internal/watchers"
 	"github.com/OWNER/kazeshini/web"
 )
@@ -242,6 +244,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/decommission", s.handleDecommission)
 	mux.HandleFunc("GET /api/v1/migration", s.handleMigration)
 	mux.HandleFunc("GET /api/v1/report", s.handleReport)
+	mux.HandleFunc("GET /api/v1/export", s.handleExport)
 
 	// Phase 18: Coverage Honesty & Plain Summary/Overview (with legacy briefing alias)
 	mux.HandleFunc("GET /api/v1/coverage", s.handleCoverage)
@@ -1462,6 +1465,94 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(gen.RenderHTML()))
+	default:
+		http.Error(w, fmt.Sprintf(`{"error":"unsupported format: %s"}`, format), http.StatusBadRequest)
+	}
+}
+
+func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	format := strings.ToLower(r.URL.Query().Get("format"))
+	if format == "" {
+		format = "json"
+	}
+
+	var nodes []graph.Node
+	var edges []graph.Edge
+	if s.pGraph != nil {
+		nodes, edges = s.pGraph.Snapshot()
+	}
+
+	machID := "server"
+	if s.supervisor != nil {
+		if hObs, ok := s.supervisor.GetObservation("host"); ok && len(hObs.Items) > 0 {
+			if hi, ok := hObs.Items[0].Data.(map[string]any); ok {
+				if h, ok := hi["hostname"].(string); ok && h != "" {
+					machID = h
+				}
+			}
+		}
+	}
+
+	switch format {
+	case "svg":
+		w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+		gm := viz.BuildGrowthMap(machID, nodes, edges, 1000, 700)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(gm.RenderSVG()))
+
+	case "html":
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		gm := viz.BuildGrowthMap(machID, nodes, edges, 1000, 700)
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Kazeshini Export - %s</title>
+  <style>
+    body { background: #0b0c10; color: #d8dee9; font-family: monospace; margin: 0; padding: 20px; }
+    h1 { color: #8fffc8; font-size: 18px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Kazeshini Export - %s</h1>
+    <div style="border: 1px solid #1e2230; margin-top: 16px;">
+      %s
+    </div>
+  </div>
+</body>
+</html>`+"\n", html.EscapeString(machID), html.EscapeString(machID), gm.RenderSVG())
+
+	case "csv":
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintln(w, "id,type,label,certainty")
+		for _, n := range nodes {
+			_, _ = fmt.Fprintf(w, "%q,%q,%q,%q\n", n.ID, n.Type, n.Label, n.Certainty)
+		}
+
+	case "md", "markdown":
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, "# Kazeshini Export - %s\n\n", machID)
+		_, _ = fmt.Fprintf(w, "Total entities: %d | Provenance relations: %d\n\n", len(nodes), len(edges))
+		_, _ = fmt.Fprintln(w, "| Type | Label | Certainty |")
+		_, _ = fmt.Fprintln(w, "|---|---|---|")
+		for _, n := range nodes {
+			_, _ = fmt.Fprintf(w, "| %s | %s | %s |\n", n.Type, n.Label, n.Certainty)
+		}
+
+	case "json":
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"machine_id": machID,
+			"nodes":      nodes,
+			"edges":      edges,
+		})
+
 	default:
 		http.Error(w, fmt.Sprintf(`{"error":"unsupported format: %s"}`, format), http.StatusBadRequest)
 	}

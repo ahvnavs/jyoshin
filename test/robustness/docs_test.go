@@ -5,6 +5,8 @@ package robustness_test
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,8 +68,10 @@ func TestDocs_EveryDocumentedCLICommandExecutes(t *testing.T) {
 
 				// Only run safe, non-interactive commands
 				if len(args) > 0 && (args[0] == "--version" || args[0] == "--help" || args[0] == "explain" || args[0] == "verify" || args[0] == "update") {
-					// If command expects checksums.txt, create it in cwd
-					_ = os.WriteFile("checksums.txt", []byte("3312c29b2a2d78b9c221b3f849fd231307bfdec6b8a4fcfd18307a6e81f3436d  kazeshini-doc-test\n"), 0644)
+					// If command expects checksums.txt, create it with the real hash of the compiled test binary
+					binBytes, _ := os.ReadFile(binPath)
+					binHash := sha256.Sum256(binBytes)
+					_ = os.WriteFile("checksums.txt", []byte(fmt.Sprintf("%x  kazeshini-doc-test\n", binHash)), 0644)
 					defer func() { _ = os.Remove("checksums.txt") }()
 
 					cmd := exec.Command(binPath, args...)

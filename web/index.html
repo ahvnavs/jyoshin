@@ -92,6 +92,16 @@
             <span id="last-updated" style="color: var(--dim);">--:--:--</span>
           </div>
           <button id="help-btn" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;">[?] HELP</button>
+          <div class="export-dropdown">
+            <button id="export-btn" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;">[⤓] EXPORT ▾</button>
+            <div id="export-menu" class="export-menu" style="display: none;">
+              <button data-export="json">[JSON] Graph & Facts</button>
+              <button data-export="csv">[CSV] Entities Table</button>
+              <button data-export="md">[MD] Markdown Report</button>
+              <button data-export="html">[HTML] Standalone Map</button>
+              <button data-export="svg">[SVG] Growth Vector</button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -266,13 +276,23 @@
               </div>
             </div>
 
-            <!-- TOPOLOGICAL DEPENDENCIES MAP -->
+            <!-- TOPOLOGICAL DEPENDENCIES & GROWTH MAP -->
             <div class="panel" aria-labelledby="deps-title" style="grid-column: 1 / -1;">
-              <div class="panel-header">
-                <h2 id="deps-title" class="panel-title">[🔗] DEPENDENCIES: INBOUND & OUTBOUND</h2>
-                <span class="badge badge-cyan">[≈] TOPOLOGY</span>
+              <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 id="deps-title" class="panel-title">[🔗] TOPOLOGY &amp; PROVENANCE GROWTH</h2>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <div class="view-switcher-bar" data-domain="overview">
+                    <button class="view-tab-btn active" data-view="tree">Tree</button>
+                    <button class="view-tab-btn" data-view="map">Growth Map</button>
+                  </div>
+                  <span id="overview-visibility-note" class="badge badge-cyan">[≈] TOPOLOGY</span>
+                </div>
               </div>
               <pre id="deps-ascii-map" style="background-color: #07080B; color: var(--cyan); padding: 12px; border: 1px solid var(--panel-border); overflow-x: auto; font-size: 12px; line-height: 1.4;">[Loading dependency map...]</pre>
+              <div id="visual-overview-map" class="growth-map-container" style="display: none;">
+                <div id="growth-map-svg-wrap" role="img" aria-label="Space Colonization Growth Map showing host entities and real provenance relations"></div>
+                <div id="growth-sr-table" class="sr-only"></div>
+              </div>
             </div>
           </div>
         </section>
@@ -341,7 +361,18 @@
             <span>ℹ</span>
             <span>This only reads; it changes nothing. Services checks: process health, systemd units, resource saturation.</span>
           </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-16);">
+            <div class="view-switcher-bar" data-domain="services">
+              <button class="view-tab-btn active" data-view="table">Table</button>
+              <button class="view-tab-btn" data-view="tree">Tree</button>
+            </div>
+            <div id="services-visibility-note" style="font-size: 11px; color: var(--dim);">Visibility: System services and background units</div>
+          </div>
           <div class="checks-grid" id="checks-list-services" style="margin-top: var(--space-16);"></div>
+          <div id="visual-services" class="matrix-container" style="display: none; margin-top: var(--space-16);">
+            <div style="font-size: 13px; font-weight: bold; color: var(--cyan); margin-bottom: 8px;">SERVICES PROVENANCE HIERARCHY</div>
+            <pre id="services-tree-content" style="color: var(--cyan); line-height: 1.5; font-size: 12px;">Loading services hierarchy...</pre>
+          </div>
         </section>
 
         <!-- 4. NETWORK VIEW -->
@@ -350,7 +381,18 @@
             <span>ℹ</span>
             <span>This only reads; it changes nothing. Network checks: default route, listening sockets, DNS resolver configuration.</span>
           </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-16);">
+            <div class="view-switcher-bar" data-domain="network">
+              <button class="view-tab-btn active" data-view="table">Table</button>
+              <button class="view-tab-btn" data-view="chart">Matrix</button>
+            </div>
+            <div id="network-visibility-note" style="font-size: 11px; color: var(--dim);">Visibility: All listening & connected sockets</div>
+          </div>
           <div class="checks-grid" id="checks-list-network" style="margin-top: var(--space-16);"></div>
+          <div id="visual-network" class="matrix-container" style="display: none; margin-top: var(--space-16);">
+            <div style="font-size: 13px; font-weight: bold; color: var(--cyan); margin-bottom: 8px;">PROCESS × REMOTE ENDPOINT MATRIX</div>
+            <div id="network-matrix-content">Loading sockets matrix...</div>
+          </div>
         </section>
 
         <!-- 5. STORAGE VIEW -->
@@ -359,7 +401,18 @@
             <span>ℹ</span>
             <span>This only reads; it changes nothing. Storage checks: filesystem capacity, inode usage, container storage.</span>
           </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-16);">
+            <div class="view-switcher-bar" data-domain="storage">
+              <button class="view-tab-btn active" data-view="table">Table</button>
+              <button class="view-tab-btn" data-view="chart">Treemap</button>
+            </div>
+            <div id="storage-visibility-note" style="font-size: 11px; color: var(--dim);">Visibility: Mounts and filesystem allocations</div>
+          </div>
           <div class="checks-grid" id="checks-list-storage" style="margin-top: var(--space-16);"></div>
+          <div id="visual-storage" class="treemap-container" style="display: none; margin-top: var(--space-16);">
+            <div style="font-size: 13px; font-weight: bold; color: var(--cyan); margin-bottom: 8px;">STORAGE ALLOCATION TREEMAP</div>
+            <div id="storage-treemap-content">Loading storage layout...</div>
+          </div>
         </section>
 
         <!-- 6. SECURITY VIEW -->

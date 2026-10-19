@@ -223,3 +223,47 @@ func TestAPI_ResourceAbuse_ConcurrentSSESubscribers(t *testing.T) {
 	}
 }
 
+func TestAPI_ExportFormats(t *testing.T) {
+	cfg := config.Default()
+	srv, err := NewServer(cfg, VersionInfo{Version: "v0.1.0"}, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	formats := []struct {
+		format      string
+		contentType string
+		mustContain string
+	}{
+		{"json", "application/json", "machine_id"},
+		{"csv", "text/csv", "id,type,label,certainty"},
+		{"md", "text/markdown", "Kazeshini Export"},
+		{"html", "text/html", "<!DOCTYPE html>"},
+		{"svg", "image/svg+xml", "<svg"},
+	}
+
+	for _, tc := range formats {
+		t.Run(tc.format, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/v1/export?format="+tc.format, nil)
+			req.Header.Set("Authorization", "Bearer "+srv.auth.Token())
+			w := httptest.NewRecorder()
+			srv.server.Handler.ServeHTTP(w, req)
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("format %s: expected status 200, got %d", tc.format, resp.StatusCode)
+			}
+			ct := resp.Header.Get("Content-Type")
+			if !strings.Contains(ct, tc.contentType) {
+				t.Errorf("format %s: expected content-type %s, got %s", tc.format, tc.contentType, ct)
+			}
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			if !strings.Contains(string(bodyBytes), tc.mustContain) {
+				t.Errorf("format %s: response missing expected content %q", tc.format, tc.mustContain)
+			}
+		})
+	}
+}
+
+
