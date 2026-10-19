@@ -1,0 +1,815 @@
+platforms:
+- id: kubernetes
+  name: Kubernetes / Kubelet
+  category: orchestration
+  support: adapter
+  signatures:
+    binaries:
+    - kubelet
+    - kubectl
+    units:
+    - kubelet.service
+    processes:
+    - kubelet
+    ports:
+    - 10250
+    - 10255
+    - 6443
+    configs:
+    - /etc/kubernetes/kubelet.conf
+    - /var/lib/kubelet/config.yaml
+    images:
+    - k8s.gcr.io/kube-apiserver
+    - registry.k8s.io/kube-apiserver
+- id: k3s
+  name: K3s Lightweight Kubernetes
+  category: orchestration
+  support: detection
+  signatures:
+    binaries:
+    - k3s
+    units:
+    - k3s.service
+    - k3s-agent.service
+    processes:
+    - k3s
+    ports:
+    - 6443
+    configs:
+    - /etc/rancher/k3s/k3s.yaml
+    - /etc/rancher/k3s/config.yaml
+    images:
+    - rancher/k3s
+- id: openshift
+  name: Red Hat OpenShift
+  category: orchestration
+  support: detection
+  signatures:
+    binaries:
+    - oc
+    - openshift
+    units:
+    - crio.service
+    - kubelet.service
+    processes:
+    - hyperkube
+    - crio
+    ports:
+    - 8443
+    - 6443
+    configs:
+    - /etc/origin/node/node-config.yaml
+    - /etc/crio/crio.conf
+    images:
+    - openshift/origin-node
+    - quay.io/openshift-release-dev/ocp-release
+- id: docker-swarm
+  name: Docker Swarm
+  category: orchestration
+  support: adapter
+  signatures:
+    binaries:
+    - dockerd
+    - docker
+    units:
+    - docker.service
+    processes:
+    - dockerd
+    ports:
+    - 2377
+    - 7946
+    - 4789
+    configs:
+    - /etc/docker/daemon.json
+    images: []
+- id: eks-node
+  name: AWS EKS Node Components
+  category: orchestration
+  support: detection
+  signatures:
+    binaries:
+    - aws-iam-authenticator
+    units:
+    - kubelet.service
+    processes:
+    - aws-iam-authenticator
+    - aws-k8s-agent
+    ports:
+    - 10250
+    configs:
+    - /etc/eks/bootstrap.sh
+    - /etc/kubernetes/kubelet/kubelet-config.json
+    images:
+    - amazon-k8s-cni
+    - aws-vpc-cni-k8s
+- id: aks-node
+  name: Azure AKS Node Components
+  category: orchestration
+  support: detection
+  signatures:
+    binaries:
+    - aks-engine
+    - azure-cni
+    units:
+    - kubelet.service
+    processes:
+    - azure-vnet
+    ports:
+    - 10250
+    configs:
+    - /opt/azure/containers/provision.sh
+    - /etc/kubernetes/azure.json
+    images:
+    - mcr.microsoft.com/containernetworking/azure-cni
+- id: gke-node
+  name: Google GKE Node Components
+  category: orchestration
+  support: detection
+  signatures:
+    binaries:
+    - gke-exec-auth-plugin
+    units:
+    - kubelet.service
+    - gke-netd.service
+    processes:
+    - gke-netd
+    ports:
+    - 10250
+    configs:
+    - /home/kubernetes/bin/kubelet
+    - /etc/gke/bootstrap.sh
+    images:
+    - gke.gcr.io/gke-netd
+    - gke.gcr.io/cluster-autoscaler
+- id: airflow
+  name: Apache Airflow
+  category: workflow
+  support: detection
+  signatures:
+    binaries:
+    - airflow
+    units:
+    - airflow-webserver.service
+    - airflow-scheduler.service
+    processes:
+    - airflow-webserver
+    - airflow-scheduler
+    - airflow-worker
+    ports:
+    - 8080
+    configs:
+    - /etc/airflow/airflow.cfg
+    - /root/airflow/airflow.cfg
+    images:
+    - apache/airflow
+- id: dagster
+  name: Dagster
+  category: workflow
+  support: detection
+  signatures:
+    binaries:
+    - dagster
+    - dagit
+    units:
+    - dagster-daemon.service
+    - dagit.service
+    processes:
+    - dagster-daemon
+    - dagit
+    ports:
+    - 3000
+    configs:
+    - /etc/dagster/dagster.yaml
+    - /opt/dagster/dagster.yaml
+    images:
+    - dagster/dagster-celery
+    - dagster/dagit
+- id: argo-workflows
+  name: Argo Workflows / Events / CD
+  category: workflow
+  support: detection
+  signatures:
+    binaries:
+    - argo
+    - argocd
+    units:
+    - argo-server.service
+    processes:
+    - workflow-controller
+    - argo-server
+    - argocd-server
+    ports:
+    - 2746
+    - 8080
+    configs:
+    - /etc/argo/workflow-controller-configmap.yaml
+    images:
+    - quay.io/argoproj/workflow-controller
+    - quay.io/argoproj/argocd
+- id: netflix-conductor
+  name: Netflix Conductor
+  category: workflow
+  support: detection
+  signatures:
+    binaries:
+    - conductor-server
+    units:
+    - conductor.service
+    processes:
+    - conductor-server
+    ports:
+    - 8080
+    - 5000
+    configs:
+    - /etc/conductor/config.properties
+    images:
+    - conductor:server
+    - netflixoss/conductor
+- id: jenkins
+  name: Jenkins
+  category: CI/CD
+  support: adapter
+  signatures:
+    binaries:
+    - jenkins
+    units:
+    - jenkins.service
+    processes:
+    - jenkins.war
+    - /usr/share/jenkins/jenkins.war
+    ports:
+    - 8080
+    - 50000
+    configs:
+    - /var/lib/jenkins/config.xml
+    - /etc/default/jenkins
+    images:
+    - jenkins/jenkins
+    - jenkins/inbound-agent
+- id: gitlab-runner
+  name: GitLab Runner
+  category: CI/CD
+  support: adapter
+  signatures:
+    binaries:
+    - gitlab-runner
+    units:
+    - gitlab-runner.service
+    processes:
+    - gitlab-runner
+    ports:
+    - 9252
+    configs:
+    - /etc/gitlab-runner/config.toml
+    images:
+    - gitlab/gitlab-runner
+- id: github-actions-runner
+  name: GitHub Actions Runner
+  category: CI/CD
+  support: adapter
+  signatures:
+    binaries:
+    - Runner.Listener
+    - run-helper.sh
+    units:
+    - actions.runner.*.service
+    processes:
+    - Runner.Listener
+    - Runner.Worker
+    ports: []
+    configs:
+    - .runner
+    - /etc/actions-runner/.runner
+    images:
+    - ghcr.io/actions/actions-runner
+- id: azure-devops-agent
+  name: Azure DevOps Agent
+  category: CI/CD
+  support: detection
+  signatures:
+    binaries:
+    - Agent.Listener
+    units:
+    - vsts.agent.*.service
+    processes:
+    - Agent.Listener
+    - Agent.Worker
+    ports: []
+    configs:
+    - .agent
+    - /etc/vsts-agent/.agent
+    images:
+    - mcr.microsoft.com/azure-pipelines/vsts-agent
+- id: circleci-runner
+  name: CircleCI Runner
+  category: CI/CD
+  support: detection
+  signatures:
+    binaries:
+    - circleci-runner
+    units:
+    - circleci-runner.service
+    processes:
+    - circleci-runner
+    ports: []
+    configs:
+    - /etc/circleci-runner/circleci-runner.yml
+    images:
+    - circleci/runner
+- id: terraform
+  name: HashiCorp Terraform
+  category: IaC
+  support: detection
+  signatures:
+    binaries:
+    - terraform
+    units: []
+    processes:
+    - terraform
+    ports: []
+    configs:
+    - .terraform.lock.hcl
+    - main.tf
+    images:
+    - hashicorp/terraform
+- id: opentofu
+  name: OpenTofu
+  category: IaC
+  support: detection
+  signatures:
+    binaries:
+    - tofu
+    units: []
+    processes:
+    - tofu
+    ports: []
+    configs:
+    - .terraform.lock.hcl
+    - main.tf
+    images:
+    - ghcr.io/opentofu/opentofu
+- id: pulumi
+  name: Pulumi
+  category: IaC
+  support: detection
+  signatures:
+    binaries:
+    - pulumi
+    units: []
+    processes:
+    - pulumi
+    ports: []
+    configs:
+    - Pulumi.yaml
+    images:
+    - pulumi/pulumi
+- id: ansible
+  name: Ansible / Ansible-Pull
+  category: config-mgmt
+  support: adapter
+  signatures:
+    binaries:
+    - ansible
+    - ansible-pull
+    - ansible-playbook
+    units:
+    - ansible-pull.service
+    - ansible-pull.timer
+    processes:
+    - ansible-pull
+    - ansible-playbook
+    ports: []
+    configs:
+    - /etc/ansible/ansible.cfg
+    - /var/lib/ansible/local
+    images: []
+- id: puppet
+  name: Puppet Agent
+  category: config-mgmt
+  support: adapter
+  signatures:
+    binaries:
+    - puppet
+    units:
+    - puppet.service
+    processes:
+    - puppet
+    ports:
+    - 8140
+    configs:
+    - /etc/puppetlabs/puppet/puppet.conf
+    - /opt/puppetlabs/puppet/cache/state/last_run_summary.yaml
+    images:
+    - puppet/puppet-agent
+- id: chef
+  name: Chef Client
+  category: config-mgmt
+  support: adapter
+  signatures:
+    binaries:
+    - chef-client
+    units:
+    - chef-client.service
+    processes:
+    - chef-client
+    ports: []
+    configs:
+    - /etc/chef/client.rb
+    - /var/chef/cache/reports/last-run.json
+    images:
+    - chef/chef
+- id: istio-envoy
+  name: Istio / Envoy Proxy
+  category: service-mesh
+  support: detection
+  signatures:
+    binaries:
+    - envoy
+    - pilot-agent
+    - istioctl
+    units:
+    - envoy.service
+    processes:
+    - envoy
+    - pilot-agent
+    ports:
+    - 15000
+    - 15001
+    - 15006
+    - 15021
+    - 15090
+    configs:
+    - /etc/envoy/envoy.yaml
+    - /etc/istio/proxy/envoy-rev0.json
+    images:
+    - docker.io/istio/proxyv2
+    - envoyproxy/envoy
+- id: kuma
+  name: Kuma Service Mesh
+  category: service-mesh
+  support: detection
+  signatures:
+    binaries:
+    - kuma-dp
+    - kuma-cp
+    units:
+    - kuma-dp.service
+    processes:
+    - kuma-dp
+    - kuma-cp
+    ports:
+    - 5681
+    - 5678
+    configs:
+    - /etc/kuma/kuma-cp.conf
+    images:
+    - kumahq/kuma-dp
+    - kumahq/kuma-cp
+- id: nginx
+  name: NGINX Web Server / Reverse Proxy
+  category: service-mesh
+  support: detection
+  signatures:
+    binaries:
+    - nginx
+    units:
+    - nginx.service
+    processes:
+    - nginx
+    ports:
+    - 80
+    - 443
+    configs:
+    - /etc/nginx/nginx.conf
+    images:
+    - nginx:latest
+    - nginx:alpine
+- id: kafka
+  name: Apache Kafka
+  category: messaging
+  support: detection
+  signatures:
+    binaries:
+    - kafka-server-start.sh
+    units:
+    - kafka.service
+    processes:
+    - kafka.Kafka
+    - -Dkafka.logs.dir
+    ports:
+    - 9092
+    - 9093
+    - 9094
+    configs:
+    - /etc/kafka/server.properties
+    - /opt/kafka/config/server.properties
+    images:
+    - confluentinc/cp-kafka
+    - apache/kafka
+    - bitnami/kafka
+- id: pulsar
+  name: Apache Pulsar
+  category: messaging
+  support: detection
+  signatures:
+    binaries:
+    - pulsar
+    - pulsar-daemon
+    units:
+    - pulsar.service
+    processes:
+    - org.apache.pulsar.PulsarBrokerStarter
+    ports:
+    - 6650
+    - 8080
+    configs:
+    - /etc/pulsar/broker.conf
+    - /opt/pulsar/conf/broker.conf
+    images:
+    - apachepulsar/pulsar
+- id: flink
+  name: Apache Flink
+  category: stream-processing
+  support: detection
+  signatures:
+    binaries:
+    - flink
+    - jobmanager.sh
+    - taskmanager.sh
+    units:
+    - flink-jobmanager.service
+    - flink-taskmanager.service
+    processes:
+    - org.apache.flink.runtime.entrypoint.StandaloneSessionClusterEntrypoint
+    - org.apache.flink.runtime.taskexecutor.TaskManagerRunner
+    ports:
+    - 8081
+    - 6123
+    configs:
+    - /etc/flink/flink-conf.yaml
+    - /opt/flink/conf/flink-conf.yaml
+    images:
+    - flink:latest
+    - apache/flink
+- id: storm
+  name: Apache Storm
+  category: stream-processing
+  support: detection
+  signatures:
+    binaries:
+    - storm
+    units:
+    - storm-nimbus.service
+    - storm-supervisor.service
+    processes:
+    - org.apache.storm.daemon.nimbus
+    - org.apache.storm.daemon.supervisor.Supervisor
+    ports:
+    - 6627
+    - 8080
+    configs:
+    - /etc/storm/storm.yaml
+    - /opt/storm/conf/storm.yaml
+    images:
+    - storm:latest
+- id: spark
+  name: Apache Spark
+  category: stream-processing
+  support: detection
+  signatures:
+    binaries:
+    - spark-submit
+    - spark-shell
+    units:
+    - spark-master.service
+    - spark-worker.service
+    processes:
+    - org.apache.spark.deploy.master.Master
+    - org.apache.spark.deploy.worker.Worker
+    ports:
+    - 7077
+    - 8080
+    - 4040
+    configs:
+    - /etc/spark/spark-defaults.conf
+    - /opt/spark/conf/spark-defaults.conf
+    images:
+    - apache/spark
+    - bitnami/spark
+- id: yarn
+  name: Hadoop YARN
+  category: stream-processing
+  support: detection
+  signatures:
+    binaries:
+    - yarn
+    units:
+    - hadoop-yarn-resourcemanager.service
+    - hadoop-yarn-nodemanager.service
+    processes:
+    - org.apache.hadoop.yarn.server.resourcemanager.ResourceManager
+    - org.apache.hadoop.yarn.server.nodemanager.NodeManager
+    ports:
+    - 8088
+    - 8042
+    configs:
+    - /etc/hadoop/yarn-site.xml
+    images: []
+- id: helix
+  name: Apache Helix
+  category: stream-processing
+  support: detection
+  signatures:
+    binaries:
+    - helix-admin.sh
+    units:
+    - helix-controller.service
+    processes:
+    - org.apache.helix.controller.HelixControllerMain
+    ports: []
+    configs:
+    - /etc/helix/helix.properties
+    images: []
+- id: prometheus
+  name: Prometheus
+  category: observability
+  support: detection
+  signatures:
+    binaries:
+    - prometheus
+    units:
+    - prometheus.service
+    processes:
+    - prometheus
+    ports:
+    - 9090
+    configs:
+    - /etc/prometheus/prometheus.yml
+    images:
+    - prom/prometheus
+- id: otel-collector
+  name: OpenTelemetry Collector
+  category: observability
+  support: detection
+  signatures:
+    binaries:
+    - otelcol
+    - otelcol-contrib
+    units:
+    - otelcol.service
+    - otelcol-contrib.service
+    processes:
+    - otelcol
+    - otelcol-contrib
+    ports:
+    - 4317
+    - 4318
+    - 8888
+    configs:
+    - /etc/otelcol/config.yaml
+    - /etc/otelcol-contrib/config.yaml
+    images:
+    - otel/opentelemetry-collector
+    - otel/opentelemetry-collector-contrib
+- id: grafana-agent
+  name: Grafana Agent / Alloy
+  category: observability
+  support: detection
+  signatures:
+    binaries:
+    - grafana-agent
+    - alloy
+    units:
+    - grafana-agent.service
+    - alloy.service
+    processes:
+    - grafana-agent
+    - alloy
+    ports:
+    - 12345
+    configs:
+    - /etc/grafana-agent.yaml
+    - /etc/alloy/config.alloy
+    images:
+    - grafana/agent
+    - grafana/alloy
+- id: kubeflow
+  name: Kubeflow Pipelines
+  category: ML
+  support: detection
+  signatures:
+    binaries:
+    - kfp
+    units: []
+    processes:
+    - ml-pipeline
+    ports:
+    - 8888
+    configs:
+    - /etc/kubeflow/config.yaml
+    images:
+    - gcr.io/ml-pipeline/api-server
+    - gcr.io/kubeflow-images-public/admission-webhook
+- id: mlflow
+  name: MLflow Tracking Server
+  category: ML
+  support: detection
+  signatures:
+    binaries:
+    - mlflow
+    units:
+    - mlflow.service
+    processes:
+    - mlflow.server
+    ports:
+    - 5000
+    configs:
+    - /etc/mlflow/mlflow.conf
+    images:
+    - ghcr.io/mlflow/mlflow
+- id: mongodb-ops-manager
+  name: MongoDB Ops Manager Agent
+  category: database-ops
+  support: detection
+  signatures:
+    binaries:
+    - mongodb-mms-automation-agent
+    units:
+    - mongodb-mms-automation-agent.service
+    processes:
+    - mongodb-mms-automation-agent
+    ports: []
+    configs:
+    - /etc/mongodb-mms/automation-agent.config
+    images: []
+- id: mysql-orchestrator
+  name: MySQL Orchestrator
+  category: database-ops
+  support: detection
+  signatures:
+    binaries:
+    - orchestrator
+    units:
+    - orchestrator.service
+    processes:
+    - orchestrator
+    ports:
+    - 3000
+    configs:
+    - /etc/orchestrator.conf.json
+    images:
+    - openark/orchestrator
+- id: vrealize-aria
+  name: VMware vRealize / Aria Operations Agent
+  category: observability
+  support: detection
+  signatures:
+    binaries:
+    - ep-agent.sh
+    - arc-app-mgr
+    units:
+    - ep-agent.service
+    - vmware-arc-agent.service
+    processes:
+    - ep-agent
+    - vmware-arc-agent
+    ports: []
+    configs:
+    - /opt/vmware/arc-agent/conf/agent.conf
+    - /opt/vmware/epops-agent/conf/epops-agent.properties
+    images: []
+- id: splunk-soar
+  name: Splunk SOAR / Phantom
+  category: observability
+  support: detection
+  signatures:
+    binaries:
+    - phantom_ctl
+    units:
+    - phantom.service
+    processes:
+    - phantom_action_run
+    - phantom_workflow
+    ports:
+    - 443
+    - 8080
+    configs:
+    - /opt/phantom/etc/phantom.cfg
+    images: []
+- id: morpheus
+  name: Morpheus Data Agent
+  category: orchestration
+  support: detection
+  signatures:
+    binaries:
+    - morpheus-node-exporter
+    - morpheus-vm-node
+    units:
+    - morpheus-node-exporter.service
+    processes:
+    - morpheus-node-exporter
+    ports:
+    - 9100
+    configs:
+    - /etc/morpheus/morpheus.rb
+    images: []

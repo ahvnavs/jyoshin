@@ -1,0 +1,20 @@
+image:
+  repository: kazeshini
+  tag: v0.1.0
+  pullPolicy: IfNotPresent
+
+# hostPID enables full host process tree inspection from container.
+# If set to false, Kazeshini operates with minimal privilege and reports reduced coverage.
+hostPID: true
+hostNetwork: false
+
+rootPath: /host
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 32Mi
+

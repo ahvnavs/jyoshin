@@ -108,7 +108,7 @@
   // Left Rail View Switching & Hash Routing
   const views = [
     'overview', 'briefing', 'devops', 'cloud', 'cloud-platform',
-    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'software', 'platforms', 'activity', 'styleguide'
+    'infrastructure', 'devsecops', 'platform', 'network', 'desired', 'software', 'platforms', 'activity'
   ];
 
   function switchView(target) {
@@ -208,7 +208,6 @@
     { name: 'Network Checks', desc: 'Jump to Sockets, DNS & probe checks', action: () => { window.location.hash = '#network'; } },
     { name: 'Desired vs Actual', desc: 'Jump to Desired vs Actual drift audit & plan', action: () => { window.location.hash = '#desired'; } },
     { name: 'Activity Log', desc: 'Jump to local audit execution log', action: () => { window.location.hash = '#activity'; } },
-    { name: 'Styleguide', desc: 'Jump to UI component gallery', action: () => { window.location.hash = '#styleguide'; } },
     { name: ':pet off', desc: 'Turn off TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(false); } },
     { name: ':pet on', desc: 'Turn on TSUMUJI wind-wisp idle pet', action: () => { if (window.Tsumuji) window.Tsumuji.set(true); } },
     { name: 'Token', desc: 'Configure API bearer token', action: () => { el.tokenBtn.click(); } },
@@ -1266,64 +1265,6 @@
           <strong>Package Manager Raw Simulation (Fact, not inference):</strong>
           <pre style="background: var(--surface-1); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 11px; max-height: 160px; overflow-y: auto; margin-top: 4px; color: var(--dim);">${p.raw_simulation || '(no output)'}</pre>
         </div>
-
-        <div id="actuator-action-box" style="margin-top: 8px; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;">
-          <div style="color: var(--dim); font-size: 12px;">Checking for host actuator daemon...</div>
-        </div>
-      `;
-
-      // Query Actuator daemon status
-      try {
-        const actRes = await fetch('/api/v1/actuator/status', { headers: getHeaders() });
-        const actData = await actRes.json();
-        const actionBox = document.getElementById('actuator-action-box');
-        if (!actionBox) return;
-
-        if (actData.available) {
-          actionBox.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: var(--mint); font-weight: bold;">[✓] Actuator Active (${actData.socket})</span>
-                <span class="badge badge-lavender">Requires Approver Signature</span>
-              </div>
-              <div style="font-size: 12px; color: var(--dim);">
-                Target host confirmation required. Type host name <code id="confirm-hostname-target">${window.location.hostname || 'localhost'}</code> to unlock:
-              </div>
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="text" id="confirm-hostname-input" placeholder="Type host name to confirm" style="background: var(--surface-1); border: 1px solid var(--border); color: var(--fg); padding: 4px 8px; font-family: monospace; border-radius: 4px; font-size: 12px; flex: 1;" />
-                <button id="submit-plan-apply-btn" disabled style="background: var(--surface-1); border: 1px solid var(--border); color: var(--dim); padding: 4px 12px; font-family: monospace; border-radius: 4px; cursor: not-allowed;">Submit to Actuator</button>
-              </div>
-            </div>
-          `;
-
-          const input = document.getElementById('confirm-hostname-input');
-          const btn = document.getElementById('submit-plan-apply-btn');
-          const target = (window.location.hostname || 'localhost').trim();
-
-          input?.addEventListener('input', () => {
-            if (input.value.trim() === target) {
-              btn.disabled = false;
-              btn.style.borderColor = 'var(--mint)';
-              btn.style.color = 'var(--mint)';
-              btn.style.cursor = 'pointer';
-            } else {
-              btn.disabled = true;
-              btn.style.borderColor = 'var(--border)';
-              btn.style.color = 'var(--dim)';
-              btn.style.cursor = 'not-allowed';
-            }
-          });
-        } else {
-          actionBox.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div style="color: var(--dim); font-size: 12px;">Actuator daemon not detected on unix socket. Mutations disabled (Principle 2').</div>
-              <button disabled title="Actuator not enabled" style="background: var(--surface-1); border: 1px solid var(--border); color: var(--dim); padding: 4px 12px; font-family: monospace; border-radius: 4px; cursor: not-allowed; opacity: 0.6;">Apply with approval (Actuator offline)</button>
-            </div>
-          `;
-        }
-      } catch (_) {
-        // Leave disabled box
-      }
       `;
     } catch (err) {
       content.innerHTML = `<div style="color: var(--rose);">Error: ${err.message}</div>`;

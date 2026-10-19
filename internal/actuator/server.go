@@ -1,3 +1,6 @@
+//go:build experimental
+// +build experimental
+
 // Copyright 2026 Kazeshini Authors
 // SPDX-License-Identifier: Apache-2.0
 

@@ -1,3 +1,5 @@
+> Kazeshini tells you, on any Linux server with no setup, what is installed, what is running, what is exposed, what is out of date, and what changed, and how sure it is. Read-only, one binary.
+
 # Kazeshini (風死)
 
 [![CI](https://github.com/OWNER/kazeshini/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/kazeshini/actions/workflows/ci.yml)
@@ -105,9 +107,8 @@ We document our operational boundaries and known gaps honestly:
 - [Distribution Compatibility Matrix](docs/COMPATIBILITY.md)
 - [Performance Benchmarks & Overhead](docs/BENCHMARKS.md)
 - [OpenSSF Standards & Security Design](docs/STANDARDS.md)
-- [Threat Model](docs/THREAT_MODEL.md)
-- [Security & Degradation Design](docs/SECURITY_DESIGN.md)
-- [Architecture](docs/ARCHITECTURE.md)
+- [Threat Model & Security Design](docs/THREAT_MODEL.md)
+- [Architecture & ADRs](docs/ARCHITECTURE.md)
 - [Declarative Rules Guide](docs/RULES.md)
 - [Contributing Rules](docs/CONTRIBUTING-RULES.md)
 - [OpenAPI Specification](docs/API.md)
