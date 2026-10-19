@@ -209,4 +209,3 @@ func FuzzResolvConf(f *testing.F) {
 		_, _ = chk.Run(context.Background(), rfs, nil)
 	})
 }
-

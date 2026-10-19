@@ -94,4 +94,3 @@ func countSyllables(word string) int {
 	}
 	return count
 }
-

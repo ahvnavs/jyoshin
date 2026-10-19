@@ -22,22 +22,22 @@ var (
 func init() {
 	// Base English dictionary
 	messages["en"] = map[string]string{
-		"start_here_lead":       "Kazeshini is a read-only server inspector.",
-		"start_here_safety":     "It only inspects system status and makes zero modifications to this host.",
-		"start_here_next":       "Review the findings below or click 'What should I do now?' for guidance.",
-		"what_to_do_title":      "What should I do now?",
-		"top_recommendation":    "Primary Recommended Action",
-		"copy_command":          "Copy",
-		"ask_technical":         "Ask someone technical",
-		"technical_summary":     "One-Page Technical Summary",
-		"close":                 "Close",
-		"print":                 "Print / Save PDF",
-		"risk_score":            "Risk Score",
-		"healthy":               "Healthy",
-		"degraded":              "Degraded",
-		"critical":              "Critical",
-		"visibility":            "Visibility",
-		"unmanaged_software":    "Unmanaged software",
+		"start_here_lead":    "Kazeshini is a read-only server inspector.",
+		"start_here_safety":  "It only inspects system status and makes zero modifications to this host.",
+		"start_here_next":    "Review the findings below or click 'What should I do now?' for guidance.",
+		"what_to_do_title":   "What should I do now?",
+		"top_recommendation": "Primary Recommended Action",
+		"copy_command":       "Copy",
+		"ask_technical":      "Ask someone technical",
+		"technical_summary":  "One-Page Technical Summary",
+		"close":              "Close",
+		"print":              "Print / Save PDF",
+		"risk_score":         "Risk Score",
+		"healthy":            "Healthy",
+		"degraded":           "Degraded",
+		"critical":           "Critical",
+		"visibility":         "Visibility",
+		"unmanaged_software": "Unmanaged software",
 	}
 
 	// Pseudo-locale: QPS-PLOC (accented glyphs + ~40% expansion to stress-test UI/CLI wrappers)
@@ -147,4 +147,3 @@ func LoadLocaleJSON(locale string, data []byte) error {
 	messages[strings.ToLower(strings.TrimSpace(locale))] = dict
 	return nil
 }
-

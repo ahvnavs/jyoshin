@@ -212,4 +212,3 @@ func TestGrowthMap_LargeEntityFixturePerformance(t *testing.T) {
 	}
 	t.Logf("50k-entity growth map completed in %v (budget < 2.0s)", elapsed)
 }
-

@@ -101,4 +101,3 @@ func RenderNetworkMatrixTerminal(rows []NetworkSocketRow, cols int) string {
 	sb.WriteString("======================================================================\n")
 	return sb.String()
 }
-

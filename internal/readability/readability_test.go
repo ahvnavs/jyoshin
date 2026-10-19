@@ -29,4 +29,3 @@ func TestReadability_FleschKincaidUserFacingSummaries(t *testing.T) {
 		}
 	}
 }
-

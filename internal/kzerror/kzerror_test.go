@@ -55,4 +55,3 @@ func TestKZError_FormatAndContract(t *testing.T) {
 		t.Errorf("expected wrapped error to unwrap to underlying error")
 	}
 }
-

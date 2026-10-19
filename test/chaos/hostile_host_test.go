@@ -39,7 +39,7 @@ func newFaultyFS(root string, errorPct int) *faultyFS {
 	}
 }
 
-func (f *faultyFS) Root() string { return f.base.Root() }
+func (f *faultyFS) Root() string               { return f.base.Root() }
 func (f *faultyFS) Path(elem ...string) string { return f.base.Path(elem...) }
 
 func (f *faultyFS) shouldFail() error {

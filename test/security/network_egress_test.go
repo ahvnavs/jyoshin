@@ -93,4 +93,3 @@ func TestSecurity_ZeroUnsolicitedNetworkEgress(t *testing.T) {
 		t.Fatalf("failed scanning source tree: %v", err)
 	}
 }
-

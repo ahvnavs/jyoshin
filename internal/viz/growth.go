@@ -492,4 +492,3 @@ func (r *deterministicRNG) Float64() float64 {
 	r.state = r.state*6364136223846793005 + 1442695040888963407
 	return float64(r.state>>11) / (1 << 53)
 }
-
