@@ -314,13 +314,22 @@ func TestChecks_DevSecOps(t *testing.T) {
 		t.Errorf("users-sudo permission denied test failed: status=%s", resUSDenied.Status)
 	}
 
-	// SSH Settings
+	// SSH Settings base test
 	_ = os.MkdirAll(filepath.Join(tmp, "etc", "ssh"), 0755)
 	_ = os.WriteFile(filepath.Join(tmp, "etc", "ssh", "sshd_config"), []byte("PermitRootLogin yes\nPasswordAuthentication yes\n"), 0644)
 	sshCheck := &checks.SSHSettingsCheck{}
 	resSSH, _ := sshCheck.Run(ctx, rfs, nil)
 	if resSSH.Status != contract.StatusCrit || !strings.Contains(resSSH.SummaryPlain, "PermitRootLogin") {
 		t.Errorf("ssh-settings crit test failed: status=%s, summary=%s", resSSH.Status, resSSH.SummaryPlain)
+	}
+
+	// SSH Settings regression: base is safe (no), but sshd_config.d/override.conf sets PermitRootLogin yes
+	_ = os.WriteFile(filepath.Join(tmp, "etc", "ssh", "sshd_config"), []byte("PermitRootLogin no\nPasswordAuthentication yes\n"), 0644)
+	_ = os.MkdirAll(filepath.Join(tmp, "etc", "ssh", "sshd_config.d"), 0755)
+	_ = os.WriteFile(filepath.Join(tmp, "etc", "ssh", "sshd_config.d", "99-custom.conf"), []byte("PermitRootLogin yes\n"), 0644)
+	resSSHDropin, _ := sshCheck.Run(ctx, rfs, nil)
+	if resSSHDropin.Status != contract.StatusCrit || !strings.Contains(resSSHDropin.SummaryPlain, "PermitRootLogin is set to 'yes'") {
+		t.Errorf("ssh-settings drop-in override test failed: status=%s, summary=%s", resSSHDropin.Status, resSSHDropin.SummaryPlain)
 	}
 
 	// AuthLogs
@@ -411,6 +420,25 @@ func TestChecks_NetworkAndProbe(t *testing.T) {
 	_, errInject := cp.Run(ctx, rfs, map[string]string{"target": "127.0.0.1:80; rm -rf /"})
 	if errInject != checks.ErrInvalidParam {
 		t.Errorf("expected injection rejection, got %v", errInject)
+	}
+
+	// SSRF Attack Tests: must reject 169.254.169.254, loopback, and link-local targets
+	ssrfTargets := []string{
+		"169.254.169.254:80",
+		"127.0.0.1:80",
+		"localhost:8080",
+		"[::1]:80",
+		"169.254.1.1:80",
+		"[fe80::1]:80",
+	}
+	for _, target := range ssrfTargets {
+		resSSRF, errSSRF := cp.Run(ctx, rfs, map[string]string{"target": target})
+		if errSSRF == nil && resSSRF.Status != contract.StatusCrit && resSSRF.Status != contract.StatusWarn {
+			t.Errorf("SSRF VULNERABILITY: probe accepted dangerous address %q without blocking: status=%s", target, resSSRF.Status)
+		}
+		if !strings.Contains(resSSRF.SummaryPlain, "blocked") && !strings.Contains(resSSRF.SummaryPlain, "prohibited") && !strings.Contains(resSSRF.SummaryPlain, "SSRF") {
+			t.Errorf("SSRF check expected blocking message for target %q, got summary: %q", target, resSSRF.SummaryPlain)
+		}
 	}
 }
 
@@ -503,11 +531,11 @@ type allDeniedFS struct {
 	fs.FS
 }
 
-func (a *allDeniedFS) ReadFile(name string) ([]byte, error) { return nil, os.ErrPermission }
+func (a *allDeniedFS) ReadFile(name string) ([]byte, error)       { return nil, os.ErrPermission }
 func (a *allDeniedFS) ReadDir(name string) ([]os.DirEntry, error) { return nil, os.ErrPermission }
-func (a *allDeniedFS) Stat(name string) (os.FileInfo, error) { return nil, os.ErrPermission }
-func (a *allDeniedFS) Open(name string) (*os.File, error) { return nil, os.ErrPermission }
-func (a *allDeniedFS) Readlink(name string) (string, error) { return "", os.ErrPermission }
+func (a *allDeniedFS) Stat(name string) (os.FileInfo, error)      { return nil, os.ErrPermission }
+func (a *allDeniedFS) Open(name string) (*os.File, error)         { return nil, os.ErrPermission }
+func (a *allDeniedFS) Readlink(name string) (string, error)       { return "", os.ErrPermission }
 
 func TestChecks_HonestyHarness_EmptyAndDenied(t *testing.T) {
 	ctx := context.Background()
@@ -541,4 +569,3 @@ func TestChecks_HonestyHarness_EmptyAndDenied(t *testing.T) {
 		}
 	}
 }
-

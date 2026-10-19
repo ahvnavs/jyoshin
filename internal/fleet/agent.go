@@ -25,19 +25,19 @@ import (
 
 // AgentConfig configures the outbound-only agent.
 type AgentConfig struct {
-	HostID         string
-	ControllerURL  string
-	PushInterval   time.Duration
-	TLSConfig      *tls.Config
-	PrivateKey     ed25519.PrivateKey
+	HostID               string
+	ControllerURL        string
+	PushInterval         time.Duration
+	TLSConfig            *tls.Config
+	PrivateKey           ed25519.PrivateKey
 	LocalPolicyPreflight func(plan *actuator.RemediationPlan) error
 }
 
 // Agent runs on the managed host, pushing read-only snapshots and pulling plans.
 type Agent struct {
-	cfg        AgentConfig
-	client     *http.Client
-	actEngine  *actuator.Engine
+	cfg       AgentConfig
+	client    *http.Client
+	actEngine *actuator.Engine
 }
 
 func NewAgent(cfg AgentConfig, actEngine *actuator.Engine) *Agent {

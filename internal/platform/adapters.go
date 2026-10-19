@@ -24,14 +24,14 @@ import (
 // -----------------------------------------------------------------------------
 
 type DockerSwarmInfo struct {
-	Active        bool     `json:"active"`
-	NodeID        string   `json:"node_id,omitempty"`
-	NodeAddr      string   `json:"node_addr,omitempty"`
-	LocalNodeRole string   `json:"role,omitempty"` // manager, worker
-	ClusterID     string   `json:"cluster_id,omitempty"`
-	Managers      int      `json:"managers,omitempty"`
-	Nodes         int      `json:"nodes,omitempty"`
-	Error         string   `json:"error,omitempty"`
+	Active        bool   `json:"active"`
+	NodeID        string `json:"node_id,omitempty"`
+	NodeAddr      string `json:"node_addr,omitempty"`
+	LocalNodeRole string `json:"role,omitempty"` // manager, worker
+	ClusterID     string `json:"cluster_id,omitempty"`
+	Managers      int    `json:"managers,omitempty"`
+	Nodes         int    `json:"nodes,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 type DockerAdapter struct {
@@ -67,15 +67,15 @@ func (a *DockerAdapter) Inspect(ctx context.Context) DockerSwarmInfo {
 	if err != nil {
 		return DockerSwarmInfo{Active: false, Error: fmt.Sprintf("cannot query docker daemon: %v", err)}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var payload struct {
 		Swarm struct {
-			NodeID       string `json:"NodeID"`
-			NodeAddr     string `json:"NodeAddr"`
-			LocalNodeState string `json:"LocalNodeState"` // inactive, active
-			ControlAvailable bool `json:"ControlAvailable"`
-			Cluster struct {
+			NodeID           string `json:"NodeID"`
+			NodeAddr         string `json:"NodeAddr"`
+			LocalNodeState   string `json:"LocalNodeState"` // inactive, active
+			ControlAvailable bool   `json:"ControlAvailable"`
+			Cluster          struct {
 				ID string `json:"ID"`
 			} `json:"Cluster"`
 			Managers int `json:"Managers"`
@@ -109,20 +109,20 @@ func (a *DockerAdapter) Inspect(ctx context.Context) DockerSwarmInfo {
 // -----------------------------------------------------------------------------
 
 type K8sNodeView struct {
-	Present        bool         `json:"present"`
-	KubeletActive  bool         `json:"kubelet_active"`
-	StaticPods     []string     `json:"static_pods"`
+	Present         bool         `json:"present"`
+	KubeletActive   bool         `json:"kubelet_active"`
+	StaticPods      []string     `json:"static_pods"`
 	CertExpirations []CertExpiry `json:"cert_expirations"`
-	Error          string       `json:"error,omitempty"`
+	Error           string       `json:"error,omitempty"`
 }
 
 type CertExpiry struct {
-	Path       string    `json:"path"`
-	Subject    string    `json:"subject"`
-	Issuer     string    `json:"issuer"`
-	NotAfter   time.Time `json:"not_after"`
-	DaysLeft   int       `json:"days_left"`
-	IsExpired  bool      `json:"is_expired"`
+	Path      string    `json:"path"`
+	Subject   string    `json:"subject"`
+	Issuer    string    `json:"issuer"`
+	NotAfter  time.Time `json:"not_after"`
+	DaysLeft  int       `json:"days_left"`
+	IsExpired bool      `json:"is_expired"`
 }
 
 type K8sNodeAdapter struct {
@@ -221,10 +221,10 @@ func (a *CIRunnerAdapter) InspectGitHubRunner(ctx context.Context) RunnerActivit
 			}
 			_ = json.Unmarshal(bytes, &meta)
 			return RunnerActivity{
-				RunnerType:   "github-actions-runner",
-				ConfigPath:   p,
-				Status:       "configured",
-				LastMessage:  fmt.Sprintf("Agent name: %s", meta.AgentName),
+				RunnerType:  "github-actions-runner",
+				ConfigPath:  p,
+				Status:      "configured",
+				LastMessage: fmt.Sprintf("Agent name: %s", meta.AgentName),
 			}
 		} else if os.IsPermission(err) {
 			return RunnerActivity{

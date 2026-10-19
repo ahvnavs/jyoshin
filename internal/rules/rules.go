@@ -347,6 +347,15 @@ func NewEngine(budget time.Duration) *Engine {
 	return eng
 }
 
+// Rules returns all registered rule definitions.
+func (e *Engine) Rules() []RuleDefinition {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	res := make([]RuleDefinition, len(e.rules))
+	copy(res, e.rules)
+	return res
+}
+
 // LoadRule loads a single YAML rule definition.
 func (e *Engine) LoadRule(data []byte) (*RuleDefinition, error) {
 	var r RuleDefinition

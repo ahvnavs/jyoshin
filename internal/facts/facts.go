@@ -19,18 +19,18 @@ import (
 
 // FactsPayload is the standard structured dictionary exported by `kazeshini facts --json`.
 type FactsPayload struct {
-	HostID          string            `json:"host_id"`
-	Timestamp       time.Time         `json:"timestamp"`
-	VerdictStatus   string            `json:"verdict_status"`
-	ChaosIndex      int               `json:"chaos_index"`
-	CoveragePercent float64           `json:"coverage_percent"`
-	CoverageAdequate bool             `json:"coverage_adequate"`
-	OSRelease       map[string]string `json:"os_release,omitempty"`
-	ListeningPorts  []int             `json:"listening_ports"`
-	TotalProcesses  int               `json:"total_processes"`
-	TotalPackages   int               `json:"total_packages"`
-	OrphanFiles     int               `json:"orphan_files"`
-	Attributes      map[string]string `json:"attributes"`
+	HostID           string            `json:"host_id"`
+	Timestamp        time.Time         `json:"timestamp"`
+	VerdictStatus    string            `json:"verdict_status"`
+	ChaosIndex       int               `json:"chaos_index"`
+	CoveragePercent  float64           `json:"coverage_percent"`
+	CoverageAdequate bool              `json:"coverage_adequate"`
+	OSRelease        map[string]string `json:"os_release,omitempty"`
+	ListeningPorts   []int             `json:"listening_ports"`
+	TotalProcesses   int               `json:"total_processes"`
+	TotalPackages    int               `json:"total_packages"`
+	OrphanFiles      int               `json:"orphan_files"`
+	Attributes       map[string]string `json:"attributes"`
 }
 
 // Extractor generates FactsPayload from observation nodes and coverage.
@@ -54,7 +54,7 @@ func (e *Extractor) Extract(ctx context.Context, nodes []graph.Node, cov coverag
 		OSRelease:        make(map[string]string),
 		Attributes: map[string]string{
 			"kazeshini_version": "v0.1.0",
-			"read_only":          "true",
+			"read_only":         "true",
 		},
 	}
 

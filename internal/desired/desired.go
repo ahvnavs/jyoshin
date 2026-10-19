@@ -17,10 +17,10 @@ import (
 
 // Manifest represents the top-level kazeshini.desired.yaml document.
 type Manifest struct {
-	APIVersion string         `yaml:"apiVersion" json:"apiVersion"`
-	Kind       string         `yaml:"kind" json:"kind"`
-	Metadata   ManifestMeta   `yaml:"metadata" json:"metadata"`
-	Rules      []TargetRule   `yaml:"rules" json:"rules"`
+	APIVersion string       `yaml:"apiVersion" json:"apiVersion"`
+	Kind       string       `yaml:"kind" json:"kind"`
+	Metadata   ManifestMeta `yaml:"metadata" json:"metadata"`
+	Rules      []TargetRule `yaml:"rules" json:"rules"`
 }
 
 type ManifestMeta struct {
@@ -90,12 +90,12 @@ type FileMetadataExpectation struct {
 
 // DesiredState holds the declarative requirements for matched hosts.
 type DesiredState struct {
-	RequiredPackages   []PackageExpectation      `yaml:"requiredPackages,omitempty" json:"requiredPackages,omitempty"`
-	ForbiddenPackages  []string                  `yaml:"forbiddenPackages,omitempty" json:"forbiddenPackages,omitempty"`
-	RequiredServices   []ServiceExpectation      `yaml:"requiredServices,omitempty" json:"requiredServices,omitempty"`
-	AllowedPorts       []PortExpectation         `yaml:"allowedPorts,omitempty" json:"allowedPorts,omitempty"`
-	RequiredPlatforms  []PlatformExpectation     `yaml:"requiredPlatforms,omitempty" json:"requiredPlatforms,omitempty"`
-	FilesMetadata      []FileMetadataExpectation `yaml:"filesMetadata,omitempty" json:"filesMetadata,omitempty"`
+	RequiredPackages  []PackageExpectation      `yaml:"requiredPackages,omitempty" json:"requiredPackages,omitempty"`
+	ForbiddenPackages []string                  `yaml:"forbiddenPackages,omitempty" json:"forbiddenPackages,omitempty"`
+	RequiredServices  []ServiceExpectation      `yaml:"requiredServices,omitempty" json:"requiredServices,omitempty"`
+	AllowedPorts      []PortExpectation         `yaml:"allowedPorts,omitempty" json:"allowedPorts,omitempty"`
+	RequiredPlatforms []PlatformExpectation     `yaml:"requiredPlatforms,omitempty" json:"requiredPlatforms,omitempty"`
+	FilesMetadata     []FileMetadataExpectation `yaml:"filesMetadata,omitempty" json:"filesMetadata,omitempty"`
 }
 
 // LoadFile reads and validates a kazeshini.desired.yaml file or directory.
@@ -209,4 +209,3 @@ func LoadHostLabels(path string) (map[string]string, error) {
 	}
 	return labels, nil
 }
-

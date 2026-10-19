@@ -1,0 +1,13 @@
+apiVersion: v2
+name: kazeshini
+description: A Helm chart for deploying the Kazeshini read-only server truth engine
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/OWNER/kazeshini
+sources:
+  - https://github.com/OWNER/kazeshini
+maintainers:
+  - name: Kazeshini Authors
+    email: maintainers@kazeshini.dev
+

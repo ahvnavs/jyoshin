@@ -218,4 +218,3 @@ func (e *Engine) RunRole(ctx context.Context, role string, params map[string]str
 
 	return results, nil
 }
-

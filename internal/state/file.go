@@ -193,4 +193,3 @@ func (f *FileStore) Close() error {
 	_ = f.persistLocked()
 	return f.mem.Close()
 }
-

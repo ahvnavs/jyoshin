@@ -30,27 +30,27 @@ const (
 
 // ExecutionResult records the comprehensive outcome of executing a plan.
 type ExecutionResult struct {
-	PlanID       string          `json:"plan_id"`
-	Status       ExecutionStatus `json:"status"`
-	ExecutedSteps int            `json:"executed_steps"`
-	TotalSteps   int             `json:"total_steps"`
-	FailedStep   *ExecutionStep  `json:"failed_step,omitempty"`
-	Error        string          `json:"error,omitempty"`
-	RollbackPlan *RemediationPlan `json:"rollback_plan,omitempty"`
-	OutputLogs   []string        `json:"output_logs,omitempty"`
+	PlanID        string           `json:"plan_id"`
+	Status        ExecutionStatus  `json:"status"`
+	ExecutedSteps int              `json:"executed_steps"`
+	TotalSteps    int              `json:"total_steps"`
+	FailedStep    *ExecutionStep   `json:"failed_step,omitempty"`
+	Error         string           `json:"error,omitempty"`
+	RollbackPlan  *RemediationPlan `json:"rollback_plan,omitempty"`
+	OutputLogs    []string         `json:"output_logs,omitempty"`
 }
 
 // Config sets runtime operational parameters for the actuator engine.
 type Config struct {
-	SocketPath       string
-	AuditLogPath     string
-	NonceStorePath   string
-	SentinelPath     string // e.g. /etc/kazeshini/actuator.disabled
-	ApproverPubKey   ed25519.PublicKey
-	PackageManager   string // "apt", "dnf", "pacman", "apk"
-	RunningKernel    string
-	CurrentHostID    string
-	DryRunDefault    bool
+	SocketPath     string
+	AuditLogPath   string
+	NonceStorePath string
+	SentinelPath   string // e.g. /etc/kazeshini/actuator.disabled
+	ApproverPubKey ed25519.PublicKey
+	PackageManager string // "apt", "dnf", "pacman", "apk"
+	RunningKernel  string
+	CurrentHostID  string
+	DryRunDefault  bool
 }
 
 // DefaultConfig provides conservative defaults.

@@ -102,4 +102,3 @@ func TestWebhook_AllowListRejection(t *testing.T) {
 	}
 	t.Logf("[✓] Destination not in allow-list safely rejected: %v", err)
 }
-

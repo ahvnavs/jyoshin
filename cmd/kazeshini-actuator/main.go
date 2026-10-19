@@ -357,4 +357,3 @@ func runAudit(args []string) error {
 		return fmt.Errorf("unknown audit command %q (expected: verify)", subcmd)
 	}
 }
-

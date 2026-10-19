@@ -26,11 +26,11 @@ type Session struct {
 // SessionManager enforces HttpOnly, SameSite=Strict cookies, CSRF protection,
 // short session lifetimes, and concurrent session limits.
 type SessionManager struct {
-	mu          sync.RWMutex
-	sessions    map[string]*Session
+	mu           sync.RWMutex
+	sessions     map[string]*Session
 	userSessions map[string][]string // user ID -> session IDs
-	sessionTTL  time.Duration
-	maxPerUser  int
+	sessionTTL   time.Duration
+	maxPerUser   int
 }
 
 // NewSessionManager creates a browser session controller.
@@ -157,4 +157,3 @@ func ClearSessionCookie(w http.ResponseWriter, secure bool) {
 		SameSite: http.SameSiteStrictMode,
 	})
 }
-

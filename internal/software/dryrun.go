@@ -68,23 +68,23 @@ const (
 
 // DryRunResult holds the output and parsed interpretation of a dry-run simulation.
 type DryRunResult struct {
-	Manager    string     `json:"manager"`     // "apt", "dnf", "pacman", "apk"
-	Kind       DryRunKind `json:"kind"`
-	PackageName string    `json:"package_name"`
-	RawOutput  string     `json:"raw_output"`  // verbatim simulated output (Principle 6: fact vs inference)
-	Lines      []SimLine  `json:"lines"`       // parsed Inst/Remv/Conf lines
-	Error      string     `json:"error,omitempty"`
-	TimedOut   bool       `json:"timed_out,omitempty"`
-	Truncated  bool       `json:"truncated,omitempty"`
+	Manager     string     `json:"manager"` // "apt", "dnf", "pacman", "apk"
+	Kind        DryRunKind `json:"kind"`
+	PackageName string     `json:"package_name"`
+	RawOutput   string     `json:"raw_output"` // verbatim simulated output (Principle 6: fact vs inference)
+	Lines       []SimLine  `json:"lines"`      // parsed Inst/Remv/Conf lines
+	Error       string     `json:"error,omitempty"`
+	TimedOut    bool       `json:"timed_out,omitempty"`
+	Truncated   bool       `json:"truncated,omitempty"`
 }
 
 // SimLine is one parsed action from the dry-run simulation output.
 type SimLine struct {
-	Action          string `json:"action"`          // "install", "remove", "configure"
-	Package         string `json:"package"`
-	FromVersion     string `json:"from_version,omitempty"` // bracketed current version
-	ToVersion       string `json:"to_version,omitempty"`
-	Origin          string `json:"origin,omitempty"`
+	Action      string `json:"action"` // "install", "remove", "configure"
+	Package     string `json:"package"`
+	FromVersion string `json:"from_version,omitempty"` // bracketed current version
+	ToVersion   string `json:"to_version,omitempty"`
+	Origin      string `json:"origin,omitempty"`
 }
 
 // aptAllowedArgs defines the fixed argument sets for apt-get dry-run modes.
@@ -352,4 +352,3 @@ func parseAptInstLine(s string) (pkg, fromVer, toVer, origin string) {
 	}
 	return
 }
-

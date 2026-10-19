@@ -18,40 +18,40 @@ import (
 // radius to give the operator a complete picture before acting.
 // Nothing in this plan is ever executed automatically (Principles 2, 2', 17).
 type SoftwarePlan struct {
-	PackageName       string         `json:"package_name"`
-	Kind              DryRunKind     `json:"kind"`
-	FromVersion       string         `json:"from_version"`
-	ToVersion         string         `json:"to_version,omitempty"`
-	Manager           string         `json:"manager"`
-	IsUpgradable      bool           `json:"is_upgradable"`
+	PackageName  string     `json:"package_name"`
+	Kind         DryRunKind `json:"kind"`
+	FromVersion  string     `json:"from_version"`
+	ToVersion    string     `json:"to_version,omitempty"`
+	Manager      string     `json:"manager"`
+	IsUpgradable bool       `json:"is_upgradable"`
 
 	// The raw unmodified dry-run output (Principle 6: fact vs inference)
-	RawSimulation     string         `json:"raw_simulation"`
+	RawSimulation string `json:"raw_simulation"`
 
 	// Parsed changes from the simulation
-	WillInstall       []SimLine      `json:"will_install,omitempty"`
-	WillRemove        []SimLine      `json:"will_remove,omitempty"`
-	WillConfigure     []SimLine      `json:"will_configure,omitempty"`
-	AdditionalPkgs    []string       `json:"additional_packages,omitempty"` // co-installed or co-removed
-	ServicesRestarted []string       `json:"services_restarted,omitempty"`
-	RequiresReboot    bool           `json:"requires_reboot"`
-	IsReversible      bool           `json:"is_reversible"`
+	WillInstall       []SimLine `json:"will_install,omitempty"`
+	WillRemove        []SimLine `json:"will_remove,omitempty"`
+	WillConfigure     []SimLine `json:"will_configure,omitempty"`
+	AdditionalPkgs    []string  `json:"additional_packages,omitempty"` // co-installed or co-removed
+	ServicesRestarted []string  `json:"services_restarted,omitempty"`
+	RequiresReboot    bool      `json:"requires_reboot"`
+	IsReversible      bool      `json:"is_reversible"`
 
 	// Safety analysis
-	Safety            SafetyAnalysis `json:"safety"`
+	Safety SafetyAnalysis `json:"safety"`
 
 	// Blast radius
-	BlastScore        int            `json:"blast_score"`
-	BlastSummary      string         `json:"blast_summary"`
+	BlastScore   int    `json:"blast_score"`
+	BlastSummary string `json:"blast_summary"`
 
 	// Equivalent command (shown only, never run automatically)
-	EquivalentCommand string         `json:"equivalent_command"`
-	RefreshCommand    string         `json:"refresh_command,omitempty"` // if metadata is stale
+	EquivalentCommand string `json:"equivalent_command"`
+	RefreshCommand    string `json:"refresh_command,omitempty"` // if metadata is stale
 
 	// Metadata
-	MetadataAge       string         `json:"metadata_age"`
-	MetadataStale     bool           `json:"metadata_stale"`
-	CreatedAt         time.Time      `json:"created_at"`
+	MetadataAge   string    `json:"metadata_age"`
+	MetadataStale bool      `json:"metadata_stale"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // Planner generates software plans combining dry-run, safety, and blast radius.
@@ -64,9 +64,9 @@ type Planner struct {
 // NewPlanner creates a new software plan generator.
 func NewPlanner(reader *InventoryReader, analyzer *blastradius.Analyzer) *Planner {
 	return &Planner{
-		reader:       reader,
+		reader:        reader,
 		blastAnalyzer: analyzer,
-		dryRunCfg:    DefaultDryRunConfig(),
+		dryRunCfg:     DefaultDryRunConfig(),
 	}
 }
 

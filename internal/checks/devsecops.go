@@ -195,23 +195,39 @@ func (c *SSHSettingsCheck) Run(ctx context.Context, rfs fs.FS, params map[string
 	passwordAuth := "yes"
 	permitEmpty := "no"
 
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "#") || line == "" {
-			continue
+	parseSSHConfig := func(raw []byte) {
+		scanner := bufio.NewScanner(bytes.NewReader(raw))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if strings.HasPrefix(line, "#") || line == "" {
+				continue
+			}
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				key := strings.ToLower(parts[0])
+				val := strings.ToLower(parts[1])
+				switch key {
+				case "permitrootlogin":
+					permitRootLogin = val
+				case "passwordauthentication":
+					passwordAuth = val
+				case "permitemptypasswords":
+					permitEmpty = val
+				}
+			}
 		}
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			key := strings.ToLower(parts[0])
-			val := strings.ToLower(parts[1])
-			switch key {
-			case "permitrootlogin":
-				permitRootLogin = val
-			case "passwordauthentication":
-				passwordAuth = val
-			case "permitemptypasswords":
-				permitEmpty = val
+	}
+
+	parseSSHConfig(data)
+
+	// Follow and inspect drop-in configurations in /etc/ssh/sshd_config.d/
+	if entries, err := rfs.ReadDir("/etc/ssh/sshd_config.d"); err == nil {
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".conf") && !strings.HasPrefix(e.Name(), ".") {
+				dropinPath := fmt.Sprintf("/etc/ssh/sshd_config.d/%s", e.Name())
+				if dropinData, err := rfs.ReadFile(dropinPath); err == nil {
+					parseSSHConfig(dropinData)
+				}
 			}
 		}
 	}

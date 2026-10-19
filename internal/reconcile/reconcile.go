@@ -8,9 +8,10 @@ package reconcile
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"fmt"
 	"log/slog"
-	"math/rand"
+	"math/big"
 	"sync"
 	"time"
 
@@ -35,11 +36,11 @@ const (
 
 // Config configures loop intervals, jitter, and execution mode.
 type Config struct {
-	Mode         Mode          `json:"mode"`
-	Interval     time.Duration `json:"interval"`
-	MaxJitter    time.Duration `json:"max_jitter"`
-	DesiredPath  string        `json:"desired_path"`
-	LabelsPath   string        `json:"labels_path"`
+	Mode        Mode          `json:"mode"`
+	Interval    time.Duration `json:"interval"`
+	MaxJitter   time.Duration `json:"max_jitter"`
+	DesiredPath string        `json:"desired_path"`
+	LabelsPath  string        `json:"labels_path"`
 }
 
 // Loop runs periodic level-triggered reconciliation.
@@ -186,7 +187,12 @@ func (l *Loop) LastStatus() ([]drift.Item, *plan.Plan, *policy.EvaluationResult,
 
 // NextInterval calculates jittered sleep duration.
 func (l *Loop) NextInterval() time.Duration {
-	jitter := time.Duration(rand.Int63n(int64(l.cfg.MaxJitter)))
-	return l.cfg.Interval + jitter
+	if l.cfg.MaxJitter <= 0 {
+		return l.cfg.Interval
+	}
+	n, err := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(l.cfg.MaxJitter)))
+	if err != nil {
+		return l.cfg.Interval
+	}
+	return l.cfg.Interval + time.Duration(n.Int64())
 }
-

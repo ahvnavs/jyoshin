@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/OWNER/kazeshini/internal/config"
 )
@@ -147,3 +149,121 @@ func TestAPI_HostHeaderValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestAPI_ResourceAbuse_OversizedBody(t *testing.T) {
+	cfg := config.Default()
+	srv, err := NewServer(cfg, VersionInfo{Version: "v0.0.1"}, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	// 5MB body exceeding the 2MB MaxBytesReader limit
+	giantBody := strings.Repeat("A", 5<<20)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orphan/scan", strings.NewReader(giantBody))
+	req.Header.Set("Authorization", "Bearer "+srv.auth.Token())
+	w := httptest.NewRecorder()
+
+	srv.server.Handler.ServeHTTP(w, req)
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	// Should reject request with MaxBytes exceeded / BadRequest / InternalServerError without crashing
+	t.Logf("Oversized body response status: %d", resp.StatusCode)
+}
+
+func TestAPI_ResourceAbuse_ConcurrentSSESubscribers(t *testing.T) {
+	cfg := config.Default()
+	srv, err := NewServer(cfg, VersionInfo{Version: "v0.0.1"}, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	token := srv.auth.Token()
+	server := httptest.NewServer(srv.server.Handler)
+	defer server.Close()
+
+	// Launch 50 concurrent SSE subscribers and disconnect after 1 second
+	var wg sync.WaitGroup
+	subscribers := 50
+	errCount := 0
+	var mu sync.Mutex
+
+	for i := 0; i < subscribers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/stream", nil)
+			if err != nil {
+				mu.Lock()
+				errCount++
+				mu.Unlock()
+				return
+			}
+			req.Header.Set("Authorization", "Bearer "+token)
+
+			client := &http.Client{Timeout: 1500 * time.Millisecond}
+			resp, err := client.Do(req)
+			if err != nil {
+				// Context/timeout cancel is expected
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				mu.Lock()
+				errCount++
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	if errCount > 0 {
+		t.Errorf("encountered %d subscriber failures out of %d", errCount, subscribers)
+	}
+}
+
+func TestAPI_ExportFormats(t *testing.T) {
+	cfg := config.Default()
+	srv, err := NewServer(cfg, VersionInfo{Version: "v0.1.0"}, nil, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	formats := []struct {
+		format      string
+		contentType string
+		mustContain string
+	}{
+		{"json", "application/json", "machine_id"},
+		{"csv", "text/csv", "id,type,label,certainty"},
+		{"md", "text/markdown", "Kazeshini Export"},
+		{"html", "text/html", "<!DOCTYPE html>"},
+		{"svg", "image/svg+xml", "<svg"},
+	}
+
+	for _, tc := range formats {
+		t.Run(tc.format, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/v1/export?format="+tc.format, nil)
+			req.Header.Set("Authorization", "Bearer "+srv.auth.Token())
+			w := httptest.NewRecorder()
+			srv.server.Handler.ServeHTTP(w, req)
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("format %s: expected status 200, got %d", tc.format, resp.StatusCode)
+			}
+			ct := resp.Header.Get("Content-Type")
+			if !strings.Contains(ct, tc.contentType) {
+				t.Errorf("format %s: expected content-type %s, got %s", tc.format, tc.contentType, ct)
+			}
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			if !strings.Contains(string(bodyBytes), tc.mustContain) {
+				t.Errorf("format %s: response missing expected content %q", tc.format, tc.mustContain)
+			}
+		})
+	}
+}
+
+

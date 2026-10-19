@@ -193,4 +193,3 @@ func TestFleet_MultiAgentAndControllerLifecycle(t *testing.T) {
 	// Local agent functions independently without crashing
 	t.Logf("[✓] Controller outage gracefully handled: local agent functions independently (%v)", errOutage)
 }
-

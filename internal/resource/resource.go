@@ -16,25 +16,25 @@ import (
 type Kind string
 
 const (
-	KindHost        Kind = "Host"
-	KindPackage     Kind = "Package"
-	KindService     Kind = "Service"
-	KindPort        Kind = "Port"
-	KindProcess     Kind = "Process"
-	KindPlatform    Kind = "Platform"
-	KindCheck       Kind = "Check"
-	KindPlan        Kind = "Plan"
-	KindPolicy      Kind = "Policy"
-	KindEvent       Kind = "Event"
+	KindHost     Kind = "Host"
+	KindPackage  Kind = "Package"
+	KindService  Kind = "Service"
+	KindPort     Kind = "Port"
+	KindProcess  Kind = "Process"
+	KindPlatform Kind = "Platform"
+	KindCheck    Kind = "Check"
+	KindPlan     Kind = "Plan"
+	KindPolicy   Kind = "Policy"
+	KindEvent    Kind = "Event"
 )
 
 // Condition represents an observed condition on a resource.
 type Condition struct {
-	Type               string          `json:"type"`
-	Status             string          `json:"status"` // "True", "False", "Unknown"
-	Reason             string          `json:"reason,omitempty"`
-	Message            string          `json:"message,omitempty"`
-	LastTransitionTime time.Time       `json:"lastTransitionTime"`
+	Type               string    `json:"type"`
+	Status             string    `json:"status"` // "True", "False", "Unknown"
+	Reason             string    `json:"reason,omitempty"`
+	Message            string    `json:"message,omitempty"`
+	LastTransitionTime time.Time `json:"lastTransitionTime"`
 }
 
 // Metadata captures identity, ownership, and classification.
@@ -166,4 +166,3 @@ func (r Resource) ToGraphNode() graph.Node {
 		LastSeen:   obsAt,
 	}
 }
-

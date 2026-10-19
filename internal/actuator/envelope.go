@@ -22,14 +22,14 @@ import (
 
 // ExecutionStep defines a single atomic mutation unit within a plan.
 type ExecutionStep struct {
-	ID          string   `json:"id"`
-	Action      string   `json:"action"` // "package_install", "package_upgrade", "package_remove", "service_start", "service_stop", "service_restart", "service_enable", "service_disable"
-	Target      string   `json:"target"` // package name or service unit name
-	FromVersion string   `json:"from_version,omitempty"`
-	ToVersion   string   `json:"to_version,omitempty"`
-	TimeoutSec  int      `json:"timeout_sec,omitempty"`
-	Precheck    string   `json:"precheck,omitempty"`
-	Postcheck   string   `json:"postcheck,omitempty"`
+	ID          string `json:"id"`
+	Action      string `json:"action"` // "package_install", "package_upgrade", "package_remove", "service_start", "service_stop", "service_restart", "service_enable", "service_disable"
+	Target      string `json:"target"` // package name or service unit name
+	FromVersion string `json:"from_version,omitempty"`
+	ToVersion   string `json:"to_version,omitempty"`
+	TimeoutSec  int    `json:"timeout_sec,omitempty"`
+	Precheck    string `json:"precheck,omitempty"`
+	Postcheck   string `json:"postcheck,omitempty"`
 }
 
 // RemediationPlan is the plain-data mutation blueprint produced by Core.

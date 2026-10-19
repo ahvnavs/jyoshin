@@ -1,0 +1,32 @@
+site_name: Kazeshini Documentation
+site_description: Server Truth Engine for Linux - Read-only, zero setup, one binary
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: teal
+    accent: cyan
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - content.code.copy
+
+nav:
+  - Quick Start: index.md
+  - What It Does & Does Not Do: philosophy.md
+  - Understanding Results: results.md
+  - Installation on Each Distro: install.md
+  - Privacy, Safety & Telemetry: privacy.md
+  - Troubleshooting by Error Code: ERRORS.md
+  - FAQ: faq.md
+  - Glossary: GLOSSARY.md
+  - Release & Verification: RELEASE_SETUP.md
+  - Repositories (APT & RPM): REPOSITORIES.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+

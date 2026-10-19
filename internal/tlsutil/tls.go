@@ -127,4 +127,3 @@ func GenerateSelfSigned(hostnames []string) (tls.Certificate, error) {
 
 	return tls.X509KeyPair(certPEM, keyPEM)
 }
-

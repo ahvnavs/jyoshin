@@ -483,4 +483,3 @@ func (s *BoltStore) Close() error {
 	}
 	return nil
 }
-

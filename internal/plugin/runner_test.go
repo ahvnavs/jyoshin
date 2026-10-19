@@ -162,4 +162,3 @@ func TestPlugin_UnsignedRejection(t *testing.T) {
 	}
 	t.Logf("[✓] Unsigned plugin rejected without --allow-unsigned-plugins flag: %s", status.Status)
 }
-

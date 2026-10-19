@@ -43,11 +43,11 @@ func (r Role) Satisfies(required Role) bool {
 
 // Subject represents an authenticated caller identity.
 type Subject struct {
-	ID        string   `json:"id"`
-	Role      Role     `json:"role"`
-	Method    string   `json:"auth_method"` // "token", "oidc", "mtls", "proxy", "session"
-	Groups    []string `json:"groups,omitempty"`
-	PlanID    string   `json:"current_plan_id,omitempty"`
+	ID     string   `json:"id"`
+	Role   Role     `json:"role"`
+	Method string   `json:"auth_method"` // "token", "oidc", "mtls", "proxy", "session"
+	Groups []string `json:"groups,omitempty"`
+	PlanID string   `json:"current_plan_id,omitempty"`
 }
 
 type contextKey struct{}
@@ -109,6 +109,7 @@ func (r *RouteRoleRegistry) registerDefaults() {
 	r.routes["GET /api/v1/decommission"] = RoleViewer
 	r.routes["GET /api/v1/migration"] = RoleViewer
 	r.routes["GET /api/v1/report"] = RoleViewer
+	r.routes["GET /api/v1/export"] = RoleViewer
 	r.routes["GET /api/v1/coverage"] = RoleViewer
 	r.routes["GET /api/v1/briefing"] = RoleViewer
 	r.routes["GET /api/v1/overview"] = RoleViewer

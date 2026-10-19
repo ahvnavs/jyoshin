@@ -102,4 +102,3 @@ func TestBannedTermsFailsBuild(t *testing.T) {
 		t.Fatalf("failed walking web dir: %v", err)
 	}
 }
-

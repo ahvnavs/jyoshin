@@ -21,8 +21,8 @@ import (
 // InventoryReader reads and assembles the complete software inventory from local
 // filesystem caches only. No network calls are made.
 type InventoryReader struct {
-	fs     fs.FS
-	mu     sync.RWMutex
+	fs fs.FS
+	mu sync.RWMutex
 
 	// mtime-based cache keys for dpkg
 	dpkgMtime int64
@@ -569,4 +569,3 @@ func humanDuration(d time.Duration) string {
 	}
 	return "less than a minute"
 }
-

@@ -566,6 +566,12 @@ func (b *Briefing) RenderTerminal() string {
 
 	sb.WriteString("======================================================================\n")
 	sb.WriteString("風死 · KAZESHINI — SERVER OVERVIEW & DIAGNOSTICS\n")
+	sb.WriteString("----------------------------------------------------------------------\n")
+	sb.WriteString("START HERE:\n")
+	sb.WriteString("  1. Kazeshini is a read-only server truth engine.\n")
+	sb.WriteString("  2. It only inspects system status and makes zero modifications to this host.\n")
+	sb.WriteString("  3. Review the findings below or follow the recommended action box below.\n")
+	sb.WriteString("----------------------------------------------------------------------\n")
 	fmt.Fprintf(&sb, "HEALTH: [%s]   RISK SCORE: %d/100   VISIBILITY: %.0f%%\n",
 		strings.ToUpper(b.Verdict.StateLabel), b.Verdict.RiskScore, b.Coverage.OverallCoverage)
 	if len(b.Verdict.RiskContributors) > 0 {
@@ -575,6 +581,19 @@ func (b *Briefing) RenderTerminal() string {
 		}
 	}
 	sb.WriteString("======================================================================\n\n")
+
+	sb.WriteString("WHAT SHOULD I DO NOW?\n")
+	if len(b.AttentionFindings) > 0 {
+		top := b.AttentionFindings[0]
+		fmt.Fprintf(&sb, "  PRIMARY ACTION: %s\n", top.What)
+		fmt.Fprintf(&sb, "  WHY:            %s\n", top.SoWhat)
+		fmt.Fprintf(&sb, "  COMMAND:        %s\n", top.NowWhat.Action)
+	} else {
+		sb.WriteString("  PRIMARY ACTION: No urgent fixes required. System is calm.\n")
+		sb.WriteString("  COMMAND:        kazeshini --once\n")
+	}
+	sb.WriteString("  ASK TECHNICAL:  To share a secret-free summary with an engineer, run:\n")
+	sb.WriteString("                  kazeshini report --format md > server-summary.md\n\n")
 
 	sb.WriteString("SUMMARY:\n")
 	fmt.Fprintf(&sb, "  %s\n\n", b.Verdict.OneLineVerdict)

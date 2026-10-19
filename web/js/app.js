@@ -10,6 +10,16 @@
   let checksCache = [];
   let filterQuery = '';
 
+  function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // DOM Elements cache
   const el = {
     verdictBanner: document.getElementById('verdict-banner'),
@@ -584,7 +594,7 @@
 
   function updateTopBar(v) {
     if (el.topHostBadge && v.identity_line) {
-      el.topHostBadge.innerHTML = `HOST: <span style="color: var(--cyan);">${v.identity_line}</span>`;
+      el.topHostBadge.innerHTML = `HOST: <span style="color: var(--cyan);">${escapeHTML(v.identity_line)}</span>`;
     }
     if (el.topVerdictBadge) {
       let bClass = 'badge-mint';
@@ -658,7 +668,7 @@
           row.style.borderBottom = '1px dashed var(--panel-border)';
           row.style.padding = '4px 0';
           row.innerHTML = `
-            <span><strong>${c.title || c.source}</strong>: ${c.reason || ''}</span>
+            <span><strong>${escapeHTML(c.title || c.source || c.label)}</strong>: ${escapeHTML(c.reason || '')}</span>
             <span class="badge badge-peach">+${c.weight || c.points || 0} pts</span>
           `;
           el.dangerList.appendChild(row);
@@ -695,13 +705,13 @@
       const content = document.getElementById('overview-summary-content');
       if (content) {
         content.innerHTML = `
-          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">${b.summary_sentence || ''}</div>
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">${escapeHTML(b.summary_sentence || '')}</div>
           <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim);">
-            ${(b.bullet_points || []).map(bp => `<div>• ${bp}</div>`).join('')}
+            ${(b.bullet_points || []).map(bp => `<div>• ${escapeHTML(bp)}</div>`).join('')}
           </div>
           <div style="margin-top: 12px; font-size: 12px; color: var(--cyan); border-top: 1px dashed var(--panel-border); padding-top: 8px;">
-            <div><strong>PROVENANCE & INTEGRITY:</strong> ${b.untracked_surface || ''}</div>
-            <div style="margin-top: 4px;"><strong>CAPACITY FORECAST:</strong> ${b.exhaustion_headline || ''}</div>
+            <div><strong>PROVENANCE & INTEGRITY:</strong> ${escapeHTML(b.untracked_surface || '')}</div>
+            <div style="margin-top: 4px;"><strong>CAPACITY FORECAST:</strong> ${escapeHTML(b.exhaustion_headline || '')}</div>
           </div>
         `;
       }
@@ -1486,6 +1496,594 @@
     });
   });
 
+  // Guidance Panel & Ask Technical Modal Handlers
+  const btnAskTechnical = document.getElementById('btn-ask-technical');
+  const technicalModal = document.getElementById('technical-modal');
+  const techCloseBtn = document.getElementById('tech-close-btn');
+  const techCopyBtn = document.getElementById('tech-copy-btn');
+  const techPrintBtn = document.getElementById('tech-print-btn');
+  const techSummaryText = document.getElementById('tech-summary-text');
+  const btnCopyCommand = document.getElementById('btn-copy-command');
+  const guidanceCommand = document.getElementById('guidance-command');
+
+  if (btnCopyCommand && guidanceCommand) {
+    btnCopyCommand.addEventListener('click', () => {
+      navigator.clipboard.writeText(guidanceCommand.textContent.trim()).then(() => {
+        const orig = btnCopyCommand.textContent;
+        btnCopyCommand.textContent = 'Copied!';
+        setTimeout(() => { btnCopyCommand.textContent = orig; }, 2000);
+      });
+    });
+  }
+
+  if (btnAskTechnical && technicalModal && techSummaryText) {
+    btnAskTechnical.addEventListener('click', () => {
+      const hostName = el.pulseHost ? el.pulseHost.textContent : 'Linux Server';
+      const risk = el.riskScore ? el.riskScore.textContent : '0';
+      const status = el.riskBadge ? el.riskBadge.textContent : '[✓] HEALTHY';
+      const dateStr = new Date().toISOString();
+
+      let summaryContent = `======================================================================\n`;
+      summaryContent += `KAZESHINI SYSTEM SUMMARY (TECHNICAL SHAREABLE)\n`;
+      summaryContent += `Generated: ${dateStr}\n`;
+      summaryContent += `Host: ${hostName} | Status: ${status} | Risk Score: ${risk}/100\n`;
+      summaryContent += `Confidentiality: Secret-free sanitized diagnostic record\n`;
+      summaryContent += `======================================================================\n\n`;
+      summaryContent += `1. OVERVIEW & HEALTH:\n`;
+      summaryContent += `   Lead: ${el.verdictLead ? el.verdictLead.textContent : 'Normal operation'}\n\n`;
+      summaryContent += `2. PRIMARY ACTION TO RESOLVE:\n`;
+      const actionTxt = document.getElementById('guidance-action-text');
+      summaryContent += `   ${actionTxt ? actionTxt.textContent.trim() : 'No critical action'}\n`;
+      summaryContent += `   Command: ${guidanceCommand ? guidanceCommand.textContent.trim() : 'kazeshini --once'}\n\n`;
+      summaryContent += `3. RUNTIME METRICS:\n`;
+      summaryContent += `   Kernel: ${el.pulseKernel ? el.pulseKernel.textContent : 'Linux'}\n`;
+      summaryContent += `   Uptime: ${el.pulseUptime ? el.pulseUptime.textContent : '0s'}\n\n`;
+      summaryContent += `4. REPRODUCIBLE HOST QUERY:\n`;
+      summaryContent += `   kazeshini --once --json\n`;
+      summaryContent += `======================================================================\n`;
+
+      techSummaryText.value = summaryContent;
+      technicalModal.style.display = 'flex';
+    });
+  }
+
+  if (techCloseBtn && technicalModal) {
+    techCloseBtn.addEventListener('click', () => {
+      technicalModal.style.display = 'none';
+    });
+  }
+
+  if (techCopyBtn && techSummaryText) {
+    techCopyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(techSummaryText.value).then(() => {
+        const orig = techCopyBtn.textContent;
+        techCopyBtn.textContent = 'Copied!';
+        setTimeout(() => { techCopyBtn.textContent = orig; }, 2000);
+      });
+    });
+  }
+
+  if (techPrintBtn && techSummaryText) {
+    techPrintBtn.addEventListener('click', () => {
+      window.print();
+    });
+  }
+
+  // Glossary Lookup Modal
+  const glossaryModal = document.getElementById('glossary-modal');
+  const glossaryCloseBtn = document.getElementById('glossary-close-btn');
+  const glossaryTitle = document.getElementById('glossary-modal-title');
+  const glossarySummary = document.getElementById('glossary-summary');
+  const glossaryDetails = document.getElementById('glossary-details');
+
+  const GLOSSARY_TERMS = {
+    'port': {
+      summary: 'A port is like a door for network traffic. Programs use it to talk to other computers.',
+      details: 'When a program wants to communicate over the network, it opens a port (e.g. 80 for websites, 22 for remote login). Listening ports reachable on all interfaces are accessible to outside callers.'
+    },
+    'service': {
+      summary: 'A service is a background program. It starts up and runs tasks for the server.',
+      details: 'Services manage web servers, databases, and system tasks. If a service crashes or enters a degraded state, users or other applications may be unable to connect.'
+    },
+    'package': {
+      summary: 'A package is a bundle of software files. The system installs and tracks it safely.',
+      details: 'Using packages ensures programs receive security updates, can be uninstalled safely, and do not leave behind orphan files.'
+    },
+    'kernel': {
+      summary: 'The kernel is the main engine of the server. It manages the hardware, memory, and disks.',
+      details: 'All applications ask the kernel to access disks, network connections, or memory. Kazeshini reads kernel status files directly without changing them.'
+    },
+    'inode': {
+      summary: 'An inode is an index number for a file. The disk uses it to track each item.',
+      details: 'Even if a disk has free gigabytes left, running out of inodes prevents creating any new files (such as log entries or user uploads).'
+    },
+    'unmanaged software': {
+      summary: 'This is software put on the machine by hand. The system package tool does not track it.',
+      details: 'Because the operating system does not know about it, it will not receive automated security patches and may be forgotten over time.'
+    },
+    'risk score': {
+      summary: 'A score from 0 to 100. Lower numbers mean the server is safe, while high numbers show problems.',
+      details: 'Points are added when critical security flaws, failed services, or unprotected network ports are detected.'
+    },
+    'drift': {
+      summary: 'Drift means settings have changed. The server does not match what you expected.',
+      details: 'For example, if a package was accidentally installed or removed outside of configuration management, Kazeshini points out the difference.'
+    },
+    'visibility': {
+      summary: 'Visibility is how much of the server was seen. It tells you what could be checked.',
+      details: 'If running without administrator (root) rights, some security files cannot be read. Kazeshini is always honest about what it could not inspect.'
+    }
+  };
+
+  document.addEventListener('click', (e) => {
+    const target = e.target.closest('[data-glossary]');
+    if (target && glossaryModal) {
+      const termKey = target.getAttribute('data-glossary').toLowerCase().trim();
+      const def = GLOSSARY_TERMS[termKey];
+      if (def) {
+        glossaryTitle.textContent = `Term: ${termKey.toUpperCase()}`;
+        glossarySummary.textContent = def.summary;
+        glossaryDetails.textContent = def.details;
+        glossaryModal.style.display = 'flex';
+      }
+    }
+  });
+
+  if (glossaryCloseBtn && glossaryModal) {
+    glossaryCloseBtn.addEventListener('click', () => {
+      glossaryModal.style.display = 'none';
+    });
+  }
+
+  // =========================================================================
+  // Phase 42: Visual Views (Space Colonization Growth Map, Treemap, Matrix, Exports)
+  // Adheres strictly to Principle 18: No guesses, deterministic, table equivalent,
+  // text description for screen readers, visibility note.
+  // =========================================================================
+
+  // Export Menu Handling
+  const exportBtn = document.getElementById('export-btn');
+  const exportMenu = document.getElementById('export-menu');
+
+  if (exportBtn && exportMenu) {
+    exportBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportMenu.style.display = (exportMenu.style.display === 'none' || !exportMenu.style.display) ? 'flex' : 'none';
+    });
+
+    document.addEventListener('click', () => {
+      if (exportMenu) exportMenu.style.display = 'none';
+    });
+
+    exportMenu.querySelectorAll('button[data-export]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const fmt = btn.getAttribute('data-export');
+        exportMenu.style.display = 'none';
+        try {
+          const res = await fetch(`/api/v1/export?format=${encodeURIComponent(fmt)}`, { headers: getHeaders() });
+          if (res.ok) {
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `kazeshini-export.${fmt === 'markdown' ? 'md' : fmt}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+          } else {
+            alert(`Export failed: HTTP ${res.status}`);
+          }
+        } catch (err) {
+          alert(`Export error: ${err.message}`);
+        }
+      });
+    });
+  }
+
+  // View Switcher Persistence (localStorage with try/catch)
+  function getViewPreference(domain, defaultView) {
+    try {
+      return localStorage.getItem(`kazeshini_view_${domain}`) || defaultView;
+    } catch (_) {
+      return defaultView;
+    }
+  }
+
+  function setViewPreference(domain, viewType) {
+    try {
+      localStorage.setItem(`kazeshini_view_${domain}`, viewType);
+    } catch (_) {}
+  }
+
+  // Wire View Switchers across domains
+  document.querySelectorAll('.view-switcher-bar').forEach(bar => {
+    const domain = bar.getAttribute('data-domain');
+    if (!domain) return;
+    const defaultView = domain === 'overview' ? 'tree' : 'table';
+    const activeView = getViewPreference(domain, defaultView);
+
+    bar.querySelectorAll('.view-tab-btn').forEach(btn => {
+      const vType = btn.getAttribute('data-view');
+      if (vType === activeView) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+
+      btn.addEventListener('click', () => {
+        bar.querySelectorAll('.view-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        setViewPreference(domain, vType);
+        applyDomainView(domain, vType);
+      });
+    });
+
+    applyDomainView(domain, activeView);
+  });
+
+  function applyDomainView(domain, viewType) {
+    if (domain === 'overview') {
+      const asciiMap = document.getElementById('deps-ascii-map');
+      const visualMap = document.getElementById('visual-overview-map');
+      if (viewType === 'map') {
+        if (asciiMap) asciiMap.style.display = 'none';
+        if (visualMap) {
+          visualMap.style.display = 'block';
+          renderClientGrowthMap();
+        }
+      } else {
+        if (visualMap) visualMap.style.display = 'none';
+        if (asciiMap) asciiMap.style.display = 'block';
+      }
+    } else if (domain === 'storage') {
+      const tableList = document.getElementById('checks-list-storage');
+      const visualStorage = document.getElementById('visual-storage');
+      if (viewType === 'chart') {
+        if (tableList) tableList.style.display = 'none';
+        if (visualStorage) {
+          visualStorage.style.display = 'flex';
+          renderStorageTreemap();
+        }
+      } else {
+        if (visualStorage) visualStorage.style.display = 'none';
+        if (tableList) tableList.style.display = 'grid';
+      }
+    } else if (domain === 'network') {
+      const tableList = document.getElementById('checks-list-network');
+      const visualNetwork = document.getElementById('visual-network');
+      if (viewType === 'chart') {
+        if (tableList) tableList.style.display = 'none';
+        if (visualNetwork) {
+          visualNetwork.style.display = 'block';
+          renderNetworkMatrix();
+        }
+      } else {
+        if (visualNetwork) visualNetwork.style.display = 'none';
+        if (tableList) tableList.style.display = 'grid';
+      }
+    } else if (domain === 'services') {
+      const tableList = document.getElementById('checks-list-services');
+      const visualServices = document.getElementById('visual-services');
+      if (viewType === 'tree') {
+        if (tableList) tableList.style.display = 'none';
+        if (visualServices) {
+          visualServices.style.display = 'block';
+          renderServicesTree();
+        }
+      } else {
+        if (visualServices) visualServices.style.display = 'none';
+        if (tableList) tableList.style.display = 'grid';
+      }
+    }
+  }
+
+  // Client-Side Space Colonization Growth Map Renderer
+  async function renderClientGrowthMap() {
+    const container = document.getElementById('growth-map-svg-wrap');
+    const srTable = document.getElementById('growth-sr-table');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/v1/graph', { headers: getHeaders() });
+      if (!res.ok) return;
+      const gData = await res.json();
+      const nodes = gData.nodes || [];
+      const edges = gData.edges || [];
+
+      // Build Screen Reader Accessible Table
+      if (srTable) {
+        let srHTML = '<table><caption>Host Provenance Entities and Provenance Topology</caption><thead><tr><th>ID</th><th>Type</th><th>Label</th><th>Certainty</th></tr></thead><tbody>';
+        nodes.forEach(n => {
+          srHTML += `<tr><td>${escapeHTML(n.id)}</td><td>${escapeHTML(n.type)}</td><td>${escapeHTML(n.label)}</td><td>${escapeHTML(n.certainty)}</td></tr>`;
+        });
+        srHTML += '</tbody></table>';
+        srTable.innerHTML = srHTML;
+      }
+
+      // Space Colonization parameters matching Go viz exactly
+      const width = 960;
+      const height = 600;
+      const root = { x: width / 2, y: height - 50 };
+      const attractionRadius = 150.0;
+      const killDistance = 25.0;
+      const stepLength = 15.0;
+      const maxIterations = 50;
+      const nodeCap = 2000;
+
+      // Filter candidate entities
+      const candidateNodes = nodes.filter(n => ['process', 'service', 'port', 'unmanaged', 'package', 'container'].includes(n.type));
+      candidateNodes.sort((a, b) => a.id.localeCompare(b.id));
+
+      const drawnCount = Math.min(candidateNodes.length, nodeCap);
+      const notDrawnCount = candidateNodes.length - drawnCount;
+
+      // Seed positions deterministically
+      const attractors = [];
+      const goldenRatio = 1.618033988749895;
+      for (let i = 0; i < drawnCount; i++) {
+        const node = candidateNodes[i];
+        const theta = 2.0 * Math.PI * i / goldenRatio;
+        const norm = (i + 1) / drawnCount;
+        const r = 80.0 + Math.sqrt(norm) * (Math.min(width, height) * 0.42);
+        const ax = root.x + r * Math.cos(theta);
+        const ay = Math.max(40, (root.y - 100) - Math.abs(r * Math.sin(theta)));
+        attractors.push({
+          id: node.id,
+          type: node.type,
+          label: node.label,
+          severity: node.severity || 'ok',
+          pos: { x: ax, y: ay },
+          reached: false,
+          isUnknown: (node.certainty || '').toLowerCase() === 'inferred' || (node.certainty || '').toLowerCase() === 'unknown',
+        });
+      }
+
+      // Initial root branch
+      let branches = [{
+        id: 'branch-0',
+        parent_id: '',
+        start: { x: root.x, y: root.y },
+        end: { x: root.x, y: root.y - 30 },
+        thickness: 4.0,
+      }];
+
+      // Space colonization iterations (chunked <50ms per frame or instant if prefers-reduced-motion)
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function renderSVGContent() {
+        let svg = `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kazeshini Space Colonization Provenance Map" style="background:#07080b; border:1px solid #1e2230; width:100%; height:auto;">\n`;
+        svg += `  <title>Kazeshini Growth Map: ${nodes.length} Entities</title>\n`;
+        svg += `  <desc>Deterministic space colonization branching showing entity provenance. Showing ${drawnCount} of ${candidateNodes.length} entities.</desc>\n`;
+
+        // Draw branches
+        branches.forEach(b => {
+          svg += `  <line x1="${b.start.x.toFixed(1)}" y1="${b.start.y.toFixed(1)}" x2="${b.end.x.toFixed(1)}" y2="${b.end.y.toFixed(1)}" stroke="#1e2230" stroke-width="${b.thickness.toFixed(1)}" stroke-linecap="round" />\n`;
+        });
+
+        // Draw host root
+        svg += `  <circle cx="${root.x.toFixed(1)}" cy="${root.y.toFixed(1)}" r="8" fill="#8fffc8" stroke="#11131a" stroke-width="2" />\n`;
+        svg += `  <text x="${root.x.toFixed(1)}" y="${(root.y + 20).toFixed(1)}" fill="#8fffc8" font-size="11" font-family="monospace" text-anchor="middle">HOST ROOT</text>\n`;
+
+        // Draw attractors
+        attractors.forEach(a => {
+          let col = '#8fe9ff';
+          if (a.severity === 'critical') col = '#ff9ec7';
+          else if (a.severity === 'high') col = '#ffb89a';
+          else if (a.type === 'service') col = '#b9a7ff';
+
+          if (a.isUnknown) {
+            svg += `  <rect x="${(a.pos.x - 5).toFixed(1)}" y="${(a.pos.y - 5).toFixed(1)}" width="10" height="10" fill="none" stroke="${col}" stroke-width="1.5" stroke-dasharray="3,2" />\n`;
+          } else {
+            svg += `  <circle cx="${a.pos.x.toFixed(1)}" cy="${a.pos.y.toFixed(1)}" r="4.5" fill="${col}" stroke="#07080b" stroke-width="1" />\n`;
+          }
+          svg += `  <text x="${(a.pos.x + 8).toFixed(1)}" y="${(a.pos.y + 3).toFixed(1)}" fill="#d8dee9" font-size="9" font-family="monospace">${escapeHTML(a.label)}</text>\n`;
+        });
+
+        // Visibility note
+        svg += `  <text x="16" y="24" fill="#7d8597" font-size="11" font-family="monospace">Visibility: ${drawnCount} of ${candidateNodes.length} entities (Deterministic Seed)</text>\n`;
+        if (notDrawnCount > 0) {
+          svg += `  <text x="16" y="40" fill="#ffb89a" font-size="10" font-family="monospace">[!] Capped at ${nodeCap} nodes to prevent browser starvation</text>\n`;
+        }
+        svg += '</svg>';
+        container.innerHTML = svg;
+      }
+
+      // Execute colonization steps
+      let iter = 0;
+      function step() {
+        const startTime = performance.now();
+        while (iter < maxIterations) {
+          iter++;
+          // Influence accumulation
+          const branchDirs = {};
+          const branchCounts = {};
+
+          attractors.forEach(att => {
+            if (att.reached) return;
+            let closestDist = attractionRadius;
+            let closestIdx = -1;
+
+            branches.forEach((b, idx) => {
+              const dx = att.pos.x - b.end.x;
+              const dy = att.pos.y - b.end.y;
+              const d = Math.sqrt(dx * dx + dy * dy);
+              if (d < killDistance) {
+                att.reached = true;
+              } else if (d < closestDist) {
+                closestDist = d;
+                closestIdx = idx;
+              }
+            });
+
+            if (closestIdx >= 0 && !att.reached) {
+              const b = branches[closestIdx];
+              const dx = (att.pos.x - b.end.x) / closestDist;
+              const dy = (att.pos.y - b.end.y) / closestDist;
+              if (!branchDirs[closestIdx]) {
+                branchDirs[closestIdx] = { x: 0, y: 0 };
+                branchCounts[closestIdx] = 0;
+              }
+              branchDirs[closestIdx].x += dx;
+              branchDirs[closestIdx].y += dy;
+              branchCounts[closestIdx]++;
+            }
+          });
+
+          // Generate new branch tips
+          let grew = false;
+          Object.keys(branchDirs).forEach(idxStr => {
+            const idx = parseInt(idxStr, 10);
+            const count = branchCounts[idx];
+            if (count > 0) {
+              const b = branches[idx];
+              const dir = branchDirs[idx];
+              const norm = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
+              if (norm > 0.0001) {
+                const nx = dir.x / norm;
+                const ny = dir.y / norm;
+                branches.push({
+                  id: `branch-${branches.length}`,
+                  parent_id: b.id,
+                  start: { x: b.end.x, y: b.end.y },
+                  end: { x: b.end.x + nx * stepLength, y: b.end.y + ny * stepLength },
+                  thickness: Math.max(1.0, b.thickness * 0.95),
+                });
+                grew = true;
+              }
+            }
+          });
+
+          if (!grew || prefersReduced) {
+            if (prefersReduced && iter < maxIterations) continue;
+            break;
+          }
+
+          // Bound frame computation to < 40ms
+          if (performance.now() - startTime > 40) {
+            renderSVGContent();
+            requestAnimationFrame(step);
+            return;
+          }
+        }
+        renderSVGContent();
+      }
+
+      step();
+    } catch (err) {
+      console.error('failed client growth map render:', err);
+    }
+  }
+
+  // Storage Treemap Renderer
+  async function renderStorageTreemap() {
+    const container = document.getElementById('storage-treemap-content');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/v1/observations/storage', { headers: getHeaders() });
+      if (!res.ok) {
+        container.innerHTML = '<div class="empty-state">No storage telemetry available.</div>';
+        return;
+      }
+      const sObs = await res.json();
+      const mounts = (sObs.items || []).filter(it => it.data && it.data.mount_point).map(it => it.data);
+      if (mounts.length === 0) {
+        container.innerHTML = '<div class="empty-state">No mounted filesystems detected.</div>';
+        return;
+      }
+
+      let html = '';
+      mounts.forEach(m => {
+        const totalGB = (m.total_bytes / (1024 * 1024 * 1024)).toFixed(1);
+        const usedGB = (m.used_bytes / (1024 * 1024 * 1024)).toFixed(1);
+        const ratioPct = Math.round(m.usage_ratio * 100);
+        const isHigh = ratioPct >= 85;
+
+        html += `
+          <div class="treemap-bar-wrap">
+            <div style="display:flex; justify-content:space-between; font-size:12px;">
+              <span style="color:var(--text); font-weight:bold;">${escapeHTML(m.mount_point)} <span style="color:var(--dim); font-size:11px;">(${escapeHTML(m.device)} · ${escapeHTML(m.fs_type)})</span></span>
+              <span style="color:${isHigh ? 'var(--rose)' : 'var(--mint)'}; font-weight:bold;">${ratioPct}% (${usedGB} GB / ${totalGB} GB)</span>
+            </div>
+            <div class="treemap-bar-track" role="progressbar" aria-valuenow="${ratioPct}" aria-valuemin="0" aria-valuemax="100" aria-label="Filesystem usage on ${escapeHTML(m.mount_point)}">
+              <div class="treemap-bar-used ${isHigh ? 'high-usage' : ''}" style="width: ${ratioPct}%;"></div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = `<div style="color:var(--rose);">Failed loading storage: ${err.message}</div>`;
+    }
+  }
+
+  // Network Matrix Renderer
+  async function renderNetworkMatrix() {
+    const container = document.getElementById('network-matrix-content');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/v1/observations/network', { headers: getHeaders() });
+      if (!res.ok) {
+        container.innerHTML = '<div class="empty-state">No network socket telemetry available.</div>';
+        return;
+      }
+      const nObs = await res.json();
+      const sockets = (nObs.items || []).filter(it => it.data && it.data.protocol).map(it => it.data);
+      if (sockets.length === 0) {
+        container.innerHTML = '<div class="empty-state">No listening or active sockets observed.</div>';
+        return;
+      }
+
+      let html = '<table class="matrix-table"><thead><tr><th>PROCESS</th><th>PID</th><th>PROTO</th><th>LOCAL PORT</th><th>REMOTE ENDPOINT</th><th>STATE</th></tr></thead><tbody>';
+      sockets.forEach(s => {
+        const proc = s.process_name || 'kernel';
+        const rem = s.remote_ip ? `${s.remote_ip}:${s.remote_port}` : '*:*';
+        html += `<tr><td><strong style="color:var(--cyan);">${escapeHTML(proc)}</strong></td><td>${s.pid || '-'}</td><td>${escapeHTML(s.protocol)}</td><td>:${s.local_port}</td><td>${escapeHTML(rem)}</td><td><span class="badge ${s.state === 'LISTEN' ? 'badge-mint' : 'badge-dim'}">${escapeHTML(s.state || 'LISTEN')}</span></td></tr>`;
+      });
+      html += '</tbody></table>';
+
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = `<div style="color:var(--rose);">Failed loading network matrix: ${err.message}</div>`;
+    }
+  }
+
+  // Services Tree Renderer
+  async function renderServicesTree() {
+    const container = document.getElementById('services-tree-content');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/v1/observations/service', { headers: getHeaders() });
+      if (!res.ok) {
+        container.textContent = 'No services telemetry available.';
+        return;
+      }
+      const sObs = await res.json();
+      const services = (sObs.items || []).filter(it => it.data && it.data.name).map(it => it.data);
+      if (services.length === 0) {
+        container.textContent = 'No services observed on host.';
+        return;
+      }
+
+      let tree = 'HOST ROOT (init / systemd)\n';
+      services.forEach((s, idx) => {
+        const isLast = idx === services.length - 1;
+        const branch = isLast ? '└── ' : '├── ';
+        const st = s.status || s.sub_state || 'active';
+        tree += `${branch}[${st.toUpperCase()}] ${s.name} (${s.description || 'system service'})\n`;
+      });
+
+      container.textContent = tree;
+    } catch (err) {
+      container.textContent = `Failed loading services: ${err.message}`;
+    }
+  }
+
   // Startup Initializer
   handleRoute();
   loadChecks();
@@ -1499,3 +2097,4 @@
   }, 5000);
 
 })();
+

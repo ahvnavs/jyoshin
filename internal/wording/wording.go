@@ -7,17 +7,17 @@ package wording
 
 const (
 	// Domains
-	DomainOverview = "Overview"
-	DomainSoftware = "Software"
-	DomainServices = "Services"
-	DomainNetwork  = "Network"
-	DomainStorage  = "Storage"
-	DomainSecurity = "Security"
-	DomainLogs     = "Logs"
-	DomainPlatforms= "Platforms"
-	DomainDrift    = "Drift"
-	DomainAudit    = "Audit Log"
-	DomainSettings = "Settings"
+	DomainOverview  = "Overview"
+	DomainSoftware  = "Software"
+	DomainServices  = "Services"
+	DomainNetwork   = "Network"
+	DomainStorage   = "Storage"
+	DomainSecurity  = "Security"
+	DomainLogs      = "Logs"
+	DomainPlatforms = "Platforms"
+	DomainDrift     = "Drift"
+	DomainAudit     = "Audit Log"
+	DomainSettings  = "Settings"
 
 	// Health States
 	StateHealthy           = "Healthy"
@@ -47,4 +47,3 @@ const (
 	CertaintyDerived  = "Derived"
 	CertaintyInferred = "Inferred"
 )
-

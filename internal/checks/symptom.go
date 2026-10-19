@@ -156,4 +156,3 @@ func FindTriageScenario(query string) (*TriageScenario, error) {
 func FindSymptom(query string) (*Symptom, error) {
 	return FindTriageScenario(query)
 }
-

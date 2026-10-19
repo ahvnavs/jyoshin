@@ -28,7 +28,10 @@ func (c CheckResult) RenderTerminal() string {
 
 	confidence := "Observed"
 	if c.Certainty != "" {
-		confidence = strings.Title(strings.ToLower(string(c.Certainty)))
+		str := strings.ToLower(string(c.Certainty))
+		if len(str) > 0 {
+			confidence = strings.ToUpper(str[:1]) + str[1:]
+		}
 	}
 
 	visibility := "Full"
@@ -108,7 +111,10 @@ func (c CheckResult) RenderHTML() string {
 
 	confidence := "Observed"
 	if c.Certainty != "" {
-		confidence = strings.Title(strings.ToLower(string(c.Certainty)))
+		str := strings.ToLower(string(c.Certainty))
+		if len(str) > 0 {
+			confidence = strings.ToUpper(str[:1]) + str[1:]
+		}
 	}
 
 	visibility := "Full"

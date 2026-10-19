@@ -26,5 +26,7 @@
 15. **STATELESS BY DEFAULT**: the core must start, run and give full answers with no writable disk. Durable state is an optional Store plugin.
 16. **DECLARATIVE**: desired state is user-owned input (file or git), never something Kazeshini invents or silently applies.
 17. **NEVER AUTO-APPLY**: modes are observe | plan | apply-with-approval. Default is observe.
+18. **VISUAL INTEGRITY & ACCESSIBILITY**: A visual may never show something the data does not contain. Every view has (a) a table equivalent, (b) a text description for screen readers, (c) a "Visibility N of M" note, (d) deterministic output for the same input. Unknown/not-visible data is drawn as an explicit "unknown" shape, never omitted or guessed.
+
 
 

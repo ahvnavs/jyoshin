@@ -60,4 +60,3 @@ type Store interface {
 
 	Close() error
 }
-

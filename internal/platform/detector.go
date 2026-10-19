@@ -92,11 +92,11 @@ type DetectionResult struct {
 
 // HostSnapshot holds read-only host observation data for platform detection.
 type HostSnapshot struct {
-	RunningProcesses []string // Process names or cmdlines
-	ActiveUnits      []string // Active systemd units
-	ListeningPorts   []int    // Open TCP ports
+	RunningProcesses []string          // Process names or cmdlines
+	ActiveUnits      []string          // Active systemd units
+	ListeningPorts   []int             // Open TCP ports
 	InstalledPkgs    map[string]string // pkgName -> version
-	ContainerImages  []string // Active container images
+	ContainerImages  []string          // Active container images
 }
 
 // Detector evaluates platforms using host observations and filesystem state.
