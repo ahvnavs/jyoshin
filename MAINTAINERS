@@ -1,0 +1,12 @@
+# Kazeshini Maintainers
+
+The following individuals have commit, release, and security response responsibilities for Kazeshini:
+
+| Name / GitHub Handle | Role | Area of Responsibility |
+|---|---|---|
+| [@OWNER](https://github.com/OWNER) | Core Maintainer | Architecture, Security, Release Signing |
+| [@maintainer-linux](https://github.com/OWNER) | Subsystem Maintainer | Sensors, Kernel, Procfs Parsing |
+| [@maintainer-web](https://github.com/OWNER) | UI & Accessibility | Web Dashboard, WCAG Compliance |
+
+Contact for project governance questions: `maintainers@<CONFIGURED_DOMAIN>` (see [`docs/RELEASE_SETUP.md`](file:///home/ahvnav/workspace/jyoshin/docs/RELEASE_SETUP.md)).
+

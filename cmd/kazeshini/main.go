@@ -6,12 +6,16 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -208,6 +212,12 @@ func run(args []string) error {
 	case "bugreport":
 		return runBugreport(subargs)
 
+	case "verify":
+		return runVerifySelf(subargs)
+
+	case "update":
+		return runUpdateCheck(subargs)
+
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -263,6 +273,13 @@ Report:
                  Example: kazeshini audit verify
   bugreport      Generate sanitized local diagnostic bundle (zero telemetry)
                  Example: kazeshini bugreport
+
+Security & Release Verification:
+  verify         Verify self binary integrity against checksum or signature
+                 Example: kazeshini verify --checksum <sha256>
+                 Example: kazeshini verify --checksum-file checksums.txt
+  update         Opt-in check for newer releases (zero auto-update, never runs without URL)
+                 Example: kazeshini update --check --url https://releases.example.org/latest.json
 
 Start & Server:
   open           Foreground local dashboard for headless/SSH servers
@@ -2485,6 +2502,218 @@ func runBugreport(args []string) error {
 	fmt.Println("\nNEXT STEPS:")
 	fmt.Printf("  1. Review the file contents:\n     cat %s\n", reportFile)
 	fmt.Println("  2. If satisfied, share this file manually with your technical maintainer.")
+	fmt.Println("======================================================================")
+	return nil
+}
+
+// runVerifySelf checks the running or specified binary against published SHA-256 checksums or ed25519 signatures.
+func runVerifySelf(args []string) error {
+	flags := flag.NewFlagSet("verify", flag.ContinueOnError)
+	var (
+		checksumFlag     string
+		checksumFileFlag string
+		targetBinary     string
+		signatureFlag    string
+		publicKeyFlag    string
+	)
+	flags.StringVar(&checksumFlag, "checksum", "", "Expected SHA-256 hex checksum")
+	flags.StringVar(&checksumFileFlag, "checksum-file", "", "Path to sha256sums.txt checksum file")
+	flags.StringVar(&targetBinary, "binary", "", "Binary file path to verify (default: current executable)")
+	flags.StringVar(&signatureFlag, "signature", "", "Hex or raw signature of the binary or checksums file")
+	flags.StringVar(&publicKeyFlag, "public-key", "", "Hex-encoded ed25519 public key")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	exePath := targetBinary
+	if exePath == "" {
+		var err error
+		exePath, err = os.Executable()
+		if err != nil {
+			return fmt.Errorf("failed locating current executable: %w", err)
+		}
+	}
+
+	data, err := os.ReadFile(exePath)
+	if err != nil {
+		return fmt.Errorf("failed reading binary %s: %w", exePath, err)
+	}
+
+	hasher := sha256.New()
+	hasher.Write(data)
+	actualHash := hex.EncodeToString(hasher.Sum(nil))
+
+	fmt.Println("======================================================================")
+	fmt.Println("風死 · KAZESHINI BINARY INTEGRITY VERIFICATION")
+	fmt.Println("======================================================================")
+	fmt.Printf("TARGET BINARY:     %s\n", exePath)
+	fmt.Printf("COMPUTED SHA-256:  %s\n", actualHash)
+
+	if checksumFlag != "" {
+		expected := strings.ToLower(strings.TrimSpace(checksumFlag))
+		if actualHash == expected {
+			fmt.Printf("VERIFICATION:      [✓] PASS (Checksum matches provided SHA-256)\n")
+			fmt.Println("======================================================================")
+			return nil
+		}
+		fmt.Printf("VERIFICATION:      [X] FAIL (Checksum mismatch: expected %s)\n", expected)
+		fmt.Println("======================================================================")
+		return errors.New("binary checksum mismatch")
+	}
+
+	if checksumFileFlag != "" {
+		fData, err := os.ReadFile(checksumFileFlag)
+		if err != nil {
+			return fmt.Errorf("failed reading checksum file %s: %w", checksumFileFlag, err)
+		}
+		scanner := bufio.NewScanner(strings.NewReader(string(fData)))
+		baseExe := filepath.Base(exePath)
+		found := false
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				hashVal := strings.ToLower(fields[0])
+				fileName := filepath.Base(fields[1])
+				if fileName == baseExe || strings.Contains(fields[1], "kazeshini") {
+					if actualHash == hashVal {
+						fmt.Printf("MATCHED RECORD:    %s\n", line)
+						fmt.Printf("VERIFICATION:      [✓] PASS (Verified against %s)\n", checksumFileFlag)
+						fmt.Println("======================================================================")
+						return nil
+					}
+					fmt.Printf("MATCHED RECORD:    %s\n", line)
+					fmt.Printf("VERIFICATION:      [X] FAIL (Expected %s, computed %s)\n", hashVal, actualHash)
+					fmt.Println("======================================================================")
+					return errors.New("binary checksum mismatch against checksums file")
+				}
+			}
+		}
+		if !found {
+			return fmt.Errorf("no checksum entry found for %s in %s", baseExe, checksumFileFlag)
+		}
+	}
+
+	if signatureFlag != "" && publicKeyFlag != "" {
+		pubBytes, err := hex.DecodeString(publicKeyFlag)
+		if err != nil || len(pubBytes) != ed25519.PublicKeySize {
+			return fmt.Errorf("invalid ed25519 public key hex (must be 32 bytes): %w", err)
+		}
+		sigBytes, err := hex.DecodeString(signatureFlag)
+		if err != nil {
+			return fmt.Errorf("invalid signature hex: %w", err)
+		}
+		if ed25519.Verify(pubBytes, data, sigBytes) {
+			fmt.Println("SIGNATURE CHECK:   [✓] PASS (Valid ed25519 cryptographic signature)")
+			fmt.Println("======================================================================")
+			return nil
+		}
+		fmt.Println("SIGNATURE CHECK:   [X] FAIL (Invalid signature for binary payload)")
+		fmt.Println("======================================================================")
+		return errors.New("invalid cryptographic signature")
+	}
+
+	fmt.Println("STATUS:            No verification arguments provided (--checksum, --checksum-file, or --signature).")
+	fmt.Println("EXAMPLE USAGE:")
+	fmt.Printf("  kazeshini verify --checksum %s\n", actualHash)
+	fmt.Println("  kazeshini verify --checksum-file sha256sums.txt")
+	fmt.Println("======================================================================")
+	return nil
+}
+
+// runUpdateCheck implements opt-in checking for newer versions without auto-updating.
+func runUpdateCheck(args []string) error {
+	flags := flag.NewFlagSet("update", flag.ContinueOnError)
+	var (
+		checkFlag bool
+		urlFlag   string
+		timeout   time.Duration
+	)
+	flags.BoolVar(&checkFlag, "check", false, "Perform explicit opt-in update check")
+	flags.StringVar(&urlFlag, "url", "", "Custom release manifest endpoint (must be explicitly provided)")
+	flags.DurationVar(&timeout, "timeout", 5*time.Second, "Network timeout for update check")
+
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	if !checkFlag {
+		fmt.Println("Kazeshini update is strictly opt-in and off by default.")
+		fmt.Println("Zero telemetry guarantee: Kazeshini never phones home or checks for updates automatically.")
+		fmt.Println("\nTo perform a manual, one-off release check against a trusted endpoint:")
+		fmt.Println("  kazeshini update --check --url <https://releases.example.org/latest.json>")
+		return nil
+	}
+
+	if urlFlag == "" {
+		return kzerror.New(
+			kzerror.CodeInvalidConfig,
+			"No release URL specified for update check",
+			"Kazeshini does not hardcode vendor phone-home URLs to prevent unsolicited network egress.",
+			"Pass --url <https://releases.example.org/latest.json> to specify your organization's approved release mirror.",
+		)
+	}
+
+	fmt.Println("======================================================================")
+	fmt.Println("風死 · KAZESHINI OPT-IN RELEASE UPDATE CHECK")
+	fmt.Println("======================================================================")
+	fmt.Printf("CURRENT VERSION:  %s\n", Version)
+	fmt.Printf("MANIFEST URL:     %s\n", urlFlag)
+	fmt.Println("GUARANTEE:        Read-only inspection only. Auto-apply/auto-update is NEVER executed.")
+
+	client := &http.Client{Timeout: timeout}
+	req, err := http.NewRequestWithContext(context.Background(), "GET", urlFlag, nil)
+	if err != nil {
+		return fmt.Errorf("failed creating release query: %w", err)
+	}
+	req.Header.Set("User-Agent", "Kazeshini-Release-Check/1.0 (read-only; no-telemetry)")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("release check network dial failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("release endpoint returned HTTP status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
+	if err != nil {
+		return fmt.Errorf("failed reading release response: %w", err)
+	}
+
+	type ReleaseManifest struct {
+		LatestVersion string `json:"latest_version"`
+		PublishedAt   string `json:"published_at"`
+		ReleaseNotes  string `json:"release_notes"`
+		DownloadURL   string `json:"download_url"`
+		SHA256        string `json:"sha256"`
+	}
+
+	var rm ReleaseManifest
+	if err := json.Unmarshal(body, &rm); err != nil {
+		return fmt.Errorf("failed parsing release manifest JSON: %w", err)
+	}
+
+	fmt.Printf("LATEST VERSION:   %s (published: %s)\n", rm.LatestVersion, rm.PublishedAt)
+	if rm.LatestVersion != "" && rm.LatestVersion != Version {
+		fmt.Println("STATUS:           [UPDATE AVAILABLE]")
+		if rm.ReleaseNotes != "" {
+			fmt.Printf("NOTES:            %s\n", rm.ReleaseNotes)
+		}
+		fmt.Printf("MANUAL DOWNLOAD:  %s\n", rm.DownloadURL)
+		fmt.Printf("EXPECTED SHA256:  %s\n", rm.SHA256)
+		fmt.Println("\nHOW TO UPGRADE MANUALLY:")
+		fmt.Println("  1. Download the release binary and verify its checksum.")
+		fmt.Println("  2. Replace /usr/local/bin/kazeshini.")
+	} else {
+		fmt.Println("STATUS:           [UP TO DATE] You are running the latest release.")
+	}
 	fmt.Println("======================================================================")
 	return nil
 }

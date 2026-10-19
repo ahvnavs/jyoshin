@@ -1,23 +1,11 @@
-## Description
-Provide a concise explanation of the change and the rationale behind it.
+## Summary of Changes
+Provide a brief, human-first description of what this pull request modifies and why.
 
-## Type of Change
-- [ ] Sensor implementation (read-only)
-- [ ] Rule or graph improvement
-- [ ] Bug fix
-- [ ] Documentation update
-- [ ] CI / Tooling improvement
-
-## Principles Checklist
-- [ ] **NO AI/LLM/ML**: Deterministic logic only.
-- [ ] **READ-ONLY**: Never executes remediation or mutates host state.
-- [ ] **NEVER HARM THE HOST**: Low overhead, bounded work cycle.
-- [ ] **FACT vs INFERENCE**: Evidence list and certainty specified correctly.
-- [ ] **STDLIB-FIRST**: No unapproved 3rd party dependencies.
-- [ ] **BLAME-FREE**: Non-accusatory descriptions.
-- [ ] **SPDX Headers**: Present on all newly added source files.
-- [ ] **DCO**: Signed-off-by included in all commits.
-
-## Testing Performed
-Describe unit/integration tests run (`make test`, `make lint`).
-
+## Checklist
+- [ ] Code adheres to the 17 non-negotiable architectural principles in `AGENTS.md`.
+- [ ] Read-only guarantee preserved: no code modifies the host, touches disks without permission, or executes remediation.
+- [ ] Zero telemetry preserved: no egress dials, phone-homes, or analytics added.
+- [ ] Flesch-Kincaid Grade <= 8.0 preserved on all user-facing Summary strings (`go test ./internal/readability`).
+- [ ] All commits signed off with Developer Certificate of Origin (`git commit -s`).
+- [ ] `go test -race -count=1 ./...` runs to completion with zero failures.
+- [ ] `golangci-lint run ./...` reports 0 issues.
