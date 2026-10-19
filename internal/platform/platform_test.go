@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -193,9 +194,15 @@ func TestAdapters_InspectionAndPermissionDenied(t *testing.T) {
 	k8sView := k8sAdapter.Inspect(ctx)
 
 	if !k8sView.Present || len(k8sView.StaticPods) != 2 {
-		t.Errorf("expected 2 static pods, got %v", k8sView.StaticPods)
+		t.Fatalf("expected 2 static pods, got %v", k8sView.StaticPods)
 	}
-	t.Logf("[✓] K8s adapter inspected %d static pods", len(k8sView.StaticPods))
+	expectedPods := map[string]bool{"kube-apiserver.yaml": true, "etcd.yaml": true}
+	for _, p := range k8sView.StaticPods {
+		if !expectedPods[p] {
+			t.Errorf("unexpected static pod found: %s", p)
+		}
+	}
+	t.Logf("[✓] K8s adapter inspected %d static pods: %v", len(k8sView.StaticPods), k8sView.StaticPods)
 
 	// 2. Puppet & Chef fixtures
 	cfgAdapter := platform.NewConfigMgmtAdapter(rfs)
@@ -212,8 +219,14 @@ events:
 	_ = os.WriteFile(filepath.Join(puppetDir, "last_run_summary.yaml"), []byte(puppetSummary), 0644)
 
 	puppetRun := cfgAdapter.InspectPuppet(ctx)
+	if puppetRun.Tool != "puppet" {
+		t.Errorf("expected puppet tool, got %s", puppetRun.Tool)
+	}
 	if puppetRun.Result != "success" {
 		t.Errorf("expected puppet success, got %s (%s)", puppetRun.Result, puppetRun.Error)
+	}
+	if !strings.Contains(puppetRun.Summary, "failures: 0") {
+		t.Errorf("expected summary with 'failures: 0', got: %s", puppetRun.Summary)
 	}
 	t.Logf("[✓] Puppet adapter inspected last run: %s", puppetRun.Summary)
 
@@ -225,8 +238,10 @@ events:
 
 	ciAdapter := platform.NewCIRunnerAdapter(rfs)
 	ghRun := ciAdapter.InspectGitHubRunner(ctx)
-	if ghRun.Status != "permission_denied" {
-		t.Logf("Runner status: %s (unreadable check executed)", ghRun.Status)
+	if ghRun.RunnerType != "github-actions-runner" {
+		t.Errorf("expected github-actions-runner, got %s", ghRun.RunnerType)
+	}
+	if ghRun.Status != "permission_denied" && ghRun.Status != "configured" {
+		t.Errorf("unexpected runner status: %s", ghRun.Status)
 	}
 }
-
