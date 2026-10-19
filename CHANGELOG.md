@@ -5,6 +5,34 @@ All notable changes to Kazeshini will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-rc.1] - 2026-10-19
+
+### Release Candidate 1: Full Server Truth Engine Consolidation
+
+#### Added
+- **Space Colonization Growth Map (`kazeshini view growth`, SVG export, Web UI)**:
+  - Deterministic space colonization algorithm mapping host entities (processes, services, ports, unmanaged software) to real provenance edges.
+  - Byte-identical reproducibility seeded by `sha256(machine-id)`.
+  - Accessible SVG with `<title>`, `<desc>`, `role="img"`, and hidden screen-reader table equivalent.
+  - Chunked browser animation (< 40ms/frame) with automatic bypass when `prefers-reduced-motion` is active.
+- **Visual Domain Views & View Switchers**:
+  - Overview: Tree $\leftrightarrow$ SVG Growth Map.
+  - Storage: Checks Table $\leftrightarrow$ Filesystem Treemap bar allocation view.
+  - Network: Checks Table $\leftrightarrow$ Process $\times$ Remote Endpoint socket matrix.
+  - Services: Checks Table $\leftrightarrow$ Provenance unit hierarchy.
+  - Persistent active view per domain in `localStorage`.
+- **Export Framework (`kazeshini export`, Web UI Export Menu)**:
+  - Export machine state to JSON, CSV, Markdown, standalone HTML, and SVG vector formats.
+- **Canonical Wording & 11 Domains**:
+  - Overview, Software, Services, Network, Storage, Security, Logs, Platforms, Drift, Audit Log, Settings.
+  - Standardized states: Healthy, Degraded, Critical, Partial visibility, Unknown.
+  - Risk Score (0–100) with top risk contributors.
+  - Standardized 8-field check cards with plain summaries, impact statements, and equivalent inspection commands.
+- **Zero-Argument First-Run Experience**:
+  - Running `kazeshini` with no arguments starts stateless in-memory, binds loopback, outputs terminal summary and SSH tunnel instructions, and auto-exits after 30m idle.
+- **Packaging, Governance & Supply Chain Security**:
+  - Reproducible static builds, Cosign keyless signatures, SPDX SBOM, and offline binary verification (`kazeshini verify`).
+
 ## [0.1.0-beta.1] - 2026-10-12
 
 ### Beta 1 Release: Server Truth Engine for Linux
