@@ -103,7 +103,7 @@ func run(args []string) error {
 
 	// Platform validation guard
 	if runtime.GOOS != "linux" {
-		return fmt.Errorf("Kazeshini requires Linux. Current operating system is %s", runtime.GOOS)
+		return fmt.Errorf("kazeshini requires Linux. Current operating system is %s", runtime.GOOS)
 	}
 	if _, err := os.Stat("/proc"); os.IsNotExist(err) {
 		return fmt.Errorf("This host has no /proc. Kazeshini needs Linux 3.10 or newer.")

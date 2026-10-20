@@ -379,10 +379,7 @@ func (gm *GrowthMap) RenderSVG() string {
 }
 
 // RenderTerminal generates clean ANSI/ASCII representation for terminal.
-func (gm *GrowthMap) RenderTerminal(cols int, noColor bool) string {
-	if cols <= 0 {
-		cols = 80
-	}
+func (gm *GrowthMap) RenderTerminal(_ int, noColor bool) string {
 	var sb strings.Builder
 
 	sb.WriteString("======================================================================\n")

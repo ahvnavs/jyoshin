@@ -23,10 +23,7 @@ type StorageNode struct {
 }
 
 // RenderStorageTerminal outputs a deterministic ASCII treemap table for the terminal.
-func RenderStorageTerminal(mounts []StorageNode, cols int) string {
-	if cols <= 0 {
-		cols = 80
-	}
+func RenderStorageTerminal(mounts []StorageNode, _ int) string {
 	var sb strings.Builder
 
 	sb.WriteString("======================================================================\n")
@@ -72,10 +69,7 @@ type NetworkSocketRow struct {
 }
 
 // RenderNetworkMatrixTerminal formats the network matrix for terminal view.
-func RenderNetworkMatrixTerminal(rows []NetworkSocketRow, cols int) string {
-	if cols <= 0 {
-		cols = 80
-	}
+func RenderNetworkMatrixTerminal(rows []NetworkSocketRow, _ int) string {
 	var sb strings.Builder
 
 	sb.WriteString("======================================================================\n")
