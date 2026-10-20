@@ -650,9 +650,12 @@ func (g *ProvenanceGraph) ingestNetwork(obs sensors.Observation, now time.Time) 
 			Type:  graph.NodePort,
 			Label: fmt.Sprintf("port %s/%d (%s)", l.Protocol, l.LocalPort, l.ExposureClass),
 			Properties: map[string]any{
+				"port":           l.LocalPort,
+				"local_port":     l.LocalPort,
 				"protocol":       l.Protocol,
 				"local_ip":       l.LocalIP,
-				"local_port":     l.LocalPort,
+				"process_name":   l.ProcessName,
+				"pid":            l.PID,
 				"exposure_class": l.ExposureClass,
 				"inode":          l.Inode,
 			},
